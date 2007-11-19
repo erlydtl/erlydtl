@@ -1,7 +1,6 @@
 ERL=/Users/rsaccon/R11B/start.sh
 #ERL=/usr/local/erlware/bin/erl
-ERL=erl
-NODENAME=skast
+#ERL=erl
 
 
 all:
