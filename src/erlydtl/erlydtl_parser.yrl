@@ -56,11 +56,17 @@ Elements -> Elements Element : ['$1', '$2'].
 
 Element -> string : '$1'.
 Element -> var : '$1'.
-Element -> extends : '$1'.
+% Element -> extends : '$1'.
+Element -> extends : extends('$1').
 Element -> block Elements endblock : block('$1', '$2').
 
 
+
 Erlang code.
+
+extends({_, _, [Name]}) ->
+    %% TODO: check if string or variable, now it is assumed it is string
+    {extends, 1, string:strip(Name, both, $")}.
 
 block({_, _, [Name]}, Content) ->
     {block, list_to_atom(Name), Content}.

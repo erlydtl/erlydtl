@@ -67,6 +67,7 @@ rel_dir(Dir, DocRoot) ->
 
 
 parse(File) ->  
+io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, File]),
 	case file:read_file(File) of
 		{ok, B} ->
 	        case erlydtl_scanner:scan(binary_to_list(B)) of

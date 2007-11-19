@@ -1,6 +1,9 @@
 -module(erlydtl_parser).
 -export([parse/1, parse_and_scan/1, format_error/1]).
--file("src/erlydtl/erlydtl_parser.yrl", 63).
+-file("src/erlydtl/erlydtl_parser.yrl", 65).
+
+extends({_, _, [Name]}) ->
+    {extends, 1, string:strip(Name, both, $")}.
 
 block({_, _, [Name]}, Content) ->
     {block, list_to_atom(Name), Content}.
@@ -97,7 +100,7 @@ yecctoken2string(Other) ->
 
 
 
--file("src/erlydtl/erlydtl_parser.erl", 100).
+-file("src/erlydtl/erlydtl_parser.erl", 103).
 
 yeccpars2(0, __Cat, __Ss, __Stack, __T, __Ts, __Tzr) ->
  __NewStack = yeccpars2_0_(__Stack),
@@ -122,7 +125,8 @@ yeccpars2(3, __Cat, __Ss, __Stack, __T, __Ts, __Tzr) ->
  __NewStack = yeccpars2_3_(__Stack),
  yeccpars2(7, __Cat, [3 | __Ss], __NewStack, __T, __Ts, __Tzr);
 yeccpars2(4, __Cat, __Ss, __Stack, __T, __Ts, __Tzr) ->
- yeccpars2(yeccgoto('Element', hd(__Ss)), __Cat, __Ss, __Stack, __T, __Ts, __Tzr);
+ __NewStack = yeccpars2_4_(__Stack),
+ yeccpars2(yeccgoto('Element', hd(__Ss)), __Cat, __Ss, __NewStack, __T, __Ts, __Tzr);
 yeccpars2(5, __Cat, __Ss, __Stack, __T, __Ts, __Tzr) ->
  yeccpars2(yeccgoto('Element', hd(__Ss)), __Cat, __Ss, __Stack, __T, __Ts, __Tzr);
 yeccpars2(6, __Cat, __Ss, __Stack, __T, __Ts, __Tzr) ->
@@ -178,12 +182,19 @@ yeccpars2_3_(__Stack) ->
    nil
   end | __Stack].
 
--compile({inline,{yeccpars2_8_,1}}).
+-compile({inline,{yeccpars2_4_,1}}).
 -file("src/erlydtl/erlydtl_parser.yrl", 57).
+yeccpars2_4_([__1 | __Stack]) ->
+ [begin
+   extends ( __1 )
+  end | __Stack].
+
+-compile({inline,{yeccpars2_8_,1}}).
+-file("src/erlydtl/erlydtl_parser.yrl", 58).
 yeccpars2_8_([__3,__2,__1 | __Stack]) ->
  [begin
    block ( __1 , __2 )
   end | __Stack].
 
 
--file("src/erlydtl/erlydtl_parser.yrl", 66).
+-file("src/erlydtl/erlydtl_parser.yrl", 71).

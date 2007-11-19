@@ -48,7 +48,7 @@
 compile_templates() ->
     DocRoot = filename:join([filename:dirname(code:which(?MODULE)),"..", "demo", "templates"]),
     filelib:fold_files(DocRoot,
-        "\.",
+        "\.html$",
         true,
         fun(Path, _Acc) ->
             Name = filename:rootname(filename:basename(Path)),
