@@ -34,8 +34,7 @@
 -author('rsaccon@gmail.com').
 
 %% API
--export([compile_templates/0,
-    render_html/0]).
+-export([compile_templates/0, render_html/0]).
 
 %%====================================================================
 %% API
@@ -52,7 +51,7 @@ compile_templates() ->
         true,
         fun(Path, _Acc) ->
             Name = filename:rootname(filename:basename(Path)),
-            erlydtl_api:compile(Path, Name, Name, DocRoot)
+            erlydtl_api:compile(Path, Name, "render", DocRoot)
         end,
         []).
   
@@ -73,32 +72,32 @@ render_html() ->
 %% Internal functions
 %%====================================================================
 
-render(OutDir, Name, Ext, Var) ->
-    case catch Name:Name(Var) of
+render(OutDir, Module, Ext, Var) ->
+    case catch Module:render(Var) of
         {'EXIT', Reason} -> 
             io:format("TRACE ~p:~p ~p: rendering failure: ~n",[?MODULE, ?LINE, Reason]);
         Val -> 
-            case file:open(filename:join([OutDir, lists:concat([Name, Ext])]), [write]) of
+            case file:open(filename:join([OutDir, lists:concat([Module, Ext])]), [write]) of
         		{ok, IoDev} ->
         		    file:write(IoDev, Val),
         		    file:close(IoDev),
-        		    io:format("TRACE ~p:~p ~p: success~n",[?MODULE, ?LINE, Name]);
+        		    io:format("TRACE ~p:~p ~p: success~n",[?MODULE, ?LINE, Module]);
         		_ ->
-        		    io:format("TRACE ~p:~p ~p: file write failure~n",[?MODULE, ?LINE, Name])
+        		    io:format("TRACE ~p:~p ~p: file write failure~n",[?MODULE, ?LINE, Module])
         	end
     end.
     
-render(OutDir, Name, Ext) ->
-    case catch Name:Name() of
+render(OutDir, Module, Ext) ->
+    case catch Module:render() of
         {'EXIT', Reason} -> 
             io:format("TRACE ~p:~p ~p: rendering failure: ~n",[?MODULE, ?LINE, Reason]);
         Val -> 
-            case file:open(filename:join([OutDir, lists:concat([Name, Ext])]), [write]) of
+            case file:open(filename:join([OutDir, lists:concat([Module, Ext])]), [write]) of
         		{ok, IoDev} ->
         		    file:write(IoDev, Val),
         		    file:close(IoDev),
-        		    io:format("TRACE ~p:~p ~p: success~n",[?MODULE, ?LINE, Name]);
+        		    io:format("TRACE ~p:~p ~p: success~n",[?MODULE, ?LINE, Module]);
         		_ ->
-        		    io:format("TRACE ~p:~p ~p: file write failure~n",[?MODULE, ?LINE, Name])
+        		    io:format("TRACE ~p:~p ~p: file write failure~n",[?MODULE, ?LINE, Module])
         	end
     end.
