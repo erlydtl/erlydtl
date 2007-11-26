@@ -34,16 +34,25 @@
 -author('rsaccon@gmail.com').
 
 %% API
--export([compile/4]).
-
+-export([compile/3, compile/4]).
 
 %%--------------------------------------------------------------------
-%% @spec (File:string(), ModuleName:string(), FunctionName:atom(), DocRoot:string()) -> 
+%% @spec (File:string(), ModuleName:string(), DocRoot:string()) -> 
 %%     {Ok::atom, Ast::tuple() | {Error::atom(), Msg:string()}
 %% @doc compiles a template to a beam file
 %% @end 
 %%--------------------------------------------------------------------
-compile(File, ModuleName, FunctionName, DocRoot) ->   
+compile(File, ModuleName, DocRoot) ->
+    compile(File, ModuleName, DocRoot, "render").
+    
+
+%%--------------------------------------------------------------------
+%% @spec (File:string(), ModuleName:string(), DocRoot:string(), FunctionName:atom()) -> 
+%%     {Ok::atom, Ast::tuple() | {Error::atom(), Msg:string()}
+%% @doc compiles a template to a beam file
+%% @end 
+%%--------------------------------------------------------------------
+compile(File, ModuleName, DocRoot, FunctionName) ->   
     case parse(File) of
         {ok, Ast} ->
 			RelDir = rel_dir(filename:dirname(File), DocRoot),
