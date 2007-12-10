@@ -30,7 +30,7 @@
 %%%
 %%% @since 2007-11-17 by Roberto Saccon
 %%%-------------------------------------------------------------------
--module(erlydtl_api).
+-module(erlydtl).
 -author('rsaccon@gmail.com').
 
 %% API
@@ -94,18 +94,15 @@ parse(File) ->
 
 compile_reload_ast([H | T], ModuleName, FunctionName, RelDir) ->
     {List, Args} = case transl(H, T, [], [], RelDir) of
-		               {regular, List0, Args0} ->
-		                   io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, regualar]),
-			               {[inplace_block(X) ||  X <- List0], Args0};
-		               {inherited, List0, Arg0} ->
-		                   io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, inherited]),
-			               {List0, Arg0}
-		           end,    
-		           io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE,  {List, Args}]),
+	    {regular, List0, Args0} ->
+		    {[inplace_block(X) ||  X <- List0], Args0};
+		{inherited, List0, Arg0} ->
+			{List0, Arg0}
+	end,    	           
     Args2 = lists:reverse([{var, 1, Val} || {Val, _} <- Args]),  
     Cons = list_fold(lists:reverse(List)),                           
     Ast2 = {function, 1, list_to_atom(FunctionName), length(Args2),
-            [{clause, 1, Args2, [], [Cons]}]},
+        [{clause, 1, Args2, [], [Cons]}]},
     Ac = erlydtl_tools:create_module(Ast2 , ModuleName),    
     case compile:forms(Ac) of
         {ok, Module, Bin} ->
@@ -126,23 +123,28 @@ list_fold([E1, E2]) ->
     {cons, 1, E2, E1};           
 list_fold([E1, E2 | Tail]) ->
     lists:foldl(fun(X, T) -> 
-                    {cons, 1, X, T}
-                end, {cons, 1, E2, E1}, Tail).                       
+        {cons, 1, X, T}
+    end, {cons, 1, E2, E1}, Tail).                       
 
 
 transl(nil, [{extends, _, Name}], Out, Args, RelDir) -> 
     case parse(filename:join([RelDir, Name])) of
-           {ok, ParentAst} ->
-			   [H|T]=ParentAst,
-			   {_, List, Args1} = transl(H, T, [], [], RelDir),
-		       {inherited, [replace_block(X, Out) ||  X <- List], Args1};
-	       {error, Msg} ->
-	           io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, Msg]),
-	           io:format("TRACE ~p:~p Parent Parser failure: ~p~n",[?MODULE, ?LINE, Name]),
-		       {regular, Out, Args}			
+        {ok, ParentAst} ->
+		    [H|T]=ParentAst,
+			{_, List, Args1} = transl(H, T, [], [], RelDir),			 
+			{List3, Args3} = lists:foldl(fun(X, {List2, Args2}) -> 
+                {List4, Args4} = replace_block(X, Out, Args2),            
+                {[List4 | List2], Args4}
+            end, {[], Args1}, List),		   
+		    {inherited, lists:reverse(lists:flatten([List3])), lists:flatten(Args3)};
+	    {error, Msg} ->
+	         io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, Msg]),
+	         io:format("TRACE ~p:~p Parent Parser failure: ~p~n",[?MODULE, ?LINE, Name]),
+		     {regular, Out, Args}			
     end;
 	
 transl(nil, [{var, L, Val}], Out, Args, _) ->
+     io:format("TRACE ~p:~p nil ~p~n",[?MODULE, ?LINE, {Val, Args}]),
     case lists:keysearch(Val, 2, Args) of
         false ->
             Key = list_to_atom(lists:concat(["A", length(Args) + 1])),
@@ -157,9 +159,11 @@ transl(nil, [Token], Out, Args, _) ->
 transl([H | T], [{var, L, Val}], Out, Args, DocRoot) ->
     case lists:keysearch(Val, 2, Args) of
         false ->
+                io:format("TRACE ~p:~p normal_not_found ~p~n",[?MODULE, ?LINE, {Val, Args}]),              
             Key = list_to_atom(lists:concat(["A", length(Args) + 1])),
             transl(H, T, [{var, L, Key} | Out], [{Key, Val} | Args], DocRoot);
         {value, {Key, _}} ->  
+                   io:format("TRACE ~p:~p normal_found ~p~n",[?MODULE, ?LINE, {Val, Key, Args}]),
             transl(H, T, [{var, L, Key} | Out], Args, DocRoot)
 	end;	 
 	
@@ -167,21 +171,19 @@ transl([H | T], [Token], Out, Args, DocRoot) ->
     transl(H, T, [Token | Out], Args, DocRoot).
 
 
-replace_block({block, Name, [nil, Str1]}, List) ->
+replace_block({block, Name, [nil, Val]}, List, Args) ->
 	case lists:keysearch(Name, 2, List) of
 		false -> 
-			Str1;
-		{value, {_, _, [nil, Str2]}} ->  
-			Str2
+			{Val, Args};
+		{value, {_, _, [H | T]}} ->  
+		    {_, List2, Args2} = transl(H, T, [], Args, undefined),
+		    {lists:reverse(List2), Args2} 
  	end;
-replace_block(Other, _) ->	
-	Other.
-
+replace_block(Other, _, Args) ->	
+	{Other, Args}.
+    
 	
 inplace_block({block, _, [nil, Str]}) ->
 	Str;
 inplace_block(Other) ->	
 	Other.
-	
-	
-
