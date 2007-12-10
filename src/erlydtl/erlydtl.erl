@@ -1,5 +1,5 @@
 %%%-------------------------------------------------------------------
-%%% File:      erlydtl.erl
+%%% File:      erlydtl_api.erl
 %%% @author    Roberto Saccon <rsaccon@gmail.com> [http://rsaccon.com]
 %%% @copyright 2007 Roberto Saccon
 %%% @doc  
@@ -30,7 +30,7 @@
 %%%
 %%% @since 2007-11-17 by Roberto Saccon
 %%%-------------------------------------------------------------------
--module(erlydtl).
+-module(erlydtl_api).
 -author('rsaccon@gmail.com').
 
 %% API
