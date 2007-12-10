@@ -63,8 +63,8 @@ compile_templates() ->
 %%--------------------------------------------------------------------
 render_html() ->
     OutDir = filename:join([filename:dirname(code:which(?MODULE)),"..", "demo", "out"]),
-    render(OutDir, test_variable, ".html", "foostring"),
-    render(OutDir, test_extend, ".html", "blastring"),
+    render(OutDir, test_variable, ".html", ["foostring"]),
+    render(OutDir, test_extend, ".html", ["bar1string", "bar2string"]),
     render(OutDir, test_comment, ".html").
 
               
@@ -72,8 +72,8 @@ render_html() ->
 %% Internal functions
 %%====================================================================
 
-render(OutDir, Module, Ext, Var) ->
-    case catch Module:render(Var) of
+render(OutDir, Module, Ext, Args) ->
+    case catch apply(Module, render, Args) of
         {'EXIT', Reason} -> 
             io:format("TRACE ~p:~p ~p: rendering failure: ~n",[?MODULE, ?LINE, Reason]);
         Val -> 
