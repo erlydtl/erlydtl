@@ -162,11 +162,23 @@ translate_token({var, Line, [[S] | _]}) ->
     {var, Line, S};
 
 translate_token({tag, Line, [[H | T] | _]}) ->
-    {list_to_atom(H), Line, T};
+    translate_tag(H, T, Line) ;
 
 translate_token(Token) ->
     io:format("TRACE ~p:~p unrecognized token: ~p~n",[?MODULE, ?LINE, Token]),
     Token.
+
+translate_tag("extends" = H, T, Line) ->
+    {list_to_atom(H), Line, T};
+    
+translate_tag("block" = H, T, Line) ->
+    {list_to_atom(H), Line, T};   
+    
+translate_tag("endblock" = H, T, Line) ->
+    {list_to_atom(H), Line, T};         
+
+translate_tag(H, T, Line) ->
+    {tag, Line, [list_to_atom(H) | T]}.
 
 
 until(P) ->

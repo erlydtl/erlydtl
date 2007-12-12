@@ -37,11 +37,12 @@ Nonterminals
     Element.
 
 Terminals 
+    string
     var
     extends
     block
     endblock
-    string.
+    tag.
 
 Rootsymbol    
     Elements. 
@@ -56,17 +57,19 @@ Elements -> Elements Element : ['$1', '$2'].
 
 Element -> string : '$1'.
 Element -> var : '$1'.
-% Element -> extends : '$1'.
 Element -> extends : extends('$1').
 Element -> block Elements endblock : block('$1', '$2').
-
+Element -> tag : tag('$1').
 
 
 Erlang code.
 
-extends({_, _, [Name]}) ->
+extends({_, Line, [Name]}) ->
     %% TODO: check if string or variable, now it is assumed it is string
-    {extends, 1, string:strip(Name, both, $")}.
+    {extends, Line, string:strip(Name, both, $")}.
 
-block({_, _, [Name]}, Content) ->
-    {block, list_to_atom(Name), Content}.
+block({_, Line, [Name]}, Content) ->
+    {block, Line, list_to_atom(Name), Content}.
+
+tag({_, Line, Args}) ->
+    {tag, Line, Args}.
