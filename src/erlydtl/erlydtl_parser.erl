@@ -2,11 +2,15 @@
 -export([parse/1, parse_and_scan/1, format_error/1]).
 -file("src/erlydtl/erlydtl_parser.yrl", 65).
 
-extends({_, _, [Name]}) ->
-    {extends, 1, string:strip(Name, both, $")}.
+extends({_, Line, [Name]}) ->
+    %% TODO: check if string or variable, now it is assumed it is string
+    {extends, Line, string:strip(Name, both, $")}.
 
-block({_, _, [Name]}, Content) ->
-    {block, list_to_atom(Name), Content}.
+block({_, Line, [Name]}, Content) ->
+    {block, Line, list_to_atom(Name), Content}.
+
+tag({_, Line, Args}) ->
+    {tag, Line, Args}.
 -file("/Users/rsaccon/R11B/erlang/lib/parsetools-1.4.1.1/include/yeccpre.hrl", 0).
 %% ``The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
@@ -100,7 +104,7 @@ yecctoken2string(Other) ->
 
 
 
--file("src/erlydtl/erlydtl_parser.erl", 103).
+-file("src/erlydtl/erlydtl_parser.erl", 107).
 
 yeccpars2(0, __Cat, __Ss, __Stack, __T, __Ts, __Tzr) ->
  __NewStack = yeccpars2_0_(__Stack),
@@ -113,8 +117,10 @@ yeccpars2(1, extends, __Ss, __Stack, __T, __Ts, __Tzr) ->
  yeccpars1(__Ts, __Tzr, 4, [1 | __Ss], [__T | __Stack]);
 yeccpars2(1, string, __Ss, __Stack, __T, __Ts, __Tzr) ->
  yeccpars1(__Ts, __Tzr, 5, [1 | __Ss], [__T | __Stack]);
-yeccpars2(1, var, __Ss, __Stack, __T, __Ts, __Tzr) ->
+yeccpars2(1, tag, __Ss, __Stack, __T, __Ts, __Tzr) ->
  yeccpars1(__Ts, __Tzr, 6, [1 | __Ss], [__T | __Stack]);
+yeccpars2(1, var, __Ss, __Stack, __T, __Ts, __Tzr) ->
+ yeccpars1(__Ts, __Tzr, 7, [1 | __Ss], [__T | __Stack]);
 yeccpars2(1, _, _, _, __T, _, _) ->
  yeccerror(__T);
 yeccpars2(2, __Cat, __Ss, __Stack, __T, __Ts, __Tzr) ->
@@ -123,28 +129,33 @@ yeccpars2(2, __Cat, __Ss, __Stack, __T, __Ts, __Tzr) ->
  yeccpars2(yeccgoto('Elements', hd(__Nss)), __Cat, __Nss, __NewStack, __T, __Ts, __Tzr);
 yeccpars2(3, __Cat, __Ss, __Stack, __T, __Ts, __Tzr) ->
  __NewStack = yeccpars2_3_(__Stack),
- yeccpars2(7, __Cat, [3 | __Ss], __NewStack, __T, __Ts, __Tzr);
+ yeccpars2(8, __Cat, [3 | __Ss], __NewStack, __T, __Ts, __Tzr);
 yeccpars2(4, __Cat, __Ss, __Stack, __T, __Ts, __Tzr) ->
  __NewStack = yeccpars2_4_(__Stack),
  yeccpars2(yeccgoto('Element', hd(__Ss)), __Cat, __Ss, __NewStack, __T, __Ts, __Tzr);
 yeccpars2(5, __Cat, __Ss, __Stack, __T, __Ts, __Tzr) ->
  yeccpars2(yeccgoto('Element', hd(__Ss)), __Cat, __Ss, __Stack, __T, __Ts, __Tzr);
 yeccpars2(6, __Cat, __Ss, __Stack, __T, __Ts, __Tzr) ->
+ __NewStack = yeccpars2_6_(__Stack),
+ yeccpars2(yeccgoto('Element', hd(__Ss)), __Cat, __Ss, __NewStack, __T, __Ts, __Tzr);
+yeccpars2(7, __Cat, __Ss, __Stack, __T, __Ts, __Tzr) ->
  yeccpars2(yeccgoto('Element', hd(__Ss)), __Cat, __Ss, __Stack, __T, __Ts, __Tzr);
-yeccpars2(7, block, __Ss, __Stack, __T, __Ts, __Tzr) ->
- yeccpars1(__Ts, __Tzr, 3, [7 | __Ss], [__T | __Stack]);
-yeccpars2(7, endblock, __Ss, __Stack, __T, __Ts, __Tzr) ->
- yeccpars1(__Ts, __Tzr, 8, [7 | __Ss], [__T | __Stack]);
-yeccpars2(7, extends, __Ss, __Stack, __T, __Ts, __Tzr) ->
- yeccpars1(__Ts, __Tzr, 4, [7 | __Ss], [__T | __Stack]);
-yeccpars2(7, string, __Ss, __Stack, __T, __Ts, __Tzr) ->
- yeccpars1(__Ts, __Tzr, 5, [7 | __Ss], [__T | __Stack]);
-yeccpars2(7, var, __Ss, __Stack, __T, __Ts, __Tzr) ->
- yeccpars1(__Ts, __Tzr, 6, [7 | __Ss], [__T | __Stack]);
-yeccpars2(7, _, _, _, __T, _, _) ->
+yeccpars2(8, block, __Ss, __Stack, __T, __Ts, __Tzr) ->
+ yeccpars1(__Ts, __Tzr, 3, [8 | __Ss], [__T | __Stack]);
+yeccpars2(8, endblock, __Ss, __Stack, __T, __Ts, __Tzr) ->
+ yeccpars1(__Ts, __Tzr, 9, [8 | __Ss], [__T | __Stack]);
+yeccpars2(8, extends, __Ss, __Stack, __T, __Ts, __Tzr) ->
+ yeccpars1(__Ts, __Tzr, 4, [8 | __Ss], [__T | __Stack]);
+yeccpars2(8, string, __Ss, __Stack, __T, __Ts, __Tzr) ->
+ yeccpars1(__Ts, __Tzr, 5, [8 | __Ss], [__T | __Stack]);
+yeccpars2(8, tag, __Ss, __Stack, __T, __Ts, __Tzr) ->
+ yeccpars1(__Ts, __Tzr, 6, [8 | __Ss], [__T | __Stack]);
+yeccpars2(8, var, __Ss, __Stack, __T, __Ts, __Tzr) ->
+ yeccpars1(__Ts, __Tzr, 7, [8 | __Ss], [__T | __Stack]);
+yeccpars2(8, _, _, _, __T, _, _) ->
  yeccerror(__T);
-yeccpars2(8, __Cat, __Ss, __Stack, __T, __Ts, __Tzr) ->
- __NewStack = yeccpars2_8_(__Stack),
+yeccpars2(9, __Cat, __Ss, __Stack, __T, __Ts, __Tzr) ->
+ __NewStack = yeccpars2_9_(__Stack),
  __Nss = lists:nthtail(2, __Ss),
  yeccpars2(yeccgoto('Element', hd(__Nss)), __Cat, __Nss, __NewStack, __T, __Ts, __Tzr);
 yeccpars2(__Other, _, _, _, _, _, _) ->
@@ -152,31 +163,31 @@ yeccpars2(__Other, _, _, _, _, _, _) ->
 
 yeccgoto('Element', 1) ->
  2;
-yeccgoto('Element', 7) ->
+yeccgoto('Element', 8) ->
  2;
 yeccgoto('Elements', 0) ->
  1;
 yeccgoto('Elements', 3) ->
- 7;
+ 8;
 yeccgoto(__Symbol, __State) ->
  erlang:error({yecc_bug,"1.1",{__Symbol, __State, missing_in_goto_table}}).
 
 -compile({inline,{yeccpars2_0_,1}}).
--file("src/erlydtl/erlydtl_parser.yrl", 51).
+-file("src/erlydtl/erlydtl_parser.yrl", 52).
 yeccpars2_0_(__Stack) ->
  [begin
    nil
   end | __Stack].
 
 -compile({inline,{yeccpars2_2_,1}}).
--file("src/erlydtl/erlydtl_parser.yrl", 52).
+-file("src/erlydtl/erlydtl_parser.yrl", 53).
 yeccpars2_2_([__2,__1 | __Stack]) ->
  [begin
    [ __1 , __2 ]
   end | __Stack].
 
 -compile({inline,{yeccpars2_3_,1}}).
--file("src/erlydtl/erlydtl_parser.yrl", 51).
+-file("src/erlydtl/erlydtl_parser.yrl", 52).
 yeccpars2_3_(__Stack) ->
  [begin
    nil
@@ -189,12 +200,19 @@ yeccpars2_4_([__1 | __Stack]) ->
    extends ( __1 )
   end | __Stack].
 
--compile({inline,{yeccpars2_8_,1}}).
+-compile({inline,{yeccpars2_6_,1}}).
+-file("src/erlydtl/erlydtl_parser.yrl", 59).
+yeccpars2_6_([__1 | __Stack]) ->
+ [begin
+   tag ( __1 )
+  end | __Stack].
+
+-compile({inline,{yeccpars2_9_,1}}).
 -file("src/erlydtl/erlydtl_parser.yrl", 58).
-yeccpars2_8_([__3,__2,__1 | __Stack]) ->
+yeccpars2_9_([__3,__2,__1 | __Stack]) ->
  [begin
    block ( __1 , __2 )
   end | __Stack].
 
 
--file("src/erlydtl/erlydtl_parser.yrl", 71).
+-file("src/erlydtl/erlydtl_parser.yrl", 75).

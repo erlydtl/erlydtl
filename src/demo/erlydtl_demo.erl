@@ -34,7 +34,7 @@
 -author('rsaccon@gmail.com').
 
 %% API
--export([compile_templates/0, render_html/0]).
+-export([compile_templates/0, compile_test_template/1, render_html/0]).
 
 %%====================================================================
 %% API
@@ -54,7 +54,19 @@ compile_templates() ->
             erlydtl:compile(Path, Name, DocRoot)
         end,
         []).
-  
+ 
+%%--------------------------------------------------------------------
+%% @spec (string()) -> any()
+%% @doc 
+%% compiles the template to beam files
+%% @end 
+%%--------------------------------------------------------------------       
+compile_test_template(Name) ->
+    DocRoot = filename:join([filename:dirname(code:which(?MODULE)),"..", "demo", "templates"]),
+    Name2 = "test_" ++ Name,
+    Path = filename:join([DocRoot, Name2 ++ ".html"]),
+    erlydtl:compile(Path, Name2, DocRoot).
+
                        
 %%--------------------------------------------------------------------
 %% @spec () -> any()
@@ -65,7 +77,9 @@ render_html() ->
     OutDir = filename:join([filename:dirname(code:which(?MODULE)),"..", "demo", "out"]),
     render(OutDir, test_variable, ".html", ["foostring"]),
     render(OutDir, test_extend, ".html", ["bar1string", "bar2string"]),
-    render(OutDir, test_comment, ".html").
+ %% render(OutDir, test_extend, ".html", ["bar1string"]),
+    render(OutDir, test_comment, ".html"),
+    render(OutDir, test_tags, ".html").
 
               
 %%====================================================================
