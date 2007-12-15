@@ -65,7 +65,7 @@ compile_test_template(Name) ->
     DocRoot = filename:join([filename:dirname(code:which(?MODULE)),"..", "demo", "templates"]),
     Name2 = "test_" ++ Name,
     Path = filename:join([DocRoot, Name2 ++ ".html"]),
-    erlydtl:compile(Path, Name2, DocRoot).
+    erlydtl_server:compile(Path, Name2, DocRoot).
 
                        
 %%--------------------------------------------------------------------
