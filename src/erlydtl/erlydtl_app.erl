@@ -53,7 +53,7 @@
 %% @end 
 %%--------------------------------------------------------------------
 start(_Type, StartArgs) ->
-    skast_sup:start_link(StartArgs).
+    erlydtl_sup:start_link(StartArgs).
 
 %%--------------------------------------------------------------------
 %% @spec stop(State) -> void()
