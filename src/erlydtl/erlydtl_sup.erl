@@ -68,8 +68,8 @@ start_link() ->
 %% @end 
 %%--------------------------------------------------------------------
 init([]) ->
-    AChild = {erlydtl,{erlydtl,start_link,[]},
-              permanent,2000,worker,[erlydtl]},
+    AChild = {erlydtl_server,{erlydtl_server,start_link,[]},
+              permanent,2000,worker,[erlydtl_server]},
     {ok,{{one_for_all,0,1}, [AChild]}}.
 
 %%====================================================================

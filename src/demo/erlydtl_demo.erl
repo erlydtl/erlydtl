@@ -51,7 +51,7 @@ compile_templates() ->
         true,
         fun(Path, _Acc) ->
             Name = filename:rootname(filename:basename(Path)),
-            erlydtl:compile(Path, Name, DocRoot)
+            erlydtl_server:compile(Path, Name, DocRoot)
         end,
         []).
  
