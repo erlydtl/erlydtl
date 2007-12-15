@@ -77,7 +77,6 @@ render_html() ->
     OutDir = filename:join([filename:dirname(code:which(?MODULE)),"..", "demo", "out"]),
     render(OutDir, test_variable, ".html", ["foostring"]),
     render(OutDir, test_extend, ".html", ["bar1string", "bar2string"]),
- %% render(OutDir, test_extend, ".html", ["bar1string"]),
     render(OutDir, test_comment, ".html"),
     render(OutDir, test_tags, ".html").
 
