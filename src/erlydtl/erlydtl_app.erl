@@ -52,8 +52,8 @@
 %% top supervisor of the tree.
 %% @end 
 %%--------------------------------------------------------------------
-start(_Type, StartArgs) ->
-    erlydtl_sup:start_link(StartArgs).
+start(_Type, _StartArgs) ->
+    erlydtl_sup:start_link().
 
 %%--------------------------------------------------------------------
 %% @spec stop(State) -> void()
