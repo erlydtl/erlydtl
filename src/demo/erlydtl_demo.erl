@@ -34,7 +34,10 @@
 -author('rsaccon@gmail.com').
 
 %% API
--export([compile_templates/0, compile_test_template/1, render_html/0]).
+-export([compile_templates/0, 
+    compile_test_template/1, 
+    compile_test_template/2, 
+    render_all/0]).
 
 %%====================================================================
 %% API
@@ -47,24 +50,35 @@
 compile_templates() ->
     DocRoot = filename:join([filename:dirname(code:which(?MODULE)),"..", "demo", "templates"]),
     filelib:fold_files(DocRoot,
-        "\.html$",
+        "\.html$|\.css$",
         true,
         fun(Path, _Acc) ->
             Name = filename:rootname(filename:basename(Path)),
             erlydtl_server:compile(Path, Name, DocRoot)
         end,
         []).
- 
+
+
 %%--------------------------------------------------------------------
 %% @spec (string()) -> any()
 %% @doc 
 %% compiles the template to beam files
 %% @end 
-%%--------------------------------------------------------------------       
+%%--------------------------------------------------------------------        
 compile_test_template(Name) ->
+     compile_test_template(Name, ".html").
+      
+      
+%%--------------------------------------------------------------------
+%% @spec (string(), string()) -> any()
+%% @doc 
+%% compiles the template to beam files
+%% @end 
+%%--------------------------------------------------------------------       
+compile_test_template(Name, Ext) ->
     DocRoot = filename:join([filename:dirname(code:which(?MODULE)),"..", "demo", "templates"]),
     Name2 = "test_" ++ Name,
-    Path = filename:join([DocRoot, Name2 ++ ".html"]),
+    Path = filename:join([DocRoot, Name2 ++ Ext]),
     erlydtl_server:compile(Path, Name2, DocRoot).
 
                        
@@ -73,12 +87,13 @@ compile_test_template(Name) ->
 %% @doc renders the templete to a file
 %% @end 
 %%--------------------------------------------------------------------
-render_html() ->
+render_all() ->
     OutDir = filename:join([filename:dirname(code:which(?MODULE)),"..", "demo", "out"]),
     render(OutDir, test_variable, ".html", ["foostring"]),
     render(OutDir, test_extend, ".html", ["bar1string", "bar2string"]),
     render(OutDir, test_comment, ".html"),
-    render(OutDir, test_tags, ".html").
+    render(OutDir, test_tags, ".html"),
+    render(OutDir, test_tags, ".css").
 
               
 %%====================================================================
