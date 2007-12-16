@@ -1,8 +1,7 @@
-#foo {
-    width: 10px;
-}
-
-
+{# Pure CSS menu
+                                              
+   menu() 
+#}
  /*================= STYLES FOR THE GRC MASTHEAD & CONTROLS ==================*/
 
 .menuminwidth0 {             /* for all browsers (non-IE) that obey min-width */
