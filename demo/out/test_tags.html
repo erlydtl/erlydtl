@@ -6,7 +6,28 @@
   </head>
   <body>
 	before
-	not_fully_implemented_yet
+	
+<object id="myvideo" classid="clsid:D27CDB6E-AE6D-11cf-96B8-444553540000" width="800" height="600">
+	<param name="movie" value="/static/mediaplayer.swf">
+    <param name="allowfullscreen" value="true">
+    <param name="menu" value="false">
+    <param name="flashvars" value="file=/static/myvideo.mp4&image=/static/mypreview.jpg">
+    <!--[if !IE]>-->
+    <object type="application/x-shockwave-flash" data="/static/mediaplayer.swf" width="800" height="620">
+    <param name="allowfullscreen" value="true">
+    <param name="menu" value="false">
+    <param name="flashvars" value="file=/static/myvideo.mp4&image=/static/mypreview.jpg">
+    <!--<![endif]-->
+    <h2>To view the Video:</h2>
+    <p>
+    	<a href="http://www.adobe.com/go/getflashplayer">
+        	<img src="http://www.adobe.com/images/shared/download_buttons/get_flash_player.gif"alt="Get Adobe Flash player">
+    	</a>
+    </p>
+    <!--[if !IE]>-->
+    </object>
+    <!--<![endif]-->
+</object>
 	after
   </body>
 </html>
