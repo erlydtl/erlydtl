@@ -6,6 +6,7 @@
     erlydtl_server,
     erlydtl_app,
     erlydtl_sup,
+    erlydtl_deps,
     erlydtl_parser,
     erlydtl_scanner,
     erlydtl_tools

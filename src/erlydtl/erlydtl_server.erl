@@ -258,9 +258,10 @@ transl(nil, [{var, Line, Val}], Out, Args, _) ->
             {regular, [{var, Line, Key} | Out], Args}
     end;
     
-transl(nil, [{tag, Line, _TagArgs}], Out, Args, _) ->
-    %% TODO: call insert_ tag code
-    {regular, [{string, Line, "not_fully_implemented_yet"} | Out], Args};
+transl(nil, [{tag, _Line, [TagName | TagArgs]}], Out, Args, _) ->
+    io:format("TRACE ~p:~p {TagName, TagArgs} ~p~n",[?MODULE, ?LINE, {TagName, TagArgs}]),
+    Out2 = load_tag(TagName, TagArgs, Out, default),    
+    {regular, Out2, Args};
 
 transl(nil, [Token], Out, Args, _) ->
     {regular, [Token | Out], Args}; 
@@ -274,9 +275,10 @@ transl([H | T], [{var, Line, Val}], Out, Args, DocRoot) ->
             transl(H, T, [{var, Line, Key} | Out], Args, DocRoot)
 	end;	 
 	
-transl([H | T], [{tag, Line, _TagArgs}], Out, Args, DocRoot) ->
-    %% TODO: call insert_tag code
-    transl(H, T, [{string, Line, "not_fully_implemented_yet"} | Out], Args, DocRoot);
+transl([H | T], [{tag, _Line, [TagName | TagArgs]}], Out, Args, DocRoot) ->
+    io:format("TRACE ~p:~p {TagName, TagArgs} ~p~n",[?MODULE, ?LINE, {TagName, TagArgs}]),
+    Out2 = load_tag(TagName, TagArgs, Out, default),
+    transl(H, T, Out2, Args, DocRoot);
 	
 transl([H | T], [Token], Out, Args, DocRoot) ->      
     transl(H, T, [Token | Out], Args, DocRoot).
@@ -298,3 +300,14 @@ inplace_block({block, _Line , _Name, [nil, Str]}) ->
 	Str;
 inplace_block(Other) ->	
 	Other.
+	
+load_tag(TagName, TagArgs, Acc, default) ->
+    case parse(filename:join([erlydtl_deps:get_base_dir(), "priv", "tags", TagName ++ ".html"])) of
+        {ok, ParentAst} ->
+		    [H|T]=ParentAst,
+			{_, List, Args1} = transl(H, T, [], [], undefined),
+			io:format("TRACE loadtag: ~p:~p ~p~n",[?MODULE, ?LINE, {TagArgs, List, Args1}]);
+		{error, Msg} ->
+    	    io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, Msg])
+    end,			
+    [{string, 666, "not_fully_implemented_yet3"} | Acc].
