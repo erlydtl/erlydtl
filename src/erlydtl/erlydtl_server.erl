@@ -118,7 +118,8 @@ handle_call({compile, File, ModuleName, DocRoot, FunctionName}, _From, State) ->
     Reply = case parse(File) of
         {ok, Ast} ->
 		    RelDir = rel_dir(filename:dirname(File), DocRoot),
-            compile_reload_ast(Ast, ModuleName, FunctionName, RelDir);
+		    Ext = filename:extension(File),
+            compile_reload_ast(Ast, ModuleName, FunctionName, RelDir, Ext);
         {error, Msg} = Err ->
             io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, File ++ " Parser failure:"]),
             io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, Msg]),
@@ -198,8 +199,8 @@ parse(File) ->
 	end.
 	
 
-compile_reload_ast([H | T], ModuleName, FunctionName, RelDir) ->
-    {List, Args} = case transl(H, T, [], [], RelDir) of
+compile_reload_ast([H | T], ModuleName, FunctionName, RelDir, Ext) ->
+    {List, Args} = case transl(H, T, [], [], RelDir, Ext) of
 	    {regular, List0, Args0} ->
 		    {[inplace_block(X) ||  X <- List0], Args0};
 		{inherited, List0, Arg0} ->
@@ -233,13 +234,13 @@ list_fold([E1, E2 | Tail]) ->
     end, {cons, 1, E2, E1}, Tail).                       
 
 
-transl(nil, [{extends, _Line, Name}], Out, Args, RelDir) -> 
+transl(nil, [{extends, _Line, Name}], Out, Args, RelDir, Ext) -> 
     case parse(filename:join([RelDir, Name])) of
         {ok, ParentAst} ->
 		    [H|T]=ParentAst,
-			{_, List, Args1} = transl(H, T, [], [], RelDir),			 
+			{_, List, Args1} = transl(H, T, [], [], RelDir, Ext),			 
 			{List3, Args3} = lists:foldl(fun(X, {List2, Args2}) -> 
-                {List4, Args4} = replace_block(X, Out, Args2),            
+                {List4, Args4} = replace_block(X, Out, Args2, Ext),            
                 {[List4 | List2], Args4}
             end, {[], Args1}, List),		   
 		    {inherited, lists:reverse(lists:flatten([List3])), lists:flatten(Args3)};
@@ -249,7 +250,7 @@ transl(nil, [{extends, _Line, Name}], Out, Args, RelDir) ->
 		     {regular, Out, Args}			
     end;
 	
-transl(nil, [{var, Line, Val}], Out, Args, _) ->
+transl(nil, [{var, Line, Val}], Out, Args, _, _) ->
     case lists:keysearch(Val, 2, Args) of
         false ->
             Key = list_to_atom(lists:concat(["A", length(Args) + 1])),
@@ -258,41 +259,39 @@ transl(nil, [{var, Line, Val}], Out, Args, _) ->
             {regular, [{var, Line, Key} | Out], Args}
     end;
     
-transl(nil, [{tag, _Line, [TagName | TagArgs]}], Out, Args, _) ->
-    io:format("TRACE ~p:~p {TagName, TagArgs} ~p~n",[?MODULE, ?LINE, {TagName, TagArgs}]),
-    Out2 = load_tag(TagName, TagArgs, Out, default),    
+transl(nil, [{tag, _Line, [TagName | TagArgs]}], Out, Args, _, Ext) ->
+    Out2 = load_tag(TagName, TagArgs, Out, default, Ext),    
     {regular, Out2, Args};
 
-transl(nil, [Token], Out, Args, _) ->
+transl(nil, [Token], Out, Args, _, _) ->
     {regular, [Token | Out], Args}; 
 	
-transl([H | T], [{var, Line, Val}], Out, Args, DocRoot) ->
+transl([H | T], [{var, Line, Val}], Out, Args, DocRoot, Ext) ->
     case lists:keysearch(Val, 2, Args) of
         false ->           
             Key = list_to_atom(lists:concat(["A", length(Args) + 1])),
-            transl(H, T, [{var, Line, Key} | Out], [{Key, Val} | Args], DocRoot);
+            transl(H, T, [{var, Line, Key} | Out], [{Key, Val} | Args], DocRoot, Ext);
         {value, {Key, _}} ->  
-            transl(H, T, [{var, Line, Key} | Out], Args, DocRoot)
+            transl(H, T, [{var, Line, Key} | Out], Args, DocRoot, Ext)
 	end;	 
 	
-transl([H | T], [{tag, _Line, [TagName | TagArgs]}], Out, Args, DocRoot) ->
-    io:format("TRACE ~p:~p {TagName, TagArgs} ~p~n",[?MODULE, ?LINE, {TagName, TagArgs}]),
-    Out2 = load_tag(TagName, TagArgs, Out, default),
-    transl(H, T, Out2, Args, DocRoot);
+transl([H | T], [{tag, _Line, [TagName | TagArgs]}], Out, Args, DocRoot, Ext) ->
+    Out2 = load_tag(TagName, TagArgs, Out, default, Ext),
+    transl(H, T, Out2, Args, DocRoot, Ext);
 	
-transl([H | T], [Token], Out, Args, DocRoot) ->      
-    transl(H, T, [Token | Out], Args, DocRoot).
+transl([H | T], [Token], Out, Args, DocRoot, Ext) ->      
+    transl(H, T, [Token | Out], Args, DocRoot, Ext).
 
 
-replace_block({block, _Line, Name, [nil, Val]}, List, Args) ->
+replace_block({block, _Line, Name, [nil, Val]}, List, Args, Ext) ->
 	case lists:keysearch(Name, 3, List) of
 		false -> 
 			{Val, Args};
 		{value, {_, _, _, [H | T]}} ->  
-		    {_, List2, Args2} = transl(H, T, [], Args, undefined),
+		    {_, List2, Args2} = transl(H, T, [], Args, undefined, Ext),
 		    {lists:reverse(List2), Args2} 
  	end;
-replace_block(Other, _What, Args) ->	
+replace_block(Other, _What, Args, _) ->	
 	{Other, Args}.
     
 	
@@ -301,13 +300,25 @@ inplace_block({block, _Line , _Name, [nil, Str]}) ->
 inplace_block(Other) ->	
 	Other.
 	
-load_tag(TagName, TagArgs, Acc, default) ->
-    case parse(filename:join([erlydtl_deps:get_base_dir(), "priv", "tags", TagName ++ ".html"])) of
+load_tag(TagName, TagArgs, Acc0, default, Ext) ->
+    case parse(filename:join([erlydtl_deps:get_base_dir(), "priv", "tags", atom_to_list(TagName) ++ Ext])) of
         {ok, ParentAst} ->
 		    [H|T]=ParentAst,
-			{_, List, Args1} = transl(H, T, [], [], undefined),
-			io:format("TRACE loadtag: ~p:~p ~p~n",[?MODULE, ?LINE, {TagArgs, List, Args1}]);
+			{_, List, Args1} = transl(H, T, [], [], undefined, Ext),
+			Args2 = [{Var, Val} || {{Var, _}, Val} <- lists:zip(Args1, TagArgs)], 			
+			lists:foldl(fun(X, Acc) -> 
+			        [replace_tag_variable(X, Args2) | Acc]			        
+			    end, 
+			    Acc0,
+			    lists:reverse(List));
 		{error, Msg} ->
-    	    io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, Msg])
-    end,			
-    [{string, 666, "not_fully_implemented_yet3"} | Acc].
+    	    io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, Msg]),
+    	    Acc0
+    end.
+    
+replace_tag_variable({var, _Line, Var}, Args) ->
+    {value, {_, Val}} = lists:keysearch(Var, 1, Args),
+    {string, 1, Val};            
+replace_tag_variable(Other, _) ->
+    Other.
+    
