@@ -42,7 +42,9 @@ Terminals
     extends
     block
     endblock
-    tag.
+    tag
+    for
+    endfor.
 
 Rootsymbol    
     Elements. 
@@ -60,6 +62,7 @@ Element -> var : '$1'.
 Element -> extends : extends('$1').
 Element -> block Elements endblock : block('$1', '$2').
 Element -> tag : tag('$1').
+Element -> for Elements endfor : for('$1', '$2').
 
 
 Erlang code.
@@ -73,3 +76,6 @@ block({_, Line, [Name]}, Content) ->
 
 tag({_, Line, Args}) ->
     {tag, Line, Args}.
+
+for({_, Line, [Var, _, List]}, Content) ->
+    {for, Line, list_to_atom(Var), List, Content}.

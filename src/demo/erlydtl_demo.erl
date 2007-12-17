@@ -93,7 +93,8 @@ render_all() ->
     render(OutDir, test_extend, ".html", ["bar1string", "bar2string"]),
     render(OutDir, test_comment, ".html"),
     render(OutDir, test_tags, ".html"),
-    render(OutDir, test_tags, ".css").
+    render(OutDir, test_tags, ".css"),
+    render(OutDir, test_for, ".html", ["apple", "banana"]).
 
               
 %%====================================================================
