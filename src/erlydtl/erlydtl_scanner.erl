@@ -175,8 +175,14 @@ translate_tag("block" = H, T, Line) ->
     {list_to_atom(H), Line, T};   
     
 translate_tag("endblock" = H, T, Line) ->
-    {list_to_atom(H), Line, T};         
+    {list_to_atom(H), Line, T};    
+    
+translate_tag("for" = H, T, Line) ->
+    {list_to_atom(H), Line, T};   
 
+translate_tag("endfor" = H, T, Line) ->
+    {list_to_atom(H), Line, T};    
+         
 translate_tag(H, T, Line) ->
     {tag, Line, [list_to_atom(H) | T]}.
 

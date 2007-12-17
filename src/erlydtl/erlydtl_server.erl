@@ -175,12 +175,6 @@ code_change(_OldVsn, State, _Extra) ->
 %% Internal functions
 %%====================================================================
 
-rel_dir(Dir, DocRoot) when Dir =:= DocRoot ->
-    DocRoot;
-rel_dir(Dir, DocRoot) ->
-    RelFile = string:substr(Dir, length(DocRoot)+2),
-    filename:join([DocRoot, RelFile]).
-
 
 parse(File) ->
 	case file:read_file(File) of
@@ -194,15 +188,15 @@ parse(File) ->
 	                Err
 	        end;
 	    Err ->
-	        io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, "File read error"]),
+	        io:format("TRACE ~p:~p ~p: ~p~n",[?MODULE, ?LINE, "File read error with:", File]),
 	        Err   
 	end.
 	
 
 compile_reload_ast([H | T], ModuleName, FunctionName, RelDir, Ext) ->
-    {List, Args} = case transl(H, T, [], [], RelDir, Ext) of
+    {List, Args} = case walk_ast(H, T, [], [], RelDir, Ext) of
 	    {regular, List0, Args0} ->
-		    {[inplace_block(X) ||  X <- List0], Args0};
+		    {[parse_transform(X) ||  X <- List0], Args0};
 		{inherited, List0, Arg0} ->
 			{List0, Arg0}
 	end,	           
@@ -221,26 +215,16 @@ compile_reload_ast([H | T], ModuleName, FunctionName, RelDir, Ext) ->
             end;            
         _ ->
            {error, "compilation failed"}
-    end.
+    end.                      
 
 
-list_fold([E]) ->
-    E;      
-list_fold([E1, E2]) ->
-    {cons, 1, E2, E1};           
-list_fold([E1, E2 | Tail]) ->
-    lists:foldl(fun(X, T) -> 
-        {cons, 1, X, T}
-    end, {cons, 1, E2, E1}, Tail).                       
-
-
-transl(nil, [{extends, _Line, Name}], Out, Args, RelDir, Ext) -> 
+walk_ast(nil, [{extends, _Line, Name}], Out, Args, RelDir, Ext) -> 
     case parse(filename:join([RelDir, Name])) of
         {ok, ParentAst} ->
 		    [H|T]=ParentAst,
-			{_, List, Args1} = transl(H, T, [], [], RelDir, Ext),			 
+			{_, List, Args1} = walk_ast(H, T, [], [], RelDir, Ext),			 
 			{List3, Args3} = lists:foldl(fun(X, {List2, Args2}) -> 
-                {List4, Args4} = replace_block(X, Out, Args2, Ext),            
+                {List4, Args4} = parse_transform(X, Out, Args2, Ext),            
                 {[List4 | List2], Args4}
             end, {[], Args1}, List),		   
 		    {inherited, lists:reverse(lists:flatten([List3])), lists:flatten(Args3)};
@@ -250,7 +234,7 @@ transl(nil, [{extends, _Line, Name}], Out, Args, RelDir, Ext) ->
 		     {regular, Out, Args}			
     end;
 	
-transl(nil, [{var, Line, Val}], Out, Args, _, _) ->
+walk_ast(nil, [{var, Line, Val}], Out, Args, _, _) ->
     case lists:keysearch(Val, 2, Args) of
         false ->
             Key = list_to_atom(lists:concat(["A", length(Args) + 1])),
@@ -259,55 +243,93 @@ transl(nil, [{var, Line, Val}], Out, Args, _, _) ->
             {regular, [{var, Line, Key} | Out], Args}
     end;
     
-transl(nil, [{tag, _Line, [TagName | TagArgs]}], Out, Args, _, Ext) ->
+walk_ast(nil, [{tag, _Line, [TagName | TagArgs]}], Out, Args, _, Ext) ->
     Out2 = load_tag(TagName, TagArgs, Out, default, Ext),    
     {regular, Out2, Args};
-
-transl(nil, [Token], Out, Args, _, _) ->
+    
+walk_ast(nil, [{for, _Line, Var, List, Content}], Out, Args, _, Ext) ->
+io:format("TRACE ~p:~p Content-nil: ~p~n",[?MODULE, ?LINE, Content]),
+     Out2 = Out,
+     {regular, Out2, Args};    
+    
+walk_ast(nil, [Token], Out, Args, _, _) ->
     {regular, [Token | Out], Args}; 
 	
-transl([H | T], [{var, Line, Val}], Out, Args, DocRoot, Ext) ->
+walk_ast([H | T], [{var, Line, Val}], Out, Args, DocRoot, Ext) ->
     case lists:keysearch(Val, 2, Args) of
         false ->           
             Key = list_to_atom(lists:concat(["A", length(Args) + 1])),
-            transl(H, T, [{var, Line, Key} | Out], [{Key, Val} | Args], DocRoot, Ext);
+            walk_ast(H, T, [{var, Line, Key} | Out], [{Key, Val} | Args], DocRoot, Ext);
         {value, {Key, _}} ->  
-            transl(H, T, [{var, Line, Key} | Out], Args, DocRoot, Ext)
+            walk_ast(H, T, [{var, Line, Key} | Out], Args, DocRoot, Ext)
 	end;	 
 	
-transl([H | T], [{tag, _Line, [TagName | TagArgs]}], Out, Args, DocRoot, Ext) ->
+walk_ast([H | T], [{tag, _Line, [TagName | TagArgs]}], Out, Args, DocRoot, Ext) ->
     Out2 = load_tag(TagName, TagArgs, Out, default, Ext),
-    transl(H, T, Out2, Args, DocRoot, Ext);
+    walk_ast(H, T, Out2, Args, DocRoot, Ext);
+    
+walk_ast([H | T], [{for, _Line, Var, List, [nil | TFor]}], Out, Args, DocRoot, Ext) ->
+io:format("TRACE ~p:~p Content-not-nil: ~p~n",[?MODULE, ?LINE, T]),  %%
+    % just subst. var
+    Out2 = Out,
+    walk_ast(H, T, Out2, Args, DocRoot, Ext);     
+
+walk_ast([H | T], [{for, _Line, Var, List, [HFor | TFor]}], Out, Args, DocRoot, Ext) -> 
+    %% List2 = lists:foldl(fun(X, Acc) -> 
+    %%         {_, List1, _Args1} = walk_ast(HFor, TFor, [], [], undefined, Ext),
+    %%         [parse_transform(Y, X, Var)  || Y <- List1]                
+    %%     end,
+    %%     [],
+    %%     List),
+    %% io:format("TRACE ~p:~p Content-not-nil-out1: ~p~n",[?MODULE, ?LINE, List2]),
+    %% io:format("TRACE ~p:~p Content-not-nil-out2: ~p~n",[?MODULE, ?LINE, lists:flatten(List2)]),
+    io:format("TRACE ~p:~p Content-not-nil-out1: ~p~n",[?MODULE, ?LINE, Var]),
+    io:format("TRACE ~p:~p Content-not-nil-out1: ~p~n",[?MODULE, ?LINE, List]),
+    io:format("TRACE ~p:~p Content-not-nil-out1: ~p~n",[?MODULE, ?LINE, [HFor | TFor]]),
+    Out2 = Out,
+    walk_ast(H, T, Out2, Args, DocRoot, Ext);	
 	
-transl([H | T], [Token], Out, Args, DocRoot, Ext) ->      
-    transl(H, T, [Token | Out], Args, DocRoot, Ext).
+walk_ast([H | T], [Token], Out, Args, DocRoot, Ext) ->      
+    walk_ast(H, T, [Token | Out], Args, DocRoot, Ext).
 
 
-replace_block({block, _Line, Name, [nil, Val]}, List, Args, Ext) ->
+parse_transform({block, _Line, Name, [nil, Val]}, List, Args, Ext) ->
 	case lists:keysearch(Name, 3, List) of
 		false -> 
 			{Val, Args};
 		{value, {_, _, _, [H | T]}} ->  
-		    {_, List2, Args2} = transl(H, T, [], Args, undefined, Ext),
+		    {_, List2, Args2} = walk_ast(H, T, [], Args, undefined, Ext),
 		    {lists:reverse(List2), Args2} 
  	end;
-replace_block(Other, _What, Args, _) ->	
+parse_transform(Other, _What, Args, _) ->	
 	{Other, Args}.
+
     
-	
-inplace_block({block, _Line , _Name, [nil, Str]}) ->
+parse_transform({var, Line, Var}, Var1, Var) when is_atom(Var1) ->
+    {var, Line, Var1}.
+    
+            
+parse_transform({var, Line, Var}, Args) ->
+    {value, {_, Val}} = lists:keysearch(Var, 1, Args),
+    {string, Line, Val};            
+parse_transform(Other, _) ->
+    Other.
+        
+
+parse_transform({block, _Line , _Name, [nil, Str]}) ->
 	Str;
-inplace_block(Other) ->	
+parse_transform(Other) ->	
 	Other.
-	
+    	
+    	        	
 load_tag(TagName, TagArgs, Acc0, default, Ext) ->
     case parse(filename:join([erlydtl_deps:get_base_dir(), "priv", "tags", atom_to_list(TagName) ++ Ext])) of
         {ok, ParentAst} ->
 		    [H|T]=ParentAst,
-			{_, List, Args1} = transl(H, T, [], [], undefined, Ext),
+			{_, List, Args1} = walk_ast(H, T, [], [], undefined, Ext),
 			Args2 = [{Var, Val} || {{Var, _}, Val} <- lists:zip(Args1, TagArgs)], 			
 			lists:foldl(fun(X, Acc) -> 
-			        [replace_tag_variable(X, Args2) | Acc]			        
+			        [parse_transform(X, Args2) | Acc]			        
 			    end, 
 			    Acc0,
 			    lists:reverse(List));
@@ -315,10 +337,21 @@ load_tag(TagName, TagArgs, Acc0, default, Ext) ->
     	    io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, Msg]),
     	    Acc0
     end.
+ 
+
+list_fold([E]) ->
+    E;      
+list_fold([E1, E2]) ->
+    {cons, 1, E2, E1};           
+list_fold([E1, E2 | Tail]) ->
+    lists:foldl(fun(X, T) -> 
+        {cons, 1, X, T}
+    end, {cons, 1, E2, E1}, Tail).
+     
     
-replace_tag_variable({var, _Line, Var}, Args) ->
-    {value, {_, Val}} = lists:keysearch(Var, 1, Args),
-    {string, 1, Val};            
-replace_tag_variable(Other, _) ->
-    Other.
+rel_dir(Dir, DocRoot) when Dir =:= DocRoot ->
+    DocRoot;
+rel_dir(Dir, DocRoot) ->
+    RelFile = string:substr(Dir, length(DocRoot)+2),
+    filename:join([DocRoot, RelFile]).
     
