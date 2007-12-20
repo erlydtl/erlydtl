@@ -34,7 +34,7 @@
 -author('rsaccon@gmail.com').
 
 %% API
--export([create_parser/0, create_module/2, reload/2, write_beam/3]).
+-export([create_parser/0, reload/2, write_beam/3]).
 
 %% --------------------------------------------------------------------
 %% Definitions
@@ -57,20 +57,6 @@
 create_parser() ->
     create_parser("src/erlydtl/erlydtl_parser", "ebin").
     
-
-%%--------------------------------------------------------------------
-%% @spec (Ast::tuple(), Name::atom()) -> any()
-%% @doc Translate Abstract Syntax Tree to Abstract Module Code
-%% @end 
-%%--------------------------------------------------------------------    
-create_module(Ast, ModuleName) when is_list(Ast) ->
-    Tail = lists:reverse([{eof, 1} | lists:reverse(lists:flatten(Ast))]),
-    add_module_header(Tail, ModuleName);
-create_module(Ast, ModuleName) ->
-    Tail = [Ast, {eof, 1}],
-    add_module_header(Tail, ModuleName).
-
-
 
 %%--------------------------------------------------------------------
 %% @spec (ModuleName::string(), Bin,::binary()) -> Ok::atom() | Error::atom()
@@ -103,13 +89,13 @@ write_beam(ModuleName, Bin, Dir) ->
 create_parser(Path, Outdir) ->
     case yecc:file(Path) of
         {ok, _} ->
-            compile_reload(Path, Outdir);
+            compile_reload_parser(Path, Outdir);
         Err ->
             io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, Path ++ ": yecc failed"]),
             Err
     end.
     
-compile_reload(Path, Outdir) ->
+compile_reload_parser(Path, Outdir) ->
     case compile:file(Path, ?PRINT_ERR_WARNS ++ [{outdir, Outdir}]) of
         {ok, Bin} ->
             code:purge(Bin),
@@ -118,8 +104,3 @@ compile_reload(Path, Outdir) ->
             io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, Path ++ ": compilation failed"]),
             Err
     end.
-    
-    
-add_module_header(Tail, ModuleName) -> 
-    Tail2 = [{attribute, 1, compile, export_all} | Tail],
-    [{attribute, 1, module, list_to_atom(ModuleName)} | Tail2].

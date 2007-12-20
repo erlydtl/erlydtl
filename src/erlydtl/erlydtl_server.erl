@@ -119,7 +119,7 @@ handle_call({compile, File, ModuleName, DocRoot, FunctionName}, _From, State) ->
         {ok, Ast} ->
 		    RelDir = rel_dir(filename:dirname(File), DocRoot),
 		    Ext = filename:extension(File),
-            compile_reload_ast(Ast, ModuleName, FunctionName, RelDir, Ext);
+            compile(Ast, ModuleName, FunctionName, RelDir, Ext);
         {error, Msg} = Err ->
             io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, File ++ " Parser failure:"]),
             io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, Msg]),
@@ -193,36 +193,35 @@ parse(File) ->
 	end.
 	
 
-compile_reload_ast([H | T], ModuleName, FunctionName, RelDir, Ext) ->
-    {List, Args} = case walk_ast(H, T, [], [], RelDir, Ext) of
+compile([H | T], ModuleName, FunctionName, RelDir, Ext) ->
+    {List, Args} = case build_tree(H, T, [], [], RelDir, Ext) of
 	    {regular, List0, Args0} ->
 		    {[parse_transform(X) ||  X <- List0], Args0};
 		{inherited, List0, Arg0} ->
 			{List0, Arg0}
-	end,	           
-    Args2 = lists:reverse([{var, 1, Val} || {Val, _} <- Args]),  
-    Cons = list_fold(lists:reverse(List)),                           
-    Ast2 = {function, 1, list_to_atom(FunctionName), length(Args2),
-        [{clause, 1, Args2, [], [Cons]}]},
-    Ac = erlydtl_tools:create_module(Ast2 , ModuleName),   
-    case compile:forms(Ac) of
+	end, 
+	List1 = erl_syntax:list(List),
+	Args1 = [erl_syntax:variable(Val) || {Val, _} <- Args],
+	Clause = erl_syntax:clause(Args1, none, [List1]),
+	Func = erl_syntax:function(erl_syntax:atom(FunctionName), [Clause]),
+	[Mod, Cmp] = [erl_syntax:attribute(erl_syntax:atom(X), [erl_syntax:atom(Y)]) ||
+	    {X, Y} <- [{"module", ModuleName}, {"compile", "export_all"}]],
+    Forms = [erl_syntax:revert(X) || X <- [Mod, Cmp, Func]],
+    io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, Forms]),
+    case compile:forms(Forms) of
         {ok, Module, Bin} ->
-            case erlydtl_tools:reload(Module, Bin) of
-                ok ->
-                    erlydtl_tools:write_beam(Module, Bin, "ebin");
-                _ -> 
-                    {error, "reload failed"}
-            end;            
+            erlydtl_tools:write_beam(Module, Bin, "ebin"),
+            erlydtl_tools:reload(Module, Bin);
         _ ->
-           {error, "compilation failed"}
-    end.                      
+            {error, "compilation failed"}
+    end.   
+    
 
-
-walk_ast(nil, [{extends, _Line, Name}], Out, Args, RelDir, Ext) -> 
+build_tree(nil, [{extends, _Line, Name}], Out, Args, RelDir, Ext) -> 
     case parse(filename:join([RelDir, Name])) of
         {ok, ParentAst} ->
 		    [H|T]=ParentAst,
-			{_, List, Args1} = walk_ast(H, T, [], [], RelDir, Ext),			 
+			{_, List, Args1} = build_tree(H, T, [], [], RelDir, Ext),			 
 			{List3, Args3} = lists:foldl(fun(X, {List2, Args2}) -> 
                 {List4, Args4} = parse_transform(X, Out, Args2, Ext),            
                 {[List4 | List2], Args4}
@@ -234,7 +233,7 @@ walk_ast(nil, [{extends, _Line, Name}], Out, Args, RelDir, Ext) ->
 		     {regular, Out, Args}			
     end;
 	
-walk_ast(nil, [{var, Line, Val}], Out, Args, _, _) ->
+build_tree(nil, [{var, Line, Val}], Out, Args, _, _) ->
     case lists:keysearch(Val, 2, Args) of
         false ->
             Key = list_to_atom(lists:concat(["A", length(Args) + 1])),
@@ -243,66 +242,79 @@ walk_ast(nil, [{var, Line, Val}], Out, Args, _, _) ->
             {regular, [{var, Line, Key} | Out], Args}
     end;
     
-walk_ast(nil, [{tag, _Line, [TagName | TagArgs]}], Out, Args, _, Ext) ->
+build_tree(nil, [{tag, _Line, [TagName | TagArgs]}], Out, Args, _, Ext) ->
     Out2 = load_tag(TagName, TagArgs, Out, default, Ext),    
     {regular, Out2, Args};
     
-walk_ast(nil, [{for, _Line, Var, List, Content}], Out, Args, _, Ext) ->
+build_tree(nil, [{for, _Line, Var, List, Content}], Out, Args, _, Ext) ->
 io:format("TRACE ~p:~p Content-nil: ~p~n",[?MODULE, ?LINE, Content]),
      Out2 = Out,
      {regular, Out2, Args};    
+ 
+build_tree(nil, [{string, Val}], Out, Args, _, _) ->
+     {regular, [binary_string(Val) | Out], Args}; 
     
-walk_ast(nil, [Token], Out, Args, _, _) ->
+build_tree(nil, [Token], Out, Args, _, _) ->
     {regular, [Token | Out], Args}; 
 	
-walk_ast([H | T], [{var, Line, Val}], Out, Args, DocRoot, Ext) ->
+build_tree([H | T], [{var, Line, Val}], Out, Args, DocRoot, Ext) ->
     case lists:keysearch(Val, 2, Args) of
         false ->           
             Key = list_to_atom(lists:concat(["A", length(Args) + 1])),
-            walk_ast(H, T, [{var, Line, Key} | Out], [{Key, Val} | Args], DocRoot, Ext);
+            build_tree(H, T, [{var, Line, Key} | Out], [{Key, Val} | Args], DocRoot, Ext);
         {value, {Key, _}} ->  
-            walk_ast(H, T, [{var, Line, Key} | Out], Args, DocRoot, Ext)
+            build_tree(H, T, [{var, Line, Key} | Out], Args, DocRoot, Ext)
 	end;	 
 	
-walk_ast([H | T], [{tag, _Line, [TagName | TagArgs]}], Out, Args, DocRoot, Ext) ->
+build_tree([H | T], [{tag, _Line, [TagName | TagArgs]}], Out, Args, DocRoot, Ext) ->
     Out2 = load_tag(TagName, TagArgs, Out, default, Ext),
-    walk_ast(H, T, Out2, Args, DocRoot, Ext);
+    build_tree(H, T, Out2, Args, DocRoot, Ext);
     
-walk_ast([H | T], [{for, _Line, Var, List, [nil | TFor]}], Out, Args, DocRoot, Ext) ->
+build_tree([H | T], [{for, _Line, Var, List, [nil | TFor]}], Out, Args, DocRoot, Ext) ->
 io:format("TRACE ~p:~p Content-not-nil: ~p~n",[?MODULE, ?LINE, T]),  %%
     % just subst. var
     Out2 = Out,
-    walk_ast(H, T, Out2, Args, DocRoot, Ext);     
+    build_tree(H, T, Out2, Args, DocRoot, Ext);     
 
-walk_ast([H | T], [{for, _Line, Var, List, [HFor | TFor]}], Out, Args, DocRoot, Ext) -> 
+build_tree([H | T], [{for, _Line, Var, List, [HFor | TFor]}], Out, Args, DocRoot, Ext) -> 
     %% List2 = lists:foldl(fun(X, Acc) -> 
-    %%         {_, List1, _Args1} = walk_ast(HFor, TFor, [], [], undefined, Ext),
+    %%         {_, List1, _Args1} = build_tree(HFor, TFor, [], [], undefined, Ext),
     %%         [parse_transform(Y, X, Var)  || Y <- List1]                
     %%     end,
     %%     [],
     %%     List),
     %% io:format("TRACE ~p:~p Content-not-nil-out1: ~p~n",[?MODULE, ?LINE, List2]),
     %% io:format("TRACE ~p:~p Content-not-nil-out2: ~p~n",[?MODULE, ?LINE, lists:flatten(List2)]),
+    %
+    % test(L) -> [a || _X <- L].  {lc, 1,  {atom,1,a}, [{generate, 1, {var,1,'_X'}, {var,1,'L'}}]}
+    %
     io:format("TRACE ~p:~p Content-not-nil-out1: ~p~n",[?MODULE, ?LINE, Var]),
     io:format("TRACE ~p:~p Content-not-nil-out1: ~p~n",[?MODULE, ?LINE, List]),
     io:format("TRACE ~p:~p Content-not-nil-out1: ~p~n",[?MODULE, ?LINE, [HFor | TFor]]),
     Out2 = Out,
-    walk_ast(H, T, Out2, Args, DocRoot, Ext);	
-	
-walk_ast([H | T], [Token], Out, Args, DocRoot, Ext) ->      
-    walk_ast(H, T, [Token | Out], Args, DocRoot, Ext).
+    build_tree(H, T, Out2, Args, DocRoot, Ext);	
+
+build_tree([H | T], [{string, Val}], Out, Args, DocRoot, Ext) ->      
+    build_tree(H, T, [binary_string(Val) | Out], Args, DocRoot, Ext);
+        	
+build_tree([H | T], [Token], Out, Args, DocRoot, Ext) ->      
+    build_tree(H, T, [Token | Out], Args, DocRoot, Ext).
 
 
 parse_transform({block, _Line, Name, [nil, Val]}, List, Args, Ext) ->
 	case lists:keysearch(Name, 3, List) of
 		false -> 
-			{Val, Args};
+            %% {Val, Args};
+            parse_transform(Val, List, Args, Ext);
 		{value, {_, _, _, [H | T]}} ->  
-		    {_, List2, Args2} = walk_ast(H, T, [], Args, undefined, Ext),
-		    {lists:reverse(List2), Args2} 
+		    {_, List2, Args2} = build_tree(H, T, [], Args, undefined, Ext),
+            %% {lists:reverse(List2), Args2} 
+            parse_transform(lists:reverse(List2), List, Args2, Ext)
  	end;
-parse_transform(Other, _What, Args, _) ->	
-	{Other, Args}.
+parse_transform({string, Val}, _, Args, _) ->    
+    {binary_string(Val), Args};
+parse_transform(Other, _What, Args, _) ->    
+    {Other, Args}.
 
     
 parse_transform({var, Line, Var}, Var1, Var) when is_atom(Var1) ->
@@ -311,22 +323,31 @@ parse_transform({var, Line, Var}, Var1, Var) when is_atom(Var1) ->
             
 parse_transform({var, Line, Var}, Args) ->
     {value, {_, Val}} = lists:keysearch(Var, 1, Args),
-    {string, Line, Val};            
-parse_transform(Other, _) ->
+    binary_string(Val);      
+parse_transform({string, Val}, _) ->    
+    binary_string(Val);
+parse_transform(Other, _) ->    
     Other.
         
 
-parse_transform({block, _Line , _Name, [nil, Str]}) ->
-	Str;
-parse_transform(Other) ->	
-	Other.
-    	
-    	        	
+parse_transform({block, _Line , _Name, [nil, T]}) ->
+	parse_transform(T);
+parse_transform({string, Val}) ->
+    binary_string(Val); 
+parse_transform({var, L, Val}) ->
+    erl_syntax:variable(Val);
+parse_transform(Other) ->    
+    Other.   	
+
+binary_string(Val) ->
+    erl_syntax:binary([erl_syntax:binary_field(erl_syntax:integer(X)) || X <- Val]).
+    
+       	        	
 load_tag(TagName, TagArgs, Acc0, default, Ext) ->
     case parse(filename:join([erlydtl_deps:get_base_dir(), "priv", "tags", atom_to_list(TagName) ++ Ext])) of
         {ok, ParentAst} ->
 		    [H|T]=ParentAst,
-			{_, List, Args1} = walk_ast(H, T, [], [], undefined, Ext),
+			{_, List, Args1} = build_tree(H, T, [], [], undefined, Ext),
 			Args2 = [{Var, Val} || {{Var, _}, Val} <- lists:zip(Args1, TagArgs)], 			
 			lists:foldl(fun(X, Acc) -> 
 			        [parse_transform(X, Args2) | Acc]			        
@@ -337,17 +358,7 @@ load_tag(TagName, TagArgs, Acc0, default, Ext) ->
     	    io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, Msg]),
     	    Acc0
     end.
- 
-
-list_fold([E]) ->
-    E;      
-list_fold([E1, E2]) ->
-    {cons, 1, E2, E1};           
-list_fold([E1, E2 | Tail]) ->
-    lists:foldl(fun(X, T) -> 
-        {cons, 1, X, T}
-    end, {cons, 1, E2, E1}, Tail).
-     
+  
     
 rel_dir(Dir, DocRoot) when Dir =:= DocRoot ->
     DocRoot;
