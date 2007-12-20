@@ -144,14 +144,14 @@ fold_strings([], Folded, []) ->
     lists:reverse(Folded);
 
 fold_strings([], Folded, Acc) ->
-    S = {string, 1, lists:reverse(Acc)},
+    S = {string, lists:reverse(Acc)},
     lists:reverse([S | Folded]);
 
 fold_strings([H | T], Folded, []) when is_tuple(H) ->
     fold_strings(T, [translate_token(H) | Folded], []);
 
 fold_strings([H | T], Folded, Acc) when is_tuple(H) ->
-    S = {string, 1, lists:reverse(Acc)},
+    S = {string, lists:reverse(Acc)},
     fold_strings(T, [translate_token(H), S | Folded], []);
 
 fold_strings([H | T], Folded, Acc) ->

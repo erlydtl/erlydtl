@@ -34,10 +34,7 @@
 -author('rsaccon@gmail.com').
 
 %% API
--export([compile_templates/0, 
-    compile_test_template/1, 
-    compile_test_template/2, 
-    render_all/0]).
+-export([compile/0, compile/1, compile/2, render/0, render/1]).
 
 %%====================================================================
 %% API
@@ -47,7 +44,7 @@
 %% @doc  compiles the templates to beam files
 %% @end 
 %%--------------------------------------------------------------------
-compile_templates() ->
+compile() ->
     DocRoot = filename:join([filename:dirname(code:which(?MODULE)),"..", "demo", "templates"]),
     filelib:fold_files(DocRoot,
         "\.html$|\.css$",
@@ -65,8 +62,8 @@ compile_templates() ->
 %% compiles the template to beam files
 %% @end 
 %%--------------------------------------------------------------------        
-compile_test_template(Name) ->
-     compile_test_template(Name, ".html").
+compile(Name) ->
+     compile(Name, ".html").
       
       
 %%--------------------------------------------------------------------
@@ -75,33 +72,81 @@ compile_test_template(Name) ->
 %% compiles the template to beam files
 %% @end 
 %%--------------------------------------------------------------------       
-compile_test_template(Name, Ext) ->
+compile(Name, Ext) ->
     DocRoot = filename:join([filename:dirname(code:which(?MODULE)),"..", "demo", "templates"]),
     Name2 = "test_" ++ Name,
     Path = filename:join([DocRoot, Name2 ++ Ext]),
     erlydtl_server:compile(Path, Name2, DocRoot).
 
-                       
+
 %%--------------------------------------------------------------------
 %% @spec () -> any()
-%% @doc renders the templete to a file
+%% @doc renders template to a file
 %% @end 
 %%--------------------------------------------------------------------
-render_all() ->
+render() ->
+    render("variable", ".html", ["foostring", "bar"]),
+    render("extend", ".html", ["bar1string", "bar2string"]),
+    render("comment", ".html"),
+    render("simple", ".html"),
+    render("htmltags", ".html"),
+    render("csstags", ".css"),
+    render("for", ".html", ["apple", "banana"]).
+        
+
+%%--------------------------------------------------------------------
+%% @spec (string()) -> ok()
+%% @doc renders template to a file
+%% @end 
+%%--------------------------------------------------------------------
+render("variable" = Name) ->
+    render(Name, ".html", ["foostring", "bar"]);
+ 
+render("extend" = Name) ->
+    render(Name, ".html", ["bar1string", "bar2string"]);
+        
+render("comment" = Name) ->
+    render(Name, ".html");
+            
+render("simple" = Name) ->
+    render(Name, ".html");
+                
+render("htmltags" = Name) ->
+    render(Name, ".html");
+    
+render("csstags" = Name) ->
+    render(Name, ".html");    
+                    
+render("for" = Name) ->
+    render(Name, ".html", ["apple", "banana"]).
+
+
+%%--------------------------------------------------------------------
+%% @spec (atom(), string()) -> any()
+%% @doc renders template to a file
+%% @end 
+%%--------------------------------------------------------------------
+render(Name, Ext) ->
     OutDir = filename:join([filename:dirname(code:which(?MODULE)),"..", "demo", "out"]),
-    render(OutDir, test_variable, ".html", ["foostring"]),
-    render(OutDir, test_extend, ".html", ["bar1string", "bar2string"]),
-    render(OutDir, test_comment, ".html"),
-    render(OutDir, test_tags, ".html"),
-    render(OutDir, test_tags, ".css"),
-    render(OutDir, test_for, ".html", ["apple", "banana"]).
+    render2(OutDir, list_to_atom("test_" ++ Name), Ext).   
+    
+
+%%--------------------------------------------------------------------
+%% @spec (atom(), string(), string()) -> any()
+%% @doc renders template to a file
+%% @end 
+%%--------------------------------------------------------------------
+render(Name, Ext, Args) ->
+    OutDir = filename:join([filename:dirname(code:which(?MODULE)),"..", "demo", "out"]),
+    render2(OutDir, list_to_atom("test_" ++ Name), Ext, Args).
+            
 
               
 %%====================================================================
 %% Internal functions
 %%====================================================================
 
-render(OutDir, Module, Ext, Args) ->
+render2(OutDir, Module, Ext, Args) ->
     case catch apply(Module, render, Args) of
         {'EXIT', Reason} -> 
             io:format("TRACE ~p:~p ~p: rendering failure: ~n",[?MODULE, ?LINE, Reason]);
@@ -116,7 +161,7 @@ render(OutDir, Module, Ext, Args) ->
         	end
     end.
     
-render(OutDir, Module, Ext) ->
+render2(OutDir, Module, Ext) ->
     case catch Module:render() of
         {'EXIT', Reason} -> 
             io:format("TRACE ~p:~p ~p: rendering failure: ~n",[?MODULE, ?LINE, Reason]);
