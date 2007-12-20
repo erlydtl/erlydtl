@@ -304,11 +304,9 @@ build_tree([H | T], [Token], Out, Args, DocRoot, Ext) ->
 parse_transform({block, _Line, Name, [nil, Val]}, List, Args, Ext) ->
 	case lists:keysearch(Name, 3, List) of
 		false -> 
-            %% {Val, Args};
             parse_transform(Val, List, Args, Ext);
 		{value, {_, _, _, [H | T]}} ->  
 		    {_, List2, Args2} = build_tree(H, T, [], Args, undefined, Ext),
-            %% {lists:reverse(List2), Args2} 
             parse_transform(lists:reverse(List2), List, Args2, Ext)
  	end;
 parse_transform({string, Val}, _, Args, _) ->    
@@ -324,8 +322,6 @@ parse_transform({var, Line, Var}, Var1, Var) when is_atom(Var1) ->
 parse_transform({var, Line, Var}, Args) ->
     {value, {_, Val}} = lists:keysearch(Var, 1, Args),
     binary_string(Val);      
-parse_transform({string, Val}, _) ->    
-    binary_string(Val);
 parse_transform(Other, _) ->    
     Other.
         
@@ -338,6 +334,7 @@ parse_transform({var, L, Val}) ->
     erl_syntax:variable(Val);
 parse_transform(Other) ->    
     Other.   	
+
 
 binary_string(Val) ->
     erl_syntax:binary([erl_syntax:binary_field(erl_syntax:integer(X)) || X <- Val]).

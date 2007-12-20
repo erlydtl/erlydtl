@@ -91,7 +91,7 @@ render() ->
     render("simple", ".html"),
     render("htmltags", ".html"),
     render("csstags", ".css"),
-    render("for", ".html", ["apple", "banana"]).
+    render("for", ".html"). %, ["apple", "banana"]).
         
 
 %%--------------------------------------------------------------------
@@ -118,7 +118,7 @@ render("csstags" = Name) ->
     render(Name, ".html");    
                     
 render("for" = Name) ->
-    render(Name, ".html", ["apple", "banana"]).
+    render(Name, ".html"). %, ["apple", "banana"]).
 
 
 %%--------------------------------------------------------------------
