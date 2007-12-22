@@ -199,7 +199,7 @@ compile([H | T], ModuleName, FunctionName, RelDir, Ext) ->
 			{List0, Arg0}
 	end, 
 	List1 = erl_syntax:list(List),
-	Args1 = [erl_syntax:variable(Val) || {Val, _} <- Args],
+	Args1 = [erl_syntax:variable(Val) || {Val, _} <- lists:reverse(Args)],
 	Clause = erl_syntax:clause(Args1, none, [List1]),
 	Func = erl_syntax:function(erl_syntax:atom(FunctionName), [Clause]),
 	[Mod, Cmp] = [erl_syntax:attribute(erl_syntax:atom(X), [erl_syntax:atom(Y)]) ||
@@ -268,7 +268,6 @@ build_tree([H | T], [{var, Line, Var}], Out, Args, DocRoot, Ext, Var) ->
     build_tree(H, T, [erl_syntax:variable(Var) | Out], Args, DocRoot, Ext, Var) ;
     		
 build_tree([H | T], [{var, Line, Val}], Out, Args, DocRoot, Ext, IgnoreVar) ->
-    io:format("TRACE ~p:~p 111 ~p~n",[?MODULE, ?LINE, {Val, IgnoreVar}]),   % {"fruit",fruit}
     case lists:keysearch(Val, 2, Args) of
         false ->           
             Key = list_to_atom(lists:concat(["A", length(Args) + 1])),

@@ -86,12 +86,12 @@ compile(Name, Ext) ->
 %%--------------------------------------------------------------------
 render() ->
     render("variable", ".html", ["foostring", "bar"]),
-    render("extend", ".html", ["bar1string", "bar2string"]),
+    render("extends", ".html", ["bar1string", "bar2string"]),
     render("comment", ".html"),
     render("simple", ".html"),
     render("htmltags", ".html"),
     render("csstags", ".css"),
-    render("for", ".html"). %, ["apple", "banana"]).
+    render(Name, ".html", [["apple", "banana"]]).
         
 
 %%--------------------------------------------------------------------
@@ -102,7 +102,7 @@ render() ->
 render("variable" = Name) ->
     render(Name, ".html", ["foostring", "bar"]);
  
-render("extend" = Name) ->
+render("extends" = Name) ->
     render(Name, ".html", ["bar1string", "bar2string"]);
         
 render("comment" = Name) ->
