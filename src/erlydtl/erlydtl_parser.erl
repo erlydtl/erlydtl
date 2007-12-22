@@ -12,8 +12,8 @@ block({_, Line, [Name]}, Content) ->
 tag({_, Line, Args}) ->
     {tag, Line, Args}.
 
-for({_, Line, [Var, _, List]}, Content) ->
-    {for, Line, list_to_atom(Var), List, Content}.
+for({_, Line, [VarIndex, _, VarArray]}, Content) ->
+    {for, Line, list_to_atom(VarIndex), list_to_atom(VarArray), Content}.
 -file("/Users/rsaccon/R11B/erlang/lib/parsetools-1.4.1.1/include/yeccpre.hrl", 0).
 %% ``The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
