@@ -91,7 +91,7 @@ render() ->
     render("simple", ".html"),
     render("htmltags", ".html"),
     render("csstags", ".css"),
-    render(Name, ".html", [["apple", "banana"]]).
+    render("for", ".html", [["apple", "banana"]]).
         
 
 %%--------------------------------------------------------------------
