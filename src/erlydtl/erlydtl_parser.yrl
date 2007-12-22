@@ -77,5 +77,5 @@ block({_, Line, [Name]}, Content) ->
 tag({_, Line, Args}) ->
     {tag, Line, Args}.
 
-for({_, Line, [Var, _, List]}, Content) ->
-    {for, Line, list_to_atom(Var), List, Content}.
+for({_, Line, [Iterator, _, Var]}, Content) ->
+    {for, Line, list_to_atom(Iterator), list_to_atom(Var), Content}.
