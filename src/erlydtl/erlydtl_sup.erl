@@ -36,12 +36,11 @@
 -behaviour(supervisor).
 
 %% API
--export([start_link/0]).
+-export([start_link/0, start_link/1, upgrade/0]).
 
 %% Supervisor callbacks
 -export([init/1]).
 
--define(SERVER, ?MODULE).
 
 %%====================================================================
 %% API functions
@@ -52,7 +51,40 @@
 %% @end 
 %%--------------------------------------------------------------------
 start_link() ->
-    supervisor:start_link({local, ?SERVER}, ?MODULE, []).
+    supervisor:start_link({local, ?MODULE}, ?MODULE, []).
+
+%%--------------------------------------------------------------------
+%% @spec start_link(Args::list()) -> {ok,Pid} | ignore | {error,Error}
+%% @doc Starts the supervisor
+%% @end 
+%%--------------------------------------------------------------------    
+start_link(Args) ->
+    supervisor:start_link({local, ?MODULE}, ?MODULE, Args).
+
+    
+%%--------------------------------------------------------------------
+%% @spec upgrade() -> ok
+%% @doc 
+%% Add processes if necessary.
+%% @end
+%%--------------------------------------------------------------------
+upgrade() ->
+    {ok, {_, Specs}} = init([]),
+
+    Old = sets:from_list(
+	    [Name || {Name, _, _, _} <- supervisor:which_children(?MODULE)]),
+    New = sets:from_list([Name || {Name, _, _, _, _, _} <- Specs]),
+    Kill = sets:subtract(Old, New),
+
+    sets:fold(fun (Id, ok) ->
+		      supervisor:terminate_child(?MODULE, Id),
+		      supervisor:delete_child(?MODULE, Id),
+		      ok
+	      end, ok, Kill),
+
+    [supervisor:start_child(?MODULE, Spec) || Spec <- Specs],
+    ok.
+
 
 %%====================================================================
 %% Supervisor callbacks
@@ -68,10 +100,20 @@ start_link() ->
 %% @end 
 %%--------------------------------------------------------------------
 init([]) ->
-    AChild = {erlydtl_server,{erlydtl_server,start_link,[]},
-              permanent,2000,worker,[erlydtl_server]},
-    {ok,{{one_for_all,0,1}, [AChild]}}.
-
+    RestartStrategy = one_for_one,
+    MaxRestarts = 10,
+    MaxTimeBetweenRestarts = 10,
+    SupFlags  = {RestartStrategy, MaxRestarts, MaxTimeBetweenRestarts},
+    ErlyDTL = {erlydtl_server, 
+	    {erlydtl_server, start_link, []},
+        permanent,
+        1000,
+        worker,
+        [erlydtl_server]},
+    Processes = [ErlyDTL],
+    {ok,{SupFlags, Processes}}.
+        
+    
 %%====================================================================
 %% Internal functions
 %%====================================================================
