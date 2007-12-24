@@ -78,8 +78,23 @@ extends({_, Line, [Name]}) ->
 block({_, Line, [Name]}, Content) ->
     {block, Line, list_to_atom(Name), Content}.
 
-tag({_, Line, Args}) ->
-    {tag, Line, Args}.
+tag({_, Line, [TagName | Args]}) ->
+    %% TODO: check if string (enclosed with  "") or variable. 
+    %% for now we handle it (even not enclosed with "") as string
+	Args2 = lists:foldl(fun(X, Acc) ->
+	        case string:chr(X, $=) of
+				0 ->
+				    Acc;
+				Pos ->
+			        Var = list_to_atom(string:sub_string(X, 1, Pos-1)),
+			        Val = string:sub_string(X, Pos+1),
+			        Val2 = string:strip(Val, both, $"),
+					[{Var, Val2}| Acc]
+			end
+		end,
+    	[],
+    	Args),
+    {tag, Line, TagName, Args2}.
 
 for({_, Line, [Iterator, _, Var]}, Content) ->
     {for, Line, list_to_atom(Iterator), list_to_atom(Var), Content}.
