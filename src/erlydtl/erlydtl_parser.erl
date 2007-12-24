@@ -2,8 +2,12 @@
 -export([parse/1, parse_and_scan/1, format_error/1]).
 -file("src/erlydtl/erlydtl_parser.yrl", 68).
 
+var({_, Line, Var}) ->
+    {var, Line, list_to_atom("A" ++ Var)}.
+
 extends({_, Line, [Name]}) ->
-    %% TODO: check if string or variable, now it is assumed it is string
+    %% TODO: check if string (enclosed with  "") or variable. 
+    %% for now we handle it (even not enclosed with "") as string
     {extends, Line, string:strip(Name, both, $")}.
 
 block({_, Line, [Name]}, Content) ->
@@ -12,8 +16,8 @@ block({_, Line, [Name]}, Content) ->
 tag({_, Line, Args}) ->
     {tag, Line, Args}.
 
-for({_, Line, [VarIndex, _, VarArray]}, Content) ->
-    {for, Line, list_to_atom(VarIndex), list_to_atom(VarArray), Content}.
+for({_, Line, [Iterator, _, Var]}, Content) ->
+    {for, Line, list_to_atom(Iterator), list_to_atom(Var), Content}.
 -file("/Users/rsaccon/R11B/erlang/lib/parsetools-1.4.1.1/include/yeccpre.hrl", 0).
 %% ``The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
@@ -107,7 +111,7 @@ yecctoken2string(Other) ->
 
 
 
--file("src/erlydtl/erlydtl_parser.erl", 110).
+-file("src/erlydtl/erlydtl_parser.erl", 114).
 
 yeccpars2(0, __Cat, __Ss, __Stack, __T, __Ts, __Tzr) ->
  __NewStack = yeccpars2_0_(__Stack),
@@ -147,7 +151,8 @@ yeccpars2(7, __Cat, __Ss, __Stack, __T, __Ts, __Tzr) ->
  __NewStack = yeccpars2_7_(__Stack),
  yeccpars2(yeccgoto('Element', hd(__Ss)), __Cat, __Ss, __NewStack, __T, __Ts, __Tzr);
 yeccpars2(8, __Cat, __Ss, __Stack, __T, __Ts, __Tzr) ->
- yeccpars2(yeccgoto('Element', hd(__Ss)), __Cat, __Ss, __Stack, __T, __Ts, __Tzr);
+ __NewStack = yeccpars2_8_(__Stack),
+ yeccpars2(yeccgoto('Element', hd(__Ss)), __Cat, __Ss, __NewStack, __T, __Ts, __Tzr);
 yeccpars2(9, block, __Ss, __Stack, __T, __Ts, __Tzr) ->
  yeccpars1(__Ts, __Tzr, 3, [9 | __Ss], [__T | __Stack]);
 yeccpars2(9, endfor, __Ss, __Stack, __T, __Ts, __Tzr) ->
@@ -248,6 +253,13 @@ yeccpars2_7_([__1 | __Stack]) ->
    tag ( __1 )
   end | __Stack].
 
+-compile({inline,{yeccpars2_8_,1}}).
+-file("src/erlydtl/erlydtl_parser.yrl", 58).
+yeccpars2_8_([__1 | __Stack]) ->
+ [begin
+   var ( __1 )
+  end | __Stack].
+
 -compile({inline,{yeccpars2_10_,1}}).
 -file("src/erlydtl/erlydtl_parser.yrl", 62).
 yeccpars2_10_([__3,__2,__1 | __Stack]) ->
@@ -263,4 +275,4 @@ yeccpars2_12_([__3,__2,__1 | __Stack]) ->
   end | __Stack].
 
 
--file("src/erlydtl/erlydtl_parser.yrl", 81).
+-file("src/erlydtl/erlydtl_parser.yrl", 85).
