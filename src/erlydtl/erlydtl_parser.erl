@@ -13,8 +13,23 @@ extends({_, Line, [Name]}) ->
 block({_, Line, [Name]}, Content) ->
     {block, Line, list_to_atom(Name), Content}.
 
-tag({_, Line, Args}) ->
-    {tag, Line, Args}.
+tag({_, Line, [TagName | Args]}) ->
+    %% TODO: check if string (enclosed with  "") or variable. 
+    %% for now we handle it (even not enclosed with "") as string
+	Args2 = lists:foldl(fun(X, Acc) ->
+	        case string:chr(X, $=) of
+				0 ->
+				    Acc;
+				Pos ->
+			        Var = list_to_atom(string:sub_string(X, 1, Pos-1)),
+			        Val = string:sub_string(X, Pos+1),
+			        Val2 = string:strip(Val, both, $"),
+					[{Var, Val2}| Acc]
+			end
+		end,
+    	[],
+    	Args),
+    {tag, Line, TagName, Args2}.
 
 for({_, Line, [Iterator, _, Var]}, Content) ->
     {for, Line, list_to_atom(Iterator), list_to_atom(Var), Content}.
@@ -111,7 +126,7 @@ yecctoken2string(Other) ->
 
 
 
--file("src/erlydtl/erlydtl_parser.erl", 114).
+-file("src/erlydtl/erlydtl_parser.erl", 129).
 
 yeccpars2(0, __Cat, __Ss, __Stack, __T, __Ts, __Tzr) ->
  __NewStack = yeccpars2_0_(__Stack),
@@ -275,4 +290,4 @@ yeccpars2_12_([__3,__2,__1 | __Stack]) ->
   end | __Stack].
 
 
--file("src/erlydtl/erlydtl_parser.yrl", 85).
+-file("src/erlydtl/erlydtl_parser.yrl", 100).

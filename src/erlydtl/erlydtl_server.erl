@@ -255,7 +255,7 @@ build_tree(nil, [{var, Line, Var}], Out, Args, _, _, IgnoreVar)  ->
             {regular, [{var, Line, Var} | Out], [Var | Args]} 
     end;    
     
-build_tree(nil, [{tag, _Line, [TagName | TagArgs]}], Out, Args, _, Ext, IgnoreVar) ->
+build_tree(nil, [{tag, _Line, TagName, TagArgs}], Out, Args, _, Ext, IgnoreVar) ->
     Out2 = load_tag(TagName, TagArgs, Out, default, Ext, IgnoreVar),    
     {regular, Out2, Args};
     
@@ -288,7 +288,7 @@ build_tree([H | T], [{var, Line, Var}], Out, Args, DocRoot, Ext, IgnoreVar) ->
             build_tree(H, T, [{var, Line, Var} | Out], [Var | Args], DocRoot, Ext, IgnoreVar)
     end;    
 	
-build_tree([H | T], [{tag, _Line, [TagName | TagArgs]}], Out, Args, DocRoot, Ext, IgnoreVar) ->
+build_tree([H | T], [{tag, _Line, TagName, TagArgs}], Out, Args, DocRoot, Ext, IgnoreVar) ->
     Out2 = load_tag(TagName, TagArgs, Out, default, Ext, IgnoreVar),
     build_tree(H, T, Out2, Args, DocRoot, Ext, IgnoreVar);
  
@@ -347,11 +347,14 @@ parse_transform(Other) ->
 
    	        	
 load_tag(TagName, TagArgs, Acc0, default, Ext, IgnoreVar) ->
+io:format("TRACE ~p:~p TagArgs ~p~n",[?MODULE, ?LINE, TagArgs]),
     case parse(filename:join([erlydtl_deps:get_base_dir(), "priv", "tags", atom_to_list(TagName) ++ Ext])) of
         {ok, ParentAst} ->
 		    [H|T]=ParentAst,
 			{_, List, Args1} = build_tree(H, T, [], [], undefined, Ext, IgnoreVar),
-			Args2 = [{Var, Val} || {{Var, _}, Val} <- lists:zip(Args1, TagArgs)], 			
+io:format("TRACE ~p:~p Args1 ~p~n",[?MODULE, ?LINE, Args1]),
+			Args2 = [{Var, Val} || {{Var, _}, Val} <- lists:zip(Args1, TagArgs)], 	
+io:format("TRACE ~p:~p Args2 ~p~n",[?MODULE, ?LINE, Args2]),		
 			lists:foldl(fun(X, Acc) -> 
 			        [parse_transform(X, Args2) | Acc]			        
 			    end, 
