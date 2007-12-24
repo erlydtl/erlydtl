@@ -85,10 +85,9 @@ compile(Name, Ext) ->
 %% @end 
 %%--------------------------------------------------------------------
 render() ->
-    render("variable", ".html", ["foostring", "bar"]),
-    render("extends", ".html", ["bar1string", "bar2string"]),
+    render("var"),
+    render("extends", ".html", ["barstring1", "barstring2"]),
     render("comment", ".html"),
-    render("simple", ".html"),
     render("htmltags", ".html"),
     render("csstags", ".css"),
     render("for", ".html", [["apple", "banana"]]).
@@ -99,16 +98,13 @@ render() ->
 %% @doc renders template to a file
 %% @end 
 %%--------------------------------------------------------------------
-render("variable" = Name) ->
-    render(Name, ".html", ["foostring", "bar"]);
+render("var" = Name) ->
+    render(Name, ".html", [{var1, "foostring1"}, {var2, "foostring2"}]);
  
 render("extends" = Name) ->
     render(Name, ".html", ["bar1string", "bar2string"]);
         
 render("comment" = Name) ->
-    render(Name, ".html");
-            
-render("simple" = Name) ->
     render(Name, ".html");
                 
 render("htmltags" = Name) ->

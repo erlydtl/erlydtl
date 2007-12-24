@@ -58,7 +58,7 @@ Elements -> '$empty' : nil.
 Elements -> Elements Element : ['$1', '$2'].
 
 Element -> string : '$1'.
-Element -> var : '$1'.
+Element -> var : var('$1').
 Element -> extends : extends('$1').
 Element -> block Elements endblock : block('$1', '$2').
 Element -> tag : tag('$1').
@@ -67,8 +67,12 @@ Element -> for Elements endfor : for('$1', '$2').
 
 Erlang code.
 
+var({_, Line, Var}) ->
+    {var, Line, list_to_atom("A" ++ Var)}.
+
 extends({_, Line, [Name]}) ->
-    %% TODO: check if string or variable, now it is assumed it is string
+    %% TODO: check if string (enclosed with  "") or variable. 
+    %% for now we handle it (even not enclosed with "") as string
     {extends, Line, string:strip(Name, both, $")}.
 
 block({_, Line, [Name]}, Content) ->
