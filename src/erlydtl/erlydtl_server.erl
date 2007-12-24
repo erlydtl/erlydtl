@@ -204,7 +204,7 @@ compile([H | T], ModuleName, FunctionName, RelDir, Ext) ->
 	    _ ->
 	        Var = erl_syntax:variable(new_var(Args, 0)),
 	        Body0 = lists:foldl(fun(X, Acc) -> 
-	                X2 = list_to_atom(lists:concat(["A", X])),
+	                X2 = list_to_atom(tl(atom_to_list(X))),
         	        A = erl_syntax:variable(X),
         	        B = erl_syntax:application(erl_syntax:atom(proplists), 
     	                erl_syntax:atom(get_value), [erl_syntax:atom(X2), Var]),
@@ -214,8 +214,6 @@ compile([H | T], ModuleName, FunctionName, RelDir, Ext) ->
         	    Args),
         	{[Var], Body0}
 	end, 
-%io:format("TRACE ~p:~p Body ~p~n",[?MODULE, ?LINE, Body]),
-io:format("TRACE ~p:~p Body ~p~n",[?MODULE, ?LINE, erl_syntax:revert(Body)]),
 	Clause = erl_syntax:clause(Args1, none, Body),
 	Func = erl_syntax:function(erl_syntax:atom(FunctionName), [Clause]),
 	[Mod, Cmp] = [erl_syntax:attribute(erl_syntax:atom(X), [erl_syntax:atom(Y)]) ||
