@@ -102,7 +102,7 @@ render("var" = Name) ->
     render(Name, ".html", [{var1, "foostring1"}, {var2, "foostring2"}]);
  
 render("extends" = Name) ->
-    render(Name, ".html", [{var1, "barstring1"}, {var2, "barstring2"}]);
+    render(Name, ".html", [{base_var, "base-barstring"}, {test_var, "test-barstring"}]);
         
 render("comment" = Name) ->
     render(Name, ".html");
