@@ -86,11 +86,11 @@ compile(Name, Ext) ->
 %%--------------------------------------------------------------------
 render() ->
     render("var"),
-    render("extends", ".html", ["barstring1", "barstring2"]),
-    render("comment", ".html"),
-    render("htmltags", ".html"),
-    render("csstags", ".css"),
-    render("for", ".html", [["apple", "banana"]]).
+    render("extends"),
+    render("comment"),
+    render("for"),
+    render("htmltags"),
+    render("csstags").
         
 
 %%--------------------------------------------------------------------
@@ -102,19 +102,20 @@ render("var" = Name) ->
     render(Name, ".html", [{var1, "foostring1"}, {var2, "foostring2"}]);
  
 render("extends" = Name) ->
-    render(Name, ".html", ["bar1string", "bar2string"]);
+    render(Name, ".html", [{var1, "barstring1"}, {var2, "barstring2"}]);
         
 render("comment" = Name) ->
     render(Name, ".html");
+    
+render("for" = Name) ->
+    render(Name, ".html", [{fruit_list, ["apple", "banana"]}]);
                 
 render("htmltags" = Name) ->
     render(Name, ".html");
     
 render("csstags" = Name) ->
-    render(Name, ".html");    
+    render(Name, ".html").    
                     
-render("for" = Name) ->
-    render(Name, ".html", [["apple", "banana"]]).
 
 
 %%--------------------------------------------------------------------
@@ -142,8 +143,8 @@ render(Name, Ext, Args) ->
 %% Internal functions
 %%====================================================================
 
-render2(OutDir, Module, Ext, Args) ->
-    case catch apply(Module, render, Args) of
+render2(OutDir, Module, Ext, Arg) ->
+    case catch apply(Module, render, [Arg]) of
         {'EXIT', Reason} -> 
             io:format("TRACE ~p:~p ~p: rendering failure: ~n",[?MODULE, ?LINE, Reason]);
         Val -> 
