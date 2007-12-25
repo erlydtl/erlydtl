@@ -2,16 +2,23 @@
 -export([parse/1, parse_and_scan/1, format_error/1]).
 -file("src/erlydtl/erlydtl_parser.yrl", 68).
 
+string({_, String}) ->
+    erl_syntax:binary([erl_syntax:binary_field(erl_syntax:integer(X)) || X <- String]).
+
+
 var({_, Line, Var}) ->
     {var, Line, list_to_atom("A" ++ Var)}.
+
 
 extends({_, Line, [Name]}) ->
     %% TODO: check if string (enclosed with  "") or variable. 
     %% for now we handle it (even not enclosed with "") as string
     {extends, Line, string:strip(Name, both, $")}.
 
+
 block({_, Line, [Name]}, Content) ->
     {block, Line, list_to_atom(Name), Content}.
+
 
 tag({_, Line, [TagName | Args]}) ->
     %% TODO: check if string (enclosed with  "") or variable. 
@@ -30,6 +37,7 @@ tag({_, Line, [TagName | Args]}) ->
     	[],
     	Args),
     {tag, Line, TagName, Args2}.
+
 
 for({_, Line, [Iterator, _, Var]}, Content) ->
     {for, Line, list_to_atom("A" ++ Iterator), list_to_atom("A" ++ Var), Content}.
@@ -126,7 +134,7 @@ yecctoken2string(Other) ->
 
 
 
--file("src/erlydtl/erlydtl_parser.erl", 129).
+-file("src/erlydtl/erlydtl_parser.erl", 137).
 
 yeccpars2(0, __Cat, __Ss, __Stack, __T, __Ts, __Tzr) ->
  __NewStack = yeccpars2_0_(__Stack),
@@ -161,7 +169,8 @@ yeccpars2(5, __Cat, __Ss, __Stack, __T, __Ts, __Tzr) ->
  __NewStack = yeccpars2_5_(__Stack),
  yeccpars2(9, __Cat, [5 | __Ss], __NewStack, __T, __Ts, __Tzr);
 yeccpars2(6, __Cat, __Ss, __Stack, __T, __Ts, __Tzr) ->
- yeccpars2(yeccgoto('Element', hd(__Ss)), __Cat, __Ss, __Stack, __T, __Ts, __Tzr);
+ __NewStack = yeccpars2_6_(__Stack),
+ yeccpars2(yeccgoto('Element', hd(__Ss)), __Cat, __Ss, __NewStack, __T, __Ts, __Tzr);
 yeccpars2(7, __Cat, __Ss, __Stack, __T, __Ts, __Tzr) ->
  __NewStack = yeccpars2_7_(__Stack),
  yeccpars2(yeccgoto('Element', hd(__Ss)), __Cat, __Ss, __NewStack, __T, __Ts, __Tzr);
@@ -261,6 +270,13 @@ yeccpars2_5_(__Stack) ->
    nil
   end | __Stack].
 
+-compile({inline,{yeccpars2_6_,1}}).
+-file("src/erlydtl/erlydtl_parser.yrl", 57).
+yeccpars2_6_([__1 | __Stack]) ->
+ [begin
+   string ( __1 )
+  end | __Stack].
+
 -compile({inline,{yeccpars2_7_,1}}).
 -file("src/erlydtl/erlydtl_parser.yrl", 61).
 yeccpars2_7_([__1 | __Stack]) ->
@@ -290,4 +306,4 @@ yeccpars2_12_([__3,__2,__1 | __Stack]) ->
   end | __Stack].
 
 
--file("src/erlydtl/erlydtl_parser.yrl", 100).
+-file("src/erlydtl/erlydtl_parser.yrl", 108).
