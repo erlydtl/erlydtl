@@ -32,7 +32,7 @@ tag({_, Line, [TagName | Args]}) ->
     {tag, Line, TagName, Args2}.
 
 for({_, Line, [Iterator, _, Var]}, Content) ->
-    {for, Line, list_to_atom(Iterator), list_to_atom(Var), Content}.
+    {for, Line, list_to_atom("A" ++ Iterator), list_to_atom("A" ++ Var), Content}.
 -file("/Users/rsaccon/R11B/erlang/lib/parsetools-1.4.1.1/include/yeccpre.hrl", 0).
 %% ``The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in

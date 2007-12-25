@@ -72,7 +72,7 @@ compile("comment" = Name) ->
     compile(Name, ".html");
                
 compile("for" = Name) ->
-    compile(Name, ".css");
+    compile(Name, ".html");
                         
 compile("htmltags" = Name) ->
     compile(Name, ".html");
