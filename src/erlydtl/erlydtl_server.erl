@@ -269,9 +269,6 @@ build_tree(nil, [{for, _Line, Iterator, Var, [HFor | TFor]}], Out, Args, _, Ext,
     Body = erl_syntax:generator(erl_syntax:variable(Iterator), erl_syntax:variable(Var)),  
     Out1 = erl_syntax:list_comp(erl_syntax:list(List1), [Body]),
     {regular, Out1, Args2};   
- 
-build_tree(nil, [{string, Val}], Out, Args, _, _, _) ->
-     {regular, [binary_string(Val) | Out], Args}; 
     
 build_tree(nil, [Token], Out, Args, _, _, _) ->
     {regular, [Token | Out], Args}; 
@@ -302,9 +299,6 @@ build_tree([H | T], [{for, _Line, Iterator, Var, [HFor | TFor]}], Out, Args, Doc
     Body = erl_syntax:generator(erl_syntax:variable(Iterator), erl_syntax:variable(Var)),  
     Out1 = erl_syntax:list_comp(erl_syntax:list(List1), [Body]),
     build_tree(H, T, lists:flatten([Out1, Out]), Args2, DocRoot, Ext, IgnoreVar);
-    	
-build_tree([H | T], [{string, Val}], Out, Args, DocRoot, Ext, IgnoreVar) ->      
-    build_tree(H, T, [binary_string(Val) | Out], Args, DocRoot, Ext, IgnoreVar);
         	
 build_tree([H | T], [Token], Out, Args, DocRoot, Ext, IgnoreVar) ->      
     build_tree(H, T, [Token | Out], Args, DocRoot, Ext, IgnoreVar).
@@ -318,8 +312,6 @@ parse_transform({block, _Line, Name, [nil, Val]}, List, Args, Ext, IgnoreVar) ->
 		    {_, List2, Args2} = build_tree(H, T, [], Args, undefined, Ext, IgnoreVar),
             parse_transform(lists:reverse(List2), List, Args2, Ext, IgnoreVar)
  	end;
-parse_transform({string, Val}, _, Args, _, _) ->    
-    {binary_string(Val), Args};
 parse_transform(Other, _What, Args, _, _) ->    
     {Other, Args}.
 
@@ -336,9 +328,7 @@ parse_transform(Other, _) ->
         
 
 parse_transform({block, _Line , _Name, [nil, T]}) ->
-	parse_transform(T);
-parse_transform({string, Val}) ->
-    binary_string(Val); 
+	parse_transform(T); 
 parse_transform({var, L, Val}) ->
     erl_syntax:variable(Val);
 parse_transform(Other) ->    
@@ -361,7 +351,6 @@ load_tag(TagName, TagArgs, Acc0, default, Ext, IgnoreVar) ->
   
     
 binary_string(String) ->
-%    erl_syntax:string(String).
     erl_syntax:binary([erl_syntax:binary_field(erl_syntax:integer(X)) || X <- String]).
 
 

@@ -57,7 +57,7 @@ Rootsymbol
 Elements -> '$empty' : nil.
 Elements -> Elements Element : ['$1', '$2'].
 
-Element -> string : '$1'.
+Element -> string : string('$1').
 Element -> var : var('$1').
 Element -> extends : extends('$1').
 Element -> block Elements endblock : block('$1', '$2').
@@ -67,16 +67,23 @@ Element -> for Elements endfor : for('$1', '$2').
 
 Erlang code.
 
+string({_, String}) ->
+    erl_syntax:binary([erl_syntax:binary_field(erl_syntax:integer(X)) || X <- String]).
+
+
 var({_, Line, Var}) ->
     {var, Line, list_to_atom("A" ++ Var)}.
+
 
 extends({_, Line, [Name]}) ->
     %% TODO: check if string (enclosed with  "") or variable. 
     %% for now we handle it (even not enclosed with "") as string
     {extends, Line, string:strip(Name, both, $")}.
 
+
 block({_, Line, [Name]}, Content) ->
     {block, Line, list_to_atom(Name), Content}.
+
 
 tag({_, Line, [TagName | Args]}) ->
     %% TODO: check if string (enclosed with  "") or variable. 
@@ -95,6 +102,7 @@ tag({_, Line, [TagName | Args]}) ->
     	[],
     	Args),
     {tag, Line, TagName, Args2}.
+
 
 for({_, Line, [Iterator, _, Var]}, Content) ->
     {for, Line, list_to_atom("A" ++ Iterator), list_to_atom("A" ++ Var), Content}.
