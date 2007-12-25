@@ -219,7 +219,6 @@ compile([H | T], ModuleName, FunctionName, RelDir, Ext) ->
 	[Mod, Cmp] = [erl_syntax:attribute(erl_syntax:atom(X), [erl_syntax:atom(Y)]) ||
 	    {X, Y} <- [{"module", ModuleName}, {"compile", "export_all"}]],
     Forms = [erl_syntax:revert(X) || X <- [Mod, Cmp, Func]],
-io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, Forms]),
     case compile:forms(Forms) of
         {ok, Module, Bin} ->
             erlydtl_tools:write_beam(Module, Bin, "ebin"),
@@ -266,7 +265,7 @@ build_tree(nil, [{for, _Line, Iterator, Var, [HFor | TFor]}], Out, Args, _, Ext,
             Args1;
         _ ->
             [Var | Args1]
-	end,     
+	end,    
     Body = erl_syntax:generator(erl_syntax:variable(Iterator), erl_syntax:variable(Var)),  
     Out1 = erl_syntax:list_comp(erl_syntax:list(List1), [Body]),
     {regular, Out1, Args2};   
@@ -292,7 +291,7 @@ build_tree([H | T], [{tag, _Line, TagName, TagArgs}], Out, Args, DocRoot, Ext, I
     Out2 = load_tag(TagName, TagArgs, Out, default, Ext, IgnoreVar),
     build_tree(H, T, Out2, Args, DocRoot, Ext, IgnoreVar);
  
-build_tree([H | T], [{for, _Line, Iterator, Var, [HFor | TFor]}], Out, Args, DocRoot, Ext, IgnoreVar) -> 	
+build_tree([H | T], [{for, _Line, Iterator, Var, [HFor | TFor]}], Out, Args, DocRoot, Ext, IgnoreVar) -> 
     {_, List1, Args1} = build_tree(HFor, TFor, [], Args, undefined, Ext, Iterator),  
     Args2 = case lists:member(Var, Args1) of
         true ->
@@ -362,8 +361,8 @@ load_tag(TagName, TagArgs, Acc0, default, Ext, IgnoreVar) ->
   
     
 binary_string(String) ->
-    erl_syntax:string(String).
-%    erl_syntax:binary([erl_syntax:binary_field(erl_syntax:integer(X)) || X <- String]).
+%    erl_syntax:string(String).
+    erl_syntax:binary([erl_syntax:binary_field(erl_syntax:integer(X)) || X <- String]).
 
 
 rel_dir(Dir, DocRoot) when Dir =:= DocRoot ->
