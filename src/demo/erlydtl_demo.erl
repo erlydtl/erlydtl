@@ -62,10 +62,28 @@ compile() ->
 %% compiles the template to beam files
 %% @end 
 %%--------------------------------------------------------------------        
+compile("var" = Name) ->
+    compile(Name, ".html");
+
+compile("extends" = Name) ->
+    compile(Name, ".html"); 
+          
+compile("comment" = Name) ->
+    compile(Name, ".html");
+               
+compile("for" = Name) ->
+    compile(Name, ".css");
+                        
+compile("htmltags" = Name) ->
+    compile(Name, ".html");
+                    
+compile("csstags" = Name) ->
+     compile(Name, ".css");
+      
 compile(Name) ->
-     compile(Name, ".html").
-      
-      
+    io:format("No such template: ~p~n",[Name]).
+               
+               
 %%--------------------------------------------------------------------
 %% @spec (string(), string()) -> any()
 %% @doc 
@@ -114,10 +132,12 @@ render("htmltags" = Name) ->
     render(Name, ".html");
     
 render("csstags" = Name) ->
-    render(Name, ".html").    
-                    
-
-
+    render(Name, ".css");
+    
+render(Name) ->
+    io:format("No such template: ~p~n",[Name]).  
+                
+                
 %%--------------------------------------------------------------------
 %% @spec (atom(), string()) -> any()
 %% @doc renders template to a file

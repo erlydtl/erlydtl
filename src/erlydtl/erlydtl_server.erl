@@ -329,9 +329,9 @@ parse_transform({var, Line, Val}, Var, Val) when is_atom(Var) ->
     {var, Line, Var}.
     
             
-parse_transform({var, Line, Val}, Args) ->
-    {value, {_, Value}} = lists:keysearch(Val, 1, Args),
-    binary_string(Value);      
+parse_transform({var, _Line, Var}, Args) ->
+    Var2 = list_to_atom(tl(atom_to_list(Var))),
+    binary_string(proplists:get_value(Var2, Args));      
 parse_transform(Other, _) ->    
     Other.
         
@@ -347,21 +347,16 @@ parse_transform(Other) ->
 
    	        	
 load_tag(TagName, TagArgs, Acc0, default, Ext, IgnoreVar) ->
-io:format("TRACE ~p:~p TagArgs ~p~n",[?MODULE, ?LINE, TagArgs]),
     case parse(filename:join([erlydtl_deps:get_base_dir(), "priv", "tags", atom_to_list(TagName) ++ Ext])) of
         {ok, ParentAst} ->
 		    [H|T]=ParentAst,
-			{_, List, Args1} = build_tree(H, T, [], [], undefined, Ext, IgnoreVar),
-io:format("TRACE ~p:~p Args1 ~p~n",[?MODULE, ?LINE, Args1]),
-			Args2 = [{Var, Val} || {{Var, _}, Val} <- lists:zip(Args1, TagArgs)], 	
-io:format("TRACE ~p:~p Args2 ~p~n",[?MODULE, ?LINE, Args2]),		
+			{_, List, _} = build_tree(H, T, [], [], undefined, Ext, IgnoreVar),			
 			lists:foldl(fun(X, Acc) -> 
-			        [parse_transform(X, Args2) | Acc]			        
+			        [parse_transform(X, TagArgs) | Acc]			        
 			    end, 
 			    Acc0,
 			    lists:reverse(List));
 		{error, Msg} ->
-    	    io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, Msg]),
     	    Acc0
     end.
   
