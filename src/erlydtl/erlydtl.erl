@@ -3,7 +3,8 @@
 %%% @author    Roberto Saccon <rsaccon@gmail.com> [http://rsaccon.com]
 %%% @copyright 2007 Roberto Saccon
 %%% @doc  
-%%% Helper module to start and stop ErlyDTL application
+%%% Helper module to start and stop ErlyDTL application and for 
+%%% creating yecc-grammar based template parser
 %%% @end  
 %%%
 %%% The MIT License
@@ -34,7 +35,16 @@
 -author('rsaccon@gmail.com').
 
 %% API
--export([start/0, stop/0]).
+-export([start/0, stop/0, create_parser/0, reload/2, write_beam/3]).
+
+%% --------------------------------------------------------------------
+%% Definitions
+%% --------------------------------------------------------------------
+-ifdef(debug). 
+-define(PRINT_ERR_WARNS, [report_warnings, report_errors]). 
+-else. 
+-define(PRINT_ERR_WARNS, []). 
+-endif.
 
 
 %% @spec start() -> ok
@@ -42,7 +52,66 @@
 start() ->
     application:start(erlydtl).
 
+
 %% @spec stop() -> ok
 %% @doc Stop the erlydtl server.
 stop() ->
     application:stop(erlydtl).
+    
+    
+%%--------------------------------------------------------------------
+%% @spec 
+%% @doc
+%% @end 
+%%--------------------------------------------------------------------
+create_parser() ->
+    create_parser("src/erlydtl/erlydtl_parser", "ebin").
+
+
+%%--------------------------------------------------------------------
+%% @spec (ModuleName::string(), Bin,::binary()) -> Ok::atom() | Error::atom()
+%% @doc reloads byte code
+%% @end 
+%%--------------------------------------------------------------------
+reload(Module, Bin) ->
+    code:purge(Module),
+    SrcName = atom_to_list(Module) ++ ".erl",
+    case code:load_binary(Module, SrcName, Bin) of
+        {module, _} -> ok;
+        _ -> error
+    end.
+
+
+%%--------------------------------------------------------------------
+%% @spec (ModuleName::string(), Bin,::binary(), Dir::string()) -> any()
+%% @doc writes  byte code to beam file
+%% @end 
+%%--------------------------------------------------------------------    
+write_beam(ModuleName, Bin, Dir) ->
+    File = filename:join([Dir, atom_to_list(ModuleName) ++ ".beam"]),
+    file:write_file(File, Bin).
+
+
+%%====================================================================
+%% Internal functions
+%%====================================================================
+
+create_parser(Path, Outdir) ->
+    case yecc:file(Path) of
+        {ok, _} ->
+            compile_reload_parser(Path, Outdir);
+        Err ->
+            io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, Path ++ ": yecc failed"]),
+            Err
+    end.
+
+
+compile_reload_parser(Path, Outdir) ->
+    case compile:file(Path, ?PRINT_ERR_WARNS ++ [{outdir, Outdir}]) of
+        {ok, Bin} ->
+            code:purge(Bin),
+            code:load_file(Bin);
+        Err ->
+            io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, Path ++ ": compilation failed"]),
+            Err
+    end.

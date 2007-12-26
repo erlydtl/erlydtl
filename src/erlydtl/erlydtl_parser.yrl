@@ -72,7 +72,12 @@ string({_, String}) ->
 
 
 var({_, Line, Var}) ->
-    {var, Line, list_to_atom("A" ++ Var)}.
+    case string:tokens(Var, ".") of
+        [Namespace, Var1] ->
+            {var, Line, list_to_atom("A" ++ Namespace), list_to_atom(Var1)};
+        _ ->
+            {var, Line, list_to_atom("A" ++ Var)}
+    end.
 
 
 extends({_, Line, [Name]}) ->
@@ -105,4 +110,4 @@ tag({_, Line, [TagName | Args]}) ->
 
 
 for({_, Line, [Iterator, _, Var]}, Content) ->
-    {for, Line, list_to_atom("A" ++ Iterator), list_to_atom("A" ++ Var), Content}.
+    {for, Line, list_to_atom("A" ++ Iterator), list_to_atom(Var), Content}.

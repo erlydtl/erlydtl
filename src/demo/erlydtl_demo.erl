@@ -126,7 +126,10 @@ render("comment" = Name) ->
     render(Name, ".html");
     
 render("for" = Name) ->
-    render(Name, ".html", [{fruit_list, ["apple", "banana"]}]);
+    Link1 = [{name, "Amazon"}, {url, "http://amazon.com"}],
+    Link2 = [{name, "Google"}, {url, "http://google.com"}],
+    Link3 = [{name, "Microsoft"}, {url, "http://microsoft.com"}],
+    render(Name, ".html", [{link_list, [Link1, Link2, Link3]}]);
                 
 render("htmltags" = Name) ->
     render(Name, ".html");
