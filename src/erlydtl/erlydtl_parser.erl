@@ -7,7 +7,12 @@ string({_, String}) ->
 
 
 var({_, Line, Var}) ->
-    {var, Line, list_to_atom("A" ++ Var)}.
+    case string:tokens(Var, ".") of
+        [Namespace, Var1] ->
+            {var, Line, list_to_atom("A" ++ Namespace), list_to_atom(Var1)};
+        _ ->
+            {var, Line, list_to_atom("A" ++ Var)}
+    end.
 
 
 extends({_, Line, [Name]}) ->
@@ -40,7 +45,7 @@ tag({_, Line, [TagName | Args]}) ->
 
 
 for({_, Line, [Iterator, _, Var]}, Content) ->
-    {for, Line, list_to_atom("A" ++ Iterator), list_to_atom("A" ++ Var), Content}.
+    {for, Line, list_to_atom("A" ++ Iterator), list_to_atom(Var), Content}.
 -file("/Users/rsaccon/R11B/erlang/lib/parsetools-1.4.1.1/include/yeccpre.hrl", 0).
 %% ``The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
@@ -134,7 +139,7 @@ yecctoken2string(Other) ->
 
 
 
--file("src/erlydtl/erlydtl_parser.erl", 137).
+-file("src/erlydtl/erlydtl_parser.erl", 142).
 
 yeccpars2(0, __Cat, __Ss, __Stack, __T, __Ts, __Tzr) ->
  __NewStack = yeccpars2_0_(__Stack),
@@ -306,4 +311,4 @@ yeccpars2_12_([__3,__2,__1 | __Stack]) ->
   end | __Stack].
 
 
--file("src/erlydtl/erlydtl_parser.yrl", 108).
+-file("src/erlydtl/erlydtl_parser.yrl", 113).

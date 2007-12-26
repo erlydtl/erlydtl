@@ -192,10 +192,10 @@ parse(File) ->
 	
 
 compile([H | T], ModuleName, FunctionName, RelDir, Ext) ->
-    {List, Args} = case build_tree(H, T, [], [], RelDir, Ext, []) of
-	    {regular, List0, Args0} ->
+    {List, Args} = case build_tree(H, T, [], [], RelDir, Ext, [], []) of
+	    {regular, List0, Args0, _} ->
 		    {[parse_transform(X) ||  X <- List0], Args0};
-		{inherited, List0, Arg0} ->
+		{inherited, List0, Arg0, _} ->
 			{List0, Arg0}
 	end,    
 	{Args1, Body} = case Args of 
@@ -219,6 +219,7 @@ compile([H | T], ModuleName, FunctionName, RelDir, Ext) ->
 	[Mod, Cmp] = [erl_syntax:attribute(erl_syntax:atom(X), [erl_syntax:atom(Y)]) ||
 	    {X, Y} <- [{"module", ModuleName}, {"compile", "export_all"}]],
     Forms = [erl_syntax:revert(X) || X <- [Mod, Cmp, Func]],
+io:format("TRACE ~p:~p Forms: ~p~n",[?MODULE, ?LINE, Forms]),
     case compile:forms(Forms) of
         {ok, Module, Bin} ->
             erlydtl_tools:write_beam(Module, Bin, "ebin"),
@@ -228,38 +229,43 @@ compile([H | T], ModuleName, FunctionName, RelDir, Ext) ->
     end.    
     
 
-build_tree(nil, [{extends, _Line, Name}], Out, Args, RelDir, Ext, _) -> 
+build_tree(nil, [{extends, _Line, Name}], Out, Args, RelDir, Ext, _, _) -> 
     case parse(filename:join([RelDir, Name])) of
         {ok, ParentAst} ->
 		    [H|T]=ParentAst,
-			{_, List, Args1} = build_tree(H, T, [], [], RelDir, Ext, []),			 
+			{_, List, Args1, _} = build_tree(H, T, [], [], RelDir, Ext, [], []),			 
 			{List3, Args3} = lists:foldl(fun(X, {List2, Args2}) -> 
-                {List4, Args4} = parse_transform(X, Out, Args2, Ext, []),            
+                {List4, Args4} = parse_transform(X, Out, Args2, Ext, [],[]),            
                 {[List4 | List2], Args4}
             end, {[], Args1}, List),		   
-		    {inherited, lists:reverse(lists:flatten([List3])), lists:flatten(Args3)};
+		    {inherited, lists:reverse(lists:flatten([List3])), lists:flatten(Args3), []};
 	    {error, Msg} ->
 	         io:format("TRACE ~p:~p Parent Parser failure: ~p~n",[?MODULE, ?LINE, Name]),
-		     {regular, Out, Args}			
+		     {regular, Out, Args, []}			
     end;
     
-build_tree(nil, [{var, Line, Val}], Out, Args, DocRoot, Ext, Val) ->
-    {regular, [erl_syntax:variable(Val) | Out], Args};
-	
-build_tree(nil, [{var, Line, Var}], Out, Args, _, _, IgnoreVar)  ->
+build_tree(nil, [{var, Line, Var}], Out, Args, DocRoot, Ext, Var, Rec) ->
+    {regular, [erl_syntax:variable(Var) | Out], Args, Rec};
+
+build_tree(nil, [{var, Line, Ns, Var}], Out, Args, DocRoot, Ext, Ns, Rec) ->
+    Var1 = lists:concat([Ns, ".", Var]),
+    Rec1 = [list_to_atom(Var1) | Rec],
+    {regular, [erl_syntax:variable(Var1) | Out], Args, Rec1};
+        	
+build_tree(nil, [{var, Line, Var}], Out, Args, _, _, _, Rec)  ->
     case lists:member(Var, Args) of
         true ->
-            {regular, [{var, Line, Var} | Out], Args};
+            {regular, [{var, Line, Var} | Out], Args, Rec};
         _ ->
-            {regular, [{var, Line, Var} | Out], [Var | Args]} 
+            {regular, [{var, Line, Var} | Out], [Var | Args], Rec} 
     end;    
     
-build_tree(nil, [{tag, _Line, TagName, TagArgs}], Out, Args, _, Ext, IgnoreVar) ->
-    Out2 = load_tag(TagName, TagArgs, Out, default, Ext, IgnoreVar),    
-    {regular, Out2, Args};
+build_tree(nil, [{tag, _Line, TagName, TagArgs}], Out, Args, _, Ext, _, Rec) ->
+    Out2 = load_tag(TagName, TagArgs, Out, default, Ext),    
+    {regular, Out2, Args, Rec};
     
-build_tree(nil, [{for, _Line, Iterator, Var, [HFor | TFor]}], Out, Args, _, Ext, _) -> 
-    {_, List1, Args1} = build_tree(HFor, TFor, [], Args, undefined, Ext, Iterator),  
+build_tree(nil, [{for, _Line, Iterator, Var, [HFor | TFor]}], Out, Args, _, Ext, _, Rec) -> 
+    {_, List1, Args1, TmpArgs1} = build_tree(HFor, TFor, [], Args, undefined, Ext, Iterator, []),  
     Args2 = case lists:member(Var, Args1) of
         true ->
             Args1;
@@ -268,51 +274,78 @@ build_tree(nil, [{for, _Line, Iterator, Var, [HFor | TFor]}], Out, Args, _, Ext,
 	end,    
     Body = erl_syntax:generator(erl_syntax:variable(Iterator), erl_syntax:variable(Var)),  
     Out1 = erl_syntax:list_comp(erl_syntax:list(List1), [Body]),
-    {regular, Out1, Args2};   
+    {regular, Out1, Args2, Rec};   
     
-build_tree(nil, [Token], Out, Args, _, _, _) ->
-    {regular, [Token | Out], Args}; 
+build_tree(nil, [Token], Out, Args, _, _, _, Rec) ->
+    {regular, [Token | Out], Args, Rec}; 
 
-build_tree([H | T], [{var, Line, Var}], Out, Args, DocRoot, Ext, Var) ->
-    build_tree(H, T, [erl_syntax:variable(Var) | Out], Args, DocRoot, Ext, Var) ;
-    		
-build_tree([H | T], [{var, Line, Var}], Out, Args, DocRoot, Ext, IgnoreVar) ->
+build_tree([H | T], [{var, Line, Var}], Out, Args, DocRoot, Ext, Var, Rec) ->
+    build_tree(H, T, [erl_syntax:variable(Var) | Out], Args, DocRoot, Ext, Var, Rec);
+ 
+build_tree([H | T], [{var, Line, Ns, Var}], Out, Args, DocRoot, Ext, Ns, Rec) ->
+    Var1 = lists:concat([Ns, ".", Var]),
+    Rec1 = [list_to_atom(Var1) | Rec],
+    build_tree(H, T, [erl_syntax:variable(Var1) | Out], Args, DocRoot, Ext, Ns, Rec1);
+            		
+build_tree([H | T], [{var, Line, Var}], Out, Args, DocRoot, Ext, IgnoreVar, Rec) ->
     case lists:member(Var, Args) of
         true ->
-            build_tree(H, T, [{var, Line, Var} | Out], Args, DocRoot, Ext, IgnoreVar);
+            build_tree(H, T, [{var, Line, Var} | Out], Args, DocRoot, Ext, IgnoreVar, Rec);
         _ ->
-            build_tree(H, T, [{var, Line, Var} | Out], [Var | Args], DocRoot, Ext, IgnoreVar)
+            build_tree(H, T, [{var, Line, Var} | Out], [Var | Args], DocRoot, Ext, IgnoreVar, Rec)
     end;    
 	
-build_tree([H | T], [{tag, _Line, TagName, TagArgs}], Out, Args, DocRoot, Ext, IgnoreVar) ->
-    Out2 = load_tag(TagName, TagArgs, Out, default, Ext, IgnoreVar),
-    build_tree(H, T, Out2, Args, DocRoot, Ext, IgnoreVar);
+build_tree([H | T], [{tag, _Line, TagName, TagArgs}], Out, Args, DocRoot, Ext, IgnoreVar, Rec) ->
+    Out2 = load_tag(TagName, TagArgs, Out, default, Ext),
+    build_tree(H, T, Out2, Args, DocRoot, Ext, IgnoreVar, Rec);
  
-build_tree([H | T], [{for, _Line, Iterator, Var, [HFor | TFor]}], Out, Args, DocRoot, Ext, IgnoreVar) -> 
-    {_, List1, Args1} = build_tree(HFor, TFor, [], Args, undefined, Ext, Iterator),  
+build_tree([H | T], [{for, _Line, Iterator, Var, [HFor | TFor]}], Out, Args, DocRoot, Ext, IgnoreVar, Rec) ->
+    {_, List1, Args1, Rec1} = build_tree(HFor, TFor, [], Args, undefined, Ext, Iterator, []),  
     Args2 = case lists:member(Var, Args1) of
         true ->
             Args1;
         _ ->
             [Var | Args1]
-	end,
-    Body = erl_syntax:generator(erl_syntax:variable(Iterator), erl_syntax:variable(Var)),  
-    Out1 = erl_syntax:list_comp(erl_syntax:list(List1), [Body]),
-    build_tree(H, T, lists:flatten([Out1, Out]), Args2, DocRoot, Ext, IgnoreVar);
+	end,  
+    Out1 = case Rec1 of
+        [] ->
+            Pattern = erl_syntax:variable(Iterator),
+            Body = erl_syntax:generator(Pattern, erl_syntax:variable(Var)),  
+            erl_syntax:list_comp(erl_syntax:list(List1), [Body]);
+        _ ->    
+            %% 
+            %% Pattern = erl_syntax:variable('X'),
+            %% Vars = lists:foldl(fun(X, Acc) ->
+            %%         A = erl_syntax:variable(X),
+            %%         B = erl_syntax:application(erl_syntax:atom(proplists), 
+            %%             erl_syntax:atom(get_value), [erl_syntax:atom(X), Pattern]),
+            %%         [erl_syntax:match_expr(A, B) | Acc]
+            %%     end,
+            %%     [],
+            %%     Rec1),
+            %%     
+            %% todo: create a function ..
+            Body = erl_syntax:generator(Pattern, erl_syntax:variable(Var)),
+            F =  erl_syntax:application(erl_syntax:atom(erlydtl_base),
+                erl_syntax:atom(list_comp_helper),
+                [erl_syntax:list(List1), erl_syntax:list(Req1)]),
+            erl_syntax:list_comp(F, [Body])
+    end,
+    build_tree(H, T, lists:flatten([Out1, Out]), Args2, DocRoot, Ext, IgnoreVar, Rec);
         	
-build_tree([H | T], [Token], Out, Args, DocRoot, Ext, IgnoreVar) ->      
-    build_tree(H, T, [Token | Out], Args, DocRoot, Ext, IgnoreVar).
+build_tree([H | T], [Token], Out, Args, DocRoot, Ext, IgnoreVar, Rec) ->      
+    build_tree(H, T, [Token | Out], Args, DocRoot, Ext, IgnoreVar, Rec).
 
 
-parse_transform({block, _Line, Name, [nil, Val]}, List, Args, Ext, IgnoreVar) ->
+parse_transform({block, _Line, Name, [nil, Val]}, List, Args, Ext, IgnoreVar, Rec) ->
 	case lists:keysearch(Name, 3, List) of
 		false -> 
-            parse_transform(Val, List, Args, Ext, IgnoreVar);
+            parse_transform(Val, List, Args, Ext, IgnoreVar, Rec);
 		{value, {_, _, _, [H | T]}} ->  
-		    {_, List2, Args2} = build_tree(H, T, [], Args, undefined, Ext, IgnoreVar),
-            parse_transform(lists:reverse(List2), List, Args2, Ext, IgnoreVar)
+		    {_, List2, Args2} = build_tree(H, T, [], Args, undefined, Ext, IgnoreVar, Rec),
+            parse_transform(lists:reverse(List2), List, Args2, Ext, IgnoreVar, Rec)
  	end;
-parse_transform(Other, _What, Args, _, _) ->    
+parse_transform(Other, _What, Args, _, _, _) ->    
     {Other, Args}.
 
     
@@ -335,11 +368,11 @@ parse_transform(Other) ->
     Other.   	
 
    	        	
-load_tag(TagName, TagArgs, Acc0, default, Ext, IgnoreVar) ->
+load_tag(TagName, TagArgs, Acc0, default, Ext) ->
     case parse(filename:join([erlydtl_deps:get_base_dir(), "priv", "tags", atom_to_list(TagName) ++ Ext])) of
         {ok, ParentAst} ->
 		    [H|T]=ParentAst,
-			{_, List, _} = build_tree(H, T, [], [], undefined, Ext, IgnoreVar),			
+			{_, List, _, _} = build_tree(H, T, [], [], undefined, Ext, [], []),
 			lists:foldl(fun(X, Acc) -> 
 			        [parse_transform(X, TagArgs) | Acc]			        
 			    end, 

@@ -1,8 +1,8 @@
 before
 
 <ul>
-{% for fruit in fruit_list %}
-    <li>{{ fruit }}</li>
+{% for iterator in link_list %}
+	<li><a href="{{ iterator.url }}">{{ iterator.name }}</a></li>
 {% endfor %}
 </ul>
 
