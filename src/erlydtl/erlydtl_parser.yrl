@@ -110,4 +110,4 @@ tag({_, Line, [TagName | Args]}) ->
 
 
 for({_, Line, [Iterator, _, Var]}, Content) ->
-    {for, Line, list_to_atom("A" ++ Iterator), list_to_atom(Var), Content}.
+    {for, Line, list_to_atom("A" ++ Iterator), list_to_atom("A" ++ Var), Content}.

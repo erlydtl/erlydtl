@@ -198,12 +198,12 @@ compile([H | T], ModuleName, FunctionName, RelDir, Ext) ->
 		{inherited, List0, Arg0, _} ->
 			{List0, Arg0}
 	end,    
-	{Args1, Body} = case Args of 
+	{[VarPrint]=Args1, BodyAST} = case Args of 
 	    []  ->
 	        {[], [erl_syntax:list(List)]};
 	    _ ->
 	        Var = erl_syntax:variable(new_var(Args, 0)),
-	        Body0 = lists:foldl(fun(X, Acc) -> 
+	        BodyAST0 = lists:foldl(fun(X, Acc) -> 
 	                X2 = list_to_atom(tl(atom_to_list(X))),
         	        A = erl_syntax:variable(X),
         	        B = erl_syntax:application(erl_syntax:atom(proplists), 
@@ -212,14 +212,19 @@ compile([H | T], ModuleName, FunctionName, RelDir, Ext) ->
         	    end,
         	    [erl_syntax:list(List)],
         	    Args),
-        	{[Var], Body0}
+        	{[Var], BodyAST0}
 	end, 
-	Clause = erl_syntax:clause(Args1, none, Body),
-	Func = erl_syntax:function(erl_syntax:atom(FunctionName), [Clause]),
-	[Mod, Cmp] = [erl_syntax:attribute(erl_syntax:atom(X), [erl_syntax:atom(Y)]) ||
+	%% -------------------------------------------------------------
+    %% Trace = erl_syntax:application(erl_syntax:atom(io), 
+    %%         erl_syntax:atom(format),
+    %%         [erl_syntax:string("TEMPLATE-TRACE: ~p~n"), erl_syntax:list([VarPrint])]),   
+    %% ClauseAST = erl_syntax:clause(Args1, none, [Trace | BodyAST]),
+    %% --------------------------------------------------------------
+	ClauseAST = erl_syntax:clause(Args1, none, BodyAST),
+	FuncAST = erl_syntax:function(erl_syntax:atom(FunctionName), [ClauseAST]),
+	[ModAST, CmpAST] = [erl_syntax:attribute(erl_syntax:atom(X), [erl_syntax:atom(Y)]) ||
 	    {X, Y} <- [{"module", ModuleName}, {"compile", "export_all"}]],
-    Forms = [erl_syntax:revert(X) || X <- [Mod, Cmp, Func]],
-io:format("TRACE ~p:~p Forms: ~p~n",[?MODULE, ?LINE, Forms]),
+    Forms = [erl_syntax:revert(X) || X <- [ModAST, CmpAST, FuncAST]],
     case compile:forms(Forms) of
         {ok, Module, Bin} ->
             erlydtl_tools:write_beam(Module, Bin, "ebin"),
@@ -235,9 +240,11 @@ build_tree(nil, [{extends, _Line, Name}], Out, Args, RelDir, Ext, _, _) ->
 		    [H|T]=ParentAst,
 			{_, List, Args1, _} = build_tree(H, T, [], [], RelDir, Ext, [], []),			 
 			{List3, Args3} = lists:foldl(fun(X, {List2, Args2}) -> 
-                {List4, Args4} = parse_transform(X, Out, Args2, Ext, [],[]),            
-                {[List4 | List2], Args4}
-            end, {[], Args1}, List),		   
+                    {List4, Args4} = parse_transform(X, Out, Args2, Ext, [],[]),           
+                    {[List4 | List2], Args4}
+                end, 
+                {[], Args1}, 
+                List),		   
 		    {inherited, lists:reverse(lists:flatten([List3])), lists:flatten(Args3), []};
 	    {error, Msg} ->
 	         io:format("TRACE ~p:~p Parent Parser failure: ~p~n",[?MODULE, ?LINE, Name]),
@@ -264,16 +271,34 @@ build_tree(nil, [{tag, _Line, TagName, TagArgs}], Out, Args, _, Ext, _, Rec) ->
     Out2 = load_tag(TagName, TagArgs, Out, default, Ext),    
     {regular, Out2, Args, Rec};
     
-build_tree(nil, [{for, _Line, Iterator, Var, [HFor | TFor]}], Out, Args, _, Ext, _, Rec) -> 
-    {_, List1, Args1, TmpArgs1} = build_tree(HFor, TFor, [], Args, undefined, Ext, Iterator, []),  
+build_tree(nil, [{for, _Line, It, Var, [HFor | TFor]}], Out, Args, _, Ext, _, Rec) -> 
+    {_, List1, Args1, Rec1} = build_tree(HFor, TFor, [], Args, undefined, Ext, It, []),  
     Args2 = case lists:member(Var, Args1) of
         true ->
             Args1;
         _ ->
             [Var | Args1]
-	end,    
-    Body = erl_syntax:generator(erl_syntax:variable(Iterator), erl_syntax:variable(Var)),  
-    Out1 = erl_syntax:list_comp(erl_syntax:list(List1), [Body]),
+	end,  
+	ItAST = erl_syntax:variable(It),
+    Out1 = case Rec1 of
+        [] ->
+            BodyAST = erl_syntax:generator(ItAST, erl_syntax:variable(Var)),  
+            erl_syntax:list_comp(erl_syntax:list(List1), [BodyAST]);
+        _ ->                                 
+            FunBodyAST = lists:foldl(fun(X, Acc) -> 
+                    [_,Prop] = string:tokens(tl(atom_to_list(X)), "."),
+                    A = erl_syntax:variable(X),
+                    B = erl_syntax:application(erl_syntax:atom(proplists), 
+                        erl_syntax:atom(get_value), [erl_syntax:atom(Prop), ItAST]),
+                    [erl_syntax:match_expr(A, B) | Acc]
+                 end,
+                 [erl_syntax:list(List1)],
+                 Rec1),
+            FunClauseAST = erl_syntax:clause([ItAST], none, FunBodyAST),
+            erl_syntax:application(erl_syntax:atom(lists), 
+                erl_syntax:atom(map),
+                [erl_syntax:fun_expr([FunClauseAST]), erl_syntax:variable(Var)])
+    end,
     {regular, Out1, Args2, Rec};   
     
 build_tree(nil, [Token], Out, Args, _, _, _, Rec) ->
@@ -312,23 +337,20 @@ build_tree([H | T], [{for, _Line, It, Var, [HFor | TFor]}], Out, Args, DocRoot, 
         [] ->
             BodyAST = erl_syntax:generator(ItAST, erl_syntax:variable(Var)),  
             erl_syntax:list_comp(erl_syntax:list(List1), [BodyAST]);
-        _ ->                
-            ListAST = erl_syntax:variable('List'), 
-            RecAST = erl_syntax:variable('Rec'), 
-            
-            A = erl_syntax:variable('Aiterator.name'),
-            B = erl_syntax:application(erl_syntax:atom(proplists), 
-                erl_syntax:atom(get_value), [erl_syntax:atom('Aiterator.name'), ItAST]),            
-            C = erl_syntax:variable('Aiterator.url'),
-            D = erl_syntax:application(erl_syntax:atom(proplists), 
-                erl_syntax:atom(get_value), [erl_syntax:atom('Aiterator.url'), ItAST]),     
-                     
-            FunBodyAST = [erl_syntax:match_expr(A, B), erl_syntax:match_expr(C, D), ListAST],
-            FunClauseAST = erl_syntax:clause([ItAST, ListAST, RecAST], none, FunBodyAST),
-        	                      
-            erl_syntax:application(erl_syntax:atom(lists),
-                erl_syntax:atom(foreach),
-                [erl_syntax:fun_expr([FunClauseAST]), erl_syntax:list(List1)])
+        _ ->                                 
+            FunBodyAST = lists:foldl(fun(X, Acc) -> 
+                    [_,Prop] = string:tokens(tl(atom_to_list(X)), "."),
+                    A = erl_syntax:variable(X),
+                    B = erl_syntax:application(erl_syntax:atom(proplists), 
+                        erl_syntax:atom(get_value), [erl_syntax:atom(Prop), ItAST]),
+                    [erl_syntax:match_expr(A, B) | Acc]
+                 end,
+                 [erl_syntax:list(List1)],
+                 Rec1),
+            FunClauseAST = erl_syntax:clause([ItAST], none, FunBodyAST),
+            erl_syntax:application(erl_syntax:atom(lists), 
+                erl_syntax:atom(map),
+                [erl_syntax:fun_expr([FunClauseAST]), erl_syntax:variable(Var)])
     end,
     build_tree(H, T, lists:flatten([Out1, Out]), Args2, DocRoot, Ext, IgnoreVar, Rec);
         	
@@ -337,6 +359,7 @@ build_tree([H | T], [Token], Out, Args, DocRoot, Ext, IgnoreVar, Rec) ->
 
 
 parse_transform({block, _Line, Name, [nil, Val]}, List, Args, Ext, IgnoreVar, Rec) ->
+    %io:format("TRACE ~p:~p block: ~p~n",[?MODULE, ?LINE, {Name, Val, List, Args, Ext, IgnoreVar, Rec}]),
 	case lists:keysearch(Name, 3, List) of
 		false -> 
             parse_transform(Val, List, Args, Ext, IgnoreVar, Rec);
