@@ -197,8 +197,8 @@ compile([H | T], ModuleName, FunctionName, RelDir, Ext) ->
 		    {[parse_transform(X) ||  X <- List0], Args0};
 		{inherited, List0, Arg0, _} ->
 			{List0, Arg0}
-	end,    
-	{[VarPrint]=Args1, BodyAST} = case Args of 
+	end,   
+	{Args1, BodyAST} = case Args of 
 	    []  ->
 	        {[], [erl_syntax:list(List)]};
 	    _ ->
@@ -213,13 +213,7 @@ compile([H | T], ModuleName, FunctionName, RelDir, Ext) ->
         	    [erl_syntax:list(List)],
         	    Args),
         	{[Var], BodyAST0}
-	end, 
-	%% -------------------------------------------------------------
-    %% Trace = erl_syntax:application(erl_syntax:atom(io), 
-    %%         erl_syntax:atom(format),
-    %%         [erl_syntax:string("TEMPLATE-TRACE: ~p~n"), erl_syntax:list([VarPrint])]),   
-    %% ClauseAST = erl_syntax:clause(Args1, none, [Trace | BodyAST]),
-    %% --------------------------------------------------------------
+	end,
 	ClauseAST = erl_syntax:clause(Args1, none, BodyAST),
 	FuncAST = erl_syntax:function(erl_syntax:atom(FunctionName), [ClauseAST]),
 	[ModAST, CmpAST] = [erl_syntax:attribute(erl_syntax:atom(X), [erl_syntax:atom(Y)]) ||
