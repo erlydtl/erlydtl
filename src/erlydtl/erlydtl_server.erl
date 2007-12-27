@@ -353,13 +353,12 @@ build_tree([H | T], [Token], Out, Args, DocRoot, Ext, IgnoreVar, Rec) ->
 
 
 parse_transform({block, _Line, Name, [nil, Val]}, List, Args, Ext, IgnoreVar, Rec) ->
-    %io:format("TRACE ~p:~p block: ~p~n",[?MODULE, ?LINE, {Name, Val, List, Args, Ext, IgnoreVar, Rec}]),
 	case lists:keysearch(Name, 3, List) of
 		false -> 
             parse_transform(Val, List, Args, Ext, IgnoreVar, Rec);
-		{value, {_, _, _, [H | T]}} ->  
-		    {_, List2, Args2} = build_tree(H, T, [], Args, undefined, Ext, IgnoreVar, Rec),
-            parse_transform(lists:reverse(List2), List, Args2, Ext, IgnoreVar, Rec)
+		{value, {_, _, _, [H | T]}} -> 
+		    {_, List2, Args2, Rec1} = build_tree(H, T, [], Args, undefined, Ext, IgnoreVar, Rec),
+            parse_transform(lists:reverse(List2), List, Args2, Ext, IgnoreVar, Rec1)
  	end;
 parse_transform(Other, _What, Args, _, _, _) ->    
     {Other, Args}.
