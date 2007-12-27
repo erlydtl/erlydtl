@@ -299,37 +299,36 @@ build_tree([H | T], [{tag, _Line, TagName, TagArgs}], Out, Args, DocRoot, Ext, I
     Out2 = load_tag(TagName, TagArgs, Out, default, Ext),
     build_tree(H, T, Out2, Args, DocRoot, Ext, IgnoreVar, Rec);
  
-build_tree([H | T], [{for, _Line, Iterator, Var, [HFor | TFor]}], Out, Args, DocRoot, Ext, IgnoreVar, Rec) ->
-    {_, List1, Args1, Rec1} = build_tree(HFor, TFor, [], Args, undefined, Ext, Iterator, []),  
+build_tree([H | T], [{for, _Line, It, Var, [HFor | TFor]}], Out, Args, DocRoot, Ext, IgnoreVar, Rec) ->
+    {_, List1, Args1, Rec1} = build_tree(HFor, TFor, [], Args, undefined, Ext, It, []),  
     Args2 = case lists:member(Var, Args1) of
         true ->
             Args1;
         _ ->
             [Var | Args1]
 	end,  
+	ItAST = erl_syntax:variable(It),
     Out1 = case Rec1 of
         [] ->
-            Pattern = erl_syntax:variable(Iterator),
-            Body = erl_syntax:generator(Pattern, erl_syntax:variable(Var)),  
-            erl_syntax:list_comp(erl_syntax:list(List1), [Body]);
-        _ ->    
-            %% 
-            %% Pattern = erl_syntax:variable('X'),
-            %% Vars = lists:foldl(fun(X, Acc) ->
-            %%         A = erl_syntax:variable(X),
-            %%         B = erl_syntax:application(erl_syntax:atom(proplists), 
-            %%             erl_syntax:atom(get_value), [erl_syntax:atom(X), Pattern]),
-            %%         [erl_syntax:match_expr(A, B) | Acc]
-            %%     end,
-            %%     [],
-            %%     Rec1),
-            %%     
-            %% todo: create a function ..
-            Body = erl_syntax:generator(Pattern, erl_syntax:variable(Var)),
-            F =  erl_syntax:application(erl_syntax:atom(erlydtl_base),
-                erl_syntax:atom(list_comp_helper),
-                [erl_syntax:list(List1), erl_syntax:list(Req1)]),
-            erl_syntax:list_comp(F, [Body])
+            BodyAST = erl_syntax:generator(ItAST, erl_syntax:variable(Var)),  
+            erl_syntax:list_comp(erl_syntax:list(List1), [BodyAST]);
+        _ ->                
+            ListAST = erl_syntax:variable('List'), 
+            RecAST = erl_syntax:variable('Rec'), 
+            
+            A = erl_syntax:variable('Aiterator.name'),
+            B = erl_syntax:application(erl_syntax:atom(proplists), 
+                erl_syntax:atom(get_value), [erl_syntax:atom('Aiterator.name'), ItAST]),            
+            C = erl_syntax:variable('Aiterator.url'),
+            D = erl_syntax:application(erl_syntax:atom(proplists), 
+                erl_syntax:atom(get_value), [erl_syntax:atom('Aiterator.url'), ItAST]),     
+                     
+            FunBodyAST = [erl_syntax:match_expr(A, B), erl_syntax:match_expr(C, D), ListAST],
+            FunClauseAST = erl_syntax:clause([ItAST, ListAST, RecAST], none, FunBodyAST),
+        	                      
+            erl_syntax:application(erl_syntax:atom(lists),
+                erl_syntax:atom(foreach),
+                [erl_syntax:fun_expr([FunClauseAST]), erl_syntax:list(List1)])
     end,
     build_tree(H, T, lists:flatten([Out1, Out]), Args2, DocRoot, Ext, IgnoreVar, Rec);
         	
