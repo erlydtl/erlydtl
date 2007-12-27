@@ -73,7 +73,10 @@ compile("comment" = Name) ->
                
 compile("for" = Name) ->
     compile(Name, ".html");
-                        
+ 
+compile("for_records" = Name) ->
+    compile(Name, ".html");
+                                
 compile("htmltags" = Name) ->
     compile(Name, ".html");
                     
@@ -107,6 +110,7 @@ render() ->
     render("extends"),
     render("comment"),
     render("for"),
+    render("for_records"),
     render("htmltags"),
     render("csstags").
         
@@ -124,8 +128,11 @@ render("extends" = Name) ->
         
 render("comment" = Name) ->
     render(Name, ".html");
-    
+
 render("for" = Name) ->
+    render(Name, ".html", [{fruit_list, ["apple", "banana", "coconut"]}]);
+            
+render("for_records" = Name) ->
     Link1 = [{name, "Amazon"}, {url, "http://amazon.com"}],
     Link2 = [{name, "Google"}, {url, "http://google.com"}],
     Link3 = [{name, "Microsoft"}, {url, "http://microsoft.com"}],
