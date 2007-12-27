@@ -181,8 +181,7 @@ render2(OutDir, Module, Ext, Arg) ->
             case file:open(filename:join([OutDir, lists:concat([Module, Ext])]), [write]) of
         		{ok, IoDev} ->
         		    file:write(IoDev, Val),
-        		    file:close(IoDev),
-        		    io:format("TRACE ~p:~p ~p: success~n",[?MODULE, ?LINE, Module]);
+        		    file:close(IoDev);        		    
         		_ ->
         		    io:format("TRACE ~p:~p ~p: file write failure~n",[?MODULE, ?LINE, Module])
         	end
