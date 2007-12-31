@@ -50,8 +50,8 @@ compile() ->
         "\.html$|\.css$",
         true,
         fun(Path, _Acc) ->
-            Name = filename:rootname(filename:basename(Path)),
-            erlydtl_server:compile(Path, Name, DocRoot)
+            Module = filename:rootname(filename:basename(Path)),
+            erlydtl_server:compile(Path, DocRoot, Module)
         end,
         []).
 
@@ -95,9 +95,9 @@ compile(Name) ->
 %%--------------------------------------------------------------------       
 compile(Name, Ext) ->
     DocRoot = filename:join([filename:dirname(code:which(?MODULE)),"..", "demo", "templates"]),
-    Name2 = "test_" ++ Name,
-    Path = filename:join([DocRoot, Name2 ++ Ext]),
-    erlydtl_server:compile(Path, Name2, DocRoot).
+    Module = "test_" ++ Name,
+    Path = filename:join([DocRoot, Module ++ Ext]),
+    erlydtl_server:compile(Path, DocRoot, Module).
 
 
 %%--------------------------------------------------------------------
