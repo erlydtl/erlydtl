@@ -84,7 +84,7 @@ parse(File) ->
     
 
 parse_transform({var, Line, Val}, Var, Val) when is_atom(Var) ->
-    %io:format("TRACE ~p:~p var_parse_transform: ~p~n",[?MODULE, ?LINE, Val]),
+    io:format("TRACE ~p:~p var_parse_transform1atom: ~p~n",[?MODULE, ?LINE, "Val"]),
     {var, Line, Var}.
     
 
@@ -98,21 +98,20 @@ parse_transform({block, _, Name, [nil, Block]}, #dtl{buffer = Buffer} = Dtl) ->
  	end;
 parse_transform(Other, #dtl{args = Args}) ->    
     {Other, Args};                
-parse_transform({var, _Line, Var}, Args) ->
+parse_transform({tree, variable, _, Var}, Args) ->
     Var2 = list_to_atom(tl(atom_to_list(Var))),
     binary_string(proplists:get_value(Var2, Args));      
 parse_transform(Other, _) ->    
-    %io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, other]),
     Other.
         
 
 parse_transform({block, _Line , _Name, [nil, T]}) ->
 	parse_transform(T); 
 parse_transform({var, _Line, Val}) ->
-    %io:format("TRACE ~p:~p var_parse_transform: ~p~n",[?MODULE, ?LINE, Val]),    
+    io:format("TRACE ~p:~p var_parse_transform1: ~p~n",[?MODULE, ?LINE, Val]),    
     erl_syntax:variable(Val);
 parse_transform(Other) -> 
-    %io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, other]),   
+    io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, other]),   
     Other.   	
 
 
@@ -169,7 +168,7 @@ build_tree2(nil, [{var, _, Var}], #dtl{buffer = Buffer, args = Args, props = Pro
     end;    
  
 build_tree2(nil, [{tag, Line, TagName, TagArgs}], #dtl{buffer = Buffer, args = Args, ext = Ext, props = Props}) ->
-    case handle_tag(TagName, Line, TagArgs, Buffer, default, Ext) of
+    case handle_tag(TagName, Line, TagArgs, Buffer, Ext) of
         {ok, Buffer1} ->
             {regular, lists:flatten([Buffer1, Buffer]), Args, Props};
         Err ->
@@ -206,8 +205,8 @@ build_tree2([H | T], [{var, _, Var}], #dtl{buffer = Buffer, args = Args} = Dtl) 
     build_tree2(H, T, Dtl1);
     
 build_tree2([H | T], [{tag, Line, TagName, TagArgs}], #dtl{buffer = Buffer, ext = Ext} = Dtl) ->	
-    case handle_tag(TagName, Line, TagArgs, Buffer, default, Ext) of
-        {ok, Buffer1} ->
+    case handle_tag(TagName, Line, TagArgs, Buffer, Ext) of
+        {ok, Buffer1} ->          
             build_tree2(H, T, Dtl#dtl{buffer = Buffer1});
         Err ->
             Err
@@ -252,17 +251,18 @@ handle_for(It, Var, HFor, TFor, #dtl{args = Args, ext = Ext}) ->
 	end.
     
            	        	
-handle_tag(TagName, Line, TagArgs, Acc0, default, Ext) ->
+handle_tag(TagName, Line, TagArgs, Acc0, Ext) ->
+    io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, TagArgs]),
     case parse(filename:join([erlydtl_deps:get_base_dir(), "priv", "tags", atom_to_list(TagName) ++ Ext])) of
         {ok, ParentAst} ->
 		    [H|T]=ParentAst,
 			{_, List, _, _} = build_tree(H, T, Ext),
-			List = lists:foldl(fun(X, Acc) -> 
+			List1 = lists:foldl(fun(X, Acc) -> 
 			        [parse_transform(X, TagArgs) | Acc]			        
 			    end, 
 			    Acc0,
 			    lists:reverse(List)),
-			{ok, List};
+			{ok, List1};
 		_ ->
     	    {error, {TagName, Line, "loading tag source template failed"}}
     end.
