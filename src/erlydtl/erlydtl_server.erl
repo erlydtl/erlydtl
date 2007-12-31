@@ -42,7 +42,8 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--record(state, {}).
+-record(state, {
+    reload = true}).
 
 
 %%====================================================================
@@ -58,8 +59,8 @@ start_link() ->
     
 
 %%--------------------------------------------------------------------
-%% @spec (File:string()) -> 
-%%     {Ok::atom, Ast::tuple() | {Error::atom(), Msg:string()}
+%% @spec (File::string()) -> 
+%%     {Ok::atom, Ast::tuple() | {Error::atom(), Msg::string()}
 %% @doc compiles a template to a beam file
 %% @end 
 %%--------------------------------------------------------------------
@@ -67,23 +68,23 @@ compile(File) ->
     compile(File, todo, todo).
         
 %%--------------------------------------------------------------------
-%% @spec (File:string(), ModuleName:string(), DocRoot:string()) -> 
+%% @spec (File::string(), DocRoot::string(), Module::string()) -> 
 %%     {Ok::atom, Ast::tuple() | {Error::atom(), Msg:string()}
 %% @doc compiles a template to a beam file
 %% @end 
 %%--------------------------------------------------------------------
-compile(File, ModuleName, DocRoot) ->
-    compile(File, ModuleName, DocRoot, "render").
+compile(File, DocRoot, Module) ->
+    compile(File, DocRoot, Module, "render").
     
 
 %%--------------------------------------------------------------------
-%% @spec (File:string(), ModuleName:string(), DocRoot:string(), FunctionName:atom()) -> 
+%% @spec (File::string(), DocRoot::string(), Module::string(), Function::atom()) -> 
 %%     {Ok::atom, Ast::tuple() | {Error::atom(), Msg:string()}
 %% @doc compiles a template to a beam file
 %% @end 
 %%--------------------------------------------------------------------
-compile(File, ModuleName, DocRoot, FunctionName) ->   
-    gen_server:call(?MODULE, {compile, File, ModuleName, DocRoot, FunctionName}).
+compile(File, DocRoot, Module, Function) ->   
+    gen_server:call(?MODULE, {compile, File, DocRoot, Module, Function}).
         
 
 %%====================================================================
@@ -112,13 +113,13 @@ init([]) ->
 %% @doc Handling call messages
 %% @end 
 %%--------------------------------------------------------------------
-handle_call({compile, File, ModuleName, DocRoot, FunctionName}, _From, State) ->
+handle_call({compile, File, DocRoot, Module, Function}, _From, State) ->
     Reply = case erlydtl_base:parse(File) of
         {ok, Ast} ->
-		    RelDocRoot = erlydtl_base:rel_dir(filename:dirname(File), DocRoot),
+		    DocRoot2 = erlydtl_base:rel_dir(filename:dirname(File), DocRoot),
 		    Ext = filename:extension(File),
-            compile(Ast, ModuleName, FunctionName, RelDocRoot, Ext);
-       Err ->
+            compile(Ast, Module, Function, DocRoot2, Ext, State#state.reload);
+        Err ->
             Err
     end,
     {reply, Reply, State};
@@ -170,20 +171,20 @@ code_change(_OldVsn, State, _Extra) ->
 %%====================================================================
 %% Internal functions
 %%====================================================================
-compile([H | T], ModuleName, FunctionName, DocRoot, Ext) ->
+compile([H | T], Module, Function, DocRoot, Ext, Reload) ->
     case erlydtl_base:build_tree(H, T, DocRoot, Ext) of
         {regular, Out, Args, _} ->
-            Out1 = [erlydtl_scanner:parse_transform(X) ||  X <- Out],
-            create_module(Out1, Args, ModuleName, FunctionName);
+            Out1 = [erlydtl_base:parse_transform(X) ||  X <- Out],
+            create_module(Out1, Args, Module, Function, Reload);
         {inherited, Out, Args, _} ->
-            create_module(Out, Args, ModuleName, FunctionName);
+            create_module(Out, Args, Module, Function, Reload);
         {error, Reason} ->
             % check whether Reason contains Linenumber
             {error, Reason}
     end.   
     
 
-create_module(List, Args, ModuleName, FunctionName) ->
+create_module(List, Args, Module, Function, Reload) ->
     {BodyAST, Args1} = case Args of 
         []  ->
             {[erl_syntax:list(List)], []};
@@ -201,19 +202,24 @@ create_module(List, Args, ModuleName, FunctionName) ->
             {BodyAST0, [Var]}
     end,
     ClauseAST = erl_syntax:clause(Args1, none, BodyAST),
-    FuncAST = erl_syntax:function(erl_syntax:atom(FunctionName), [ClauseAST]),
+    FuncAST = erl_syntax:function(erl_syntax:atom(Function), [ClauseAST]),
     [ModAST, CmpAST] = [erl_syntax:attribute(erl_syntax:atom(X), [erl_syntax:atom(Y)]) ||
-        {X, Y} <- [{"module", ModuleName}, {"compile", "export_all"}]],
+        {X, Y} <- [{"module", Module}, {"compile", "export_all"}]],
     Forms = [erl_syntax:revert(X) || X <- [ModAST, CmpAST, FuncAST]],
     case compile:forms(Forms) of
-        {ok, Module, Bin} ->
-            case erlydtl:write_beam(Module, Bin, "ebin") of
+        {ok, Module1, Bin} ->
+            case erlydtl:write_beam(Module1, Bin, "ebin") of
                 ok ->
-                    case erlydtl:reload(Module, Bin) of
-                        ok ->
-                            ok;
+                    case Reload of
+                        true ->
+                            case erlydtl:reload(Module1, Bin) of
+                                ok ->
+                                    ok;
+                                _ ->
+                                    {error, "code reload failed"}
+                            end;
                         _ ->
-                            {error, "code reload failed"}
+                            ok
                     end;
                 _ ->
                     {error, "beam generation failed"}

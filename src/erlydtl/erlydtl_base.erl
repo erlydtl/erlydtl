@@ -84,7 +84,7 @@ parse(File) ->
     
 
 parse_transform({var, Line, Val}, Var, Val) when is_atom(Var) ->
-    io:format("TRACE ~p:~p var_parse_transform: ~p~n",[?MODULE, ?LINE, Val]),
+    %io:format("TRACE ~p:~p var_parse_transform: ~p~n",[?MODULE, ?LINE, Val]),
     {var, Line, Var}.
     
 
@@ -102,17 +102,17 @@ parse_transform({var, _Line, Var}, Args) ->
     Var2 = list_to_atom(tl(atom_to_list(Var))),
     binary_string(proplists:get_value(Var2, Args));      
 parse_transform(Other, _) ->    
-    io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, other]),
+    %io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, other]),
     Other.
         
 
 parse_transform({block, _Line , _Name, [nil, T]}) ->
 	parse_transform(T); 
 parse_transform({var, _Line, Val}) ->
-    io:format("TRACE ~p:~p var_parse_transform: ~p~n",[?MODULE, ?LINE, Val]),    
+    %io:format("TRACE ~p:~p var_parse_transform: ~p~n",[?MODULE, ?LINE, Val]),    
     erl_syntax:variable(Val);
 parse_transform(Other) -> 
-    io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, other]),   
+    %io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, other]),   
     Other.   	
 
 
@@ -181,7 +181,7 @@ build_tree2(nil, [{for, _, It, Var, [HFor | TFor]}], #dtl{buffer = Buffer, props
     {regular, lists:flatten([Buffer1, Buffer]), Args1, Props};     
 
 build_tree2(nil, [Token], #dtl{buffer = Buffer, args = Args, props = Props}) ->
-    io:format("TRACE ~p:~p other1-Token: ~p~n",[?MODULE, ?LINE, Token]),
+    %io:format("TRACE ~p:~p other1-Token: ~p~n",[?MODULE, ?LINE, Token]),
     {regular, [Token | Buffer], Args, Props}; 
   
 build_tree2([H | T], [{var, _, Var}], #dtl{buffer = Buffer, var = Var} = Dtl) ->
@@ -218,7 +218,7 @@ build_tree2([H | T], [{for, _, It, Var, [HFor | TFor]}], #dtl{buffer = Buffer} =
     build_tree2(H, T, Dtl#dtl{buffer = lists:flatten([Buffer1, Buffer]), args = Args1});
         	
 build_tree2([H | T], [Token], #dtl{buffer = Buffer} = Dtl) ->
-    io:format("TRACE ~p:~p other2-Token: ~p~n",[?MODULE, ?LINE, Token]),
+    %io:format("TRACE ~p:~p other2-Token: ~p~n",[?MODULE, ?LINE, Token]),
     build_tree2(H, T, Dtl#dtl{buffer = [Token | Buffer]}).
     
 
