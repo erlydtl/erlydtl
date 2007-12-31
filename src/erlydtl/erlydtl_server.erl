@@ -115,12 +115,10 @@ init([]) ->
 handle_call({compile, File, ModuleName, DocRoot, FunctionName}, _From, State) ->
     Reply = case erlydtl_base:parse(File) of
         {ok, Ast} ->
-		    RelDir = erlydtl_base:rel_dir(filename:dirname(File), DocRoot),
+		    RelDocRoot = erlydtl_base:rel_dir(filename:dirname(File), DocRoot),
 		    Ext = filename:extension(File),
-            compile(Ast, ModuleName, FunctionName, RelDir, Ext);
-        {error, Msg} = Err ->
-            io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, File ++ " Parser failure:"]),
-            io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, Msg]),
+            compile(Ast, ModuleName, FunctionName, RelDocRoot, Ext);
+       Err ->
             Err
     end,
     {reply, Reply, State};
@@ -173,39 +171,53 @@ code_change(_OldVsn, State, _Extra) ->
 %% Internal functions
 %%====================================================================
 compile([H | T], ModuleName, FunctionName, DocRoot, Ext) ->
-    {List, Args} = case erlydtl_base:build_tree(H, T, DocRoot, Ext) of
-        {regular, List0, Args0, _} ->
-            {[erlydtl_scanner:parse_transform(X) ||  X <- List0], Args0};
-        {inherited, List0, Arg0, _} ->
-            {List0, Arg0};
+    case erlydtl_base:build_tree(H, T, DocRoot, Ext) of
+        {regular, Out, Args, _} ->
+            Out1 = [erlydtl_scanner:parse_transform(X) ||  X <- Out],
+            create_module(Out1, Args, ModuleName, FunctionName);
+        {inherited, Out, Args, _} ->
+            create_module(Out, Args, ModuleName, FunctionName);
         {error, Reason} ->
-            todo
-    end,   
-    {Args1, BodyAST} = case Args of 
+            % check whether Reason contains Linenumber
+            {error, Reason}
+    end.   
+    
+
+create_module(List, Args, ModuleName, FunctionName) ->
+    {BodyAST, Args1} = case Args of 
         []  ->
-            {[], [erl_syntax:list(List)]};
+            {[erl_syntax:list(List)], []};
         _ ->
-         Var = erl_syntax:variable(erlydtl_base:new_var(Args, 0)),
-         BodyAST0 = lists:foldl(fun(X, Acc) -> 
-                 X2 = list_to_atom(tl(atom_to_list(X))),
-                 A = erl_syntax:variable(X),
-                 B = erl_syntax:application(erl_syntax:atom(proplists), 
-                     erl_syntax:atom(get_value), [erl_syntax:atom(X2), Var]),
-                 [erl_syntax:match_expr(A, B) | Acc]
-             end,
-             [erl_syntax:list(List)],
-             Args),
-         {[Var], BodyAST0}
- end,
- ClauseAST = erl_syntax:clause(Args1, none, BodyAST),
- FuncAST = erl_syntax:function(erl_syntax:atom(FunctionName), [ClauseAST]),
- [ModAST, CmpAST] = [erl_syntax:attribute(erl_syntax:atom(X), [erl_syntax:atom(Y)]) ||
-     {X, Y} <- [{"module", ModuleName}, {"compile", "export_all"}]],
+            Var = erl_syntax:variable(erlydtl_base:new_var(Args, 0)),
+            BodyAST0 = lists:foldl(fun(X, Acc) -> 
+                    X2 = list_to_atom(tl(atom_to_list(X))),
+                    A = erl_syntax:variable(X),
+                    B = erl_syntax:application(erl_syntax:atom(proplists), 
+                        erl_syntax:atom(get_value), [erl_syntax:atom(X2), Var]),
+                    [erl_syntax:match_expr(A, B) | Acc]
+                end,
+                [erl_syntax:list(List)],
+                Args),
+            {BodyAST0, [Var]}
+    end,
+    ClauseAST = erl_syntax:clause(Args1, none, BodyAST),
+    FuncAST = erl_syntax:function(erl_syntax:atom(FunctionName), [ClauseAST]),
+    [ModAST, CmpAST] = [erl_syntax:attribute(erl_syntax:atom(X), [erl_syntax:atom(Y)]) ||
+        {X, Y} <- [{"module", ModuleName}, {"compile", "export_all"}]],
     Forms = [erl_syntax:revert(X) || X <- [ModAST, CmpAST, FuncAST]],
     case compile:forms(Forms) of
         {ok, Module, Bin} ->
-            erlydtl_tools:write_beam(Module, Bin, "ebin"),
-            erlydtl_tools:reload(Module, Bin);
+            case erlydtl:write_beam(Module, Bin, "ebin") of
+                ok ->
+                    case erlydtl:reload(Module, Bin) of
+                        ok ->
+                            ok;
+                        _ ->
+                            {error, "code reload failed"}
+                    end;
+                _ ->
+                    {error, "beam generation failed"}
+            end;
         _ ->
             {error, "compilation failed"}
     end.    
@@ -214,7 +226,7 @@ compile([H | T], ModuleName, FunctionName, DocRoot, Ext) ->
      
      
      
-     
+    
      
  
 %% build_tree(nil, [{extends, _Line, Name}], Out, Args, RelDir, Ext, _, _) -> 
