@@ -86,22 +86,14 @@ parse(File) ->
 parse_transform({var, Line, Val}, Var, Val) when is_atom(Var) ->
     io:format("TRACE ~p:~p var_parse_transform1atom: ~p~n",[?MODULE, ?LINE, "Val"]),
     {var, Line, Var}.
-    
 
-parse_transform({block, _, Name, [nil, Block]}, #dtl{buffer = Buffer} = Dtl) ->
-	case lists:keysearch(Name, 3, Buffer) of
-		false -> 
-            parse_transform(Block, Dtl);
-		{value, {_, _, _, [H | T]}} -> 
-		    {_, Buffer1, Args1, Props1} = build_tree2(H, T, Dtl),
-            parse_transform(lists:reverse(Buffer1), Dtl#dtl{args = Args1, props = Props1})
- 	end;
-parse_transform(Other, #dtl{args = Args}) ->    
-    {Other, Args};                
+                                               
 parse_transform({tree, variable, _, Var}, Args) ->
+    %% io:format("TRACE ~p:~p var_parse_transform2 ~p~n",[?MODULE, ?LINE, "variable"]),
     Var2 = list_to_atom(tl(atom_to_list(Var))),
     binary_string(proplists:get_value(Var2, Args));      
 parse_transform(Other, _) ->    
+    %% io:format("TRACE ~p:~p var_parse_transform2 ~p~n",[?MODULE, ?LINE, "Other"]),
     Other.
         
 
@@ -135,18 +127,33 @@ new_var(List, Acc) ->
 %%====================================================================
 %% Internal functions
 %%====================================================================
-build_tree2(nil, [{extends, Line, Name}], #dtl{doc_root = DocRoot, ext = Ext} = Dtl) ->
+build_tree2(nil, [{extends, Line, Name}], Dtl) ->
+    #dtl{buffer = Buffer, doc_root = DocRoot, ext = Ext} = Dtl,
     case parse(filename:join([DocRoot, Name])) of
-        {ok, ParentAst} ->
-		    [H|T] = ParentAst,
-			{_, Buffer1, Args1, _} = build_tree(H, T, DocRoot, Ext),			 
-			{Buffer2, Args3} = lists:foldl(fun(X, {AccBuffer, AccArgs}) ->  
-                    {Buffer3, Args4} = parse_transform(X, Dtl#dtl{args = AccArgs, var = []}),           
-                    {[Buffer3 | AccBuffer], Args4}
+        {ok, [AstH | AstT]} ->
+			{_, BaseBuffer, BaseArgs, _} = build_tree(AstH, AstT, DocRoot, Ext),			 
+			{Buffer1, Args1} = lists:foldl(fun(X, {AccBuffer, AccArgs}) ->   
+                    case X of
+                        {block, _, BlockName, _} ->
+                            case lists:keysearch(BlockName, 3, Buffer) of
+                        		{value, {block, _, BlockName, [H | T]}} ->
+                        		    {_, Buffer2, Args2, _Props2} = build_tree(H, T, Ext),
+                        		    Buffer3 = [lists:reverse(Buffer2), AccBuffer],
+                        		    Args3 = [Args2, AccArgs],
+                        		    {lists:flatten(Buffer3), lists:flatten(Args3)};
+                        		_ ->
+                            	    io:format("TRACE ~p:~p wrong-block: ~p~n~n",[?MODULE, ?LINE, X]),
+                            	    % create error message
+                            	    {AccBuffer, AccArgs}                        		     
+                            end;
+                        _ ->
+                            io:format("TRACE ~p:~p other-not-block: ~p~n~n",[?MODULE, ?LINE, X]),
+                            {[X | AccBuffer], AccArgs}
+                    end
                 end, 
-                {[], Args1}, 
-                Buffer1),		   
-		    {inherited, lists:reverse(lists:flatten([Buffer2])), lists:flatten(Args3), []};
+                {[], BaseArgs}, 
+                BaseBuffer),           		   
+		    {inherited, lists:reverse(lists:flatten([Buffer1])), lists:flatten(Args1), []};
 	    {error, _} ->
 		     {error, {extends, Line, "file not found"}}		
     end;
@@ -269,4 +276,5 @@ handle_tag(TagName, Line, TagArgs, Acc0, Ext) ->
   
     
 binary_string(String) ->
-    erl_syntax:binary([erl_syntax:binary_field(erl_syntax:integer(X)) || X <- String]).
+    % erl_syntax:binary([erl_syntax:binary_field(erl_syntax:integer(X)) || X <- String]).
+    erl_syntax:string(String).
