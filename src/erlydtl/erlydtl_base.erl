@@ -39,13 +39,14 @@
     doc_root = [], 
     ext = [], 
     var = [], 
-    props = []}).
+    props = [],
+    preset = []}).
 	
 %% API
 -export([parse/1, 
-    build_tree/3, 
     build_tree/4, 
-    build_tree/5,  
+    build_tree/5, 
+    build_tree/6,  
     parse_transform/1, 
     parse_transform/2, 
     rel_dir/2, 
@@ -53,14 +54,17 @@
     binary_string/1]).
 
 
-build_tree(H, T, Ext) ->
-    build_tree2(H, T, #dtl{ext = Ext}).
+build_tree(H, T, Ext, Preset) ->
+    Dtl = #dtl{ext = Ext, preset = Preset},
+    build_tree2(H, T, Dtl).
     
-build_tree(H, T, DocRoot, Ext) ->
-    build_tree2(H, T, #dtl{doc_root = DocRoot, ext = Ext}).
+build_tree(H, T, DocRoot, Ext, Preset) ->
+    Dtl = #dtl{doc_root = DocRoot, ext = Ext, preset = Preset},
+    build_tree2(H, T, Dtl).
     
-build_tree(H, T, Args, Ext, Var) ->
-    build_tree2(H, T, #dtl{args = Args, ext = Ext, var = Var}).
+build_tree(H, T, Args, Ext, Var, Preset) ->
+    Dtl = #dtl{args = Args, ext = Ext, var = Var, preset = Preset},
+    build_tree2(H, T, Dtl).
     
 
 %%====================================================================
@@ -79,20 +83,19 @@ parse(File) ->
             {error, "reading " ++ File ++ " failed"} 
     end.
 
-                                               
-parse_transform({tree, variable, _, Var}, Args) ->
-    Var2 = list_to_atom(tl(atom_to_list(Var))),
-    binary_string(proplists:get_value(Var2, Args));      
-parse_transform(Other, _) ->    
-    Other.
-        
-
+                                              
 parse_transform({block, _Line , _Name, [nil, T]}) ->
 	parse_transform(T); 
 parse_transform(Other) ->   
     Other.   	
 
-
+parse_transform({tree, variable, _, Var}, Args) ->
+    Key = list_to_atom(tl(atom_to_list(Var))),
+    binary_string(proplists:get_value(Key, Args));      
+parse_transform(Other, _) ->    
+    Other.
+     
+        
 rel_dir(Dir, DocRoot) when Dir =:= DocRoot ->
     DocRoot;
 rel_dir(Dir, DocRoot) ->
@@ -111,15 +114,15 @@ new_var(List, Acc) ->
 
 
 binary_string(String) ->
-    erl_syntax:binary([erl_syntax:binary_field(erl_syntax:integer(X)) || X <- String]).
-    %erl_syntax:string(String).  %% less verbose for debugging        
+    %erl_syntax:binary([erl_syntax:binary_field(erl_syntax:integer(X)) || X <- String]).
+    erl_syntax:string(String).  %% less verbose for debugging        
 
 
 %%====================================================================
 %% Internal functions
 %%====================================================================
 build_tree2(nil, [{extends, Line, Name}], Dtl) ->
-    #dtl{buffer = Buffer, doc_root = DocRoot, ext = Ext} = Dtl,
+    #dtl{buffer = Buffer, doc_root = DocRoot, ext = Ext, preset = Preset} = Dtl,
     case parse(filename:join([DocRoot, Name])) of
         {ok, [AstH | AstT]} ->
 			{_, BaseBuffer, BaseArgs, _} = build_tree(AstH, AstT, DocRoot, Ext),			 
@@ -128,7 +131,7 @@ build_tree2(nil, [{extends, Line, Name}], Dtl) ->
                         {block, Line1, BlockName, _} ->
                             case lists:keysearch(BlockName, 3, Buffer) of
                         		{value, {block, _, BlockName, [H | T]}} ->
-                        		    {_, Buffer2, Args2, _Props2} = build_tree(H, T, Ext),
+                        		    {_, Buffer2, Args2, _} = build_tree(H, T, Ext, Preset),
                         		    Buffer3 = [lists:reverse(Buffer2), AccBuffer],
                         		    Args3 = [Args2, AccArgs],
                         		    {lists:flatten(Buffer3), lists:flatten(Args3), Status};
@@ -152,60 +155,86 @@ build_tree2(nil, [{extends, Line, Name}], Dtl) ->
 		     {error, {extends, Line, "file not found"}}		
     end;
     
-build_tree2(nil, [{var, _, Var}], #dtl{buffer = Buffer, args = Args, var = Var, props = Props}) ->      
+build_tree2(nil, [{var, _, Var}], #dtl{var = Var} = Dtl) ->     
+    #dtl{buffer = Buffer, args = Args, props = Props, preset = _Preset} = Dtl,  
     {regular, [erl_syntax:variable(Var) | Buffer], Args, Props};
+    %Out = subst_var(Var, Preset),
+    %{regular, [Out | Buffer], Args, Props};
 
-build_tree2(nil, [{var, _, Ns, Var}], #dtl{buffer = Buffer, args = Args, var = Ns, props = Props}) ->     
+build_tree2(nil, [{var, _, Ns, Var}], #dtl{var = Ns} = Dtl) ->
+    #dtl{buffer = Buffer, args = Args, props = Props,  preset = _Preset} = Dtl,     
     Var1 = lists:concat([Ns, ".", Var]),
     Props1 = [list_to_atom(Var1) | Props],
     {regular, [erl_syntax:variable(Var1) | Buffer], Args, Props1};
- 
-build_tree2(nil, [{var, _, Var}], #dtl{buffer = Buffer, args = Args, props = Props}) ->       	
+  
+    
+build_tree2(nil, [{var, _, Var}], Dtl) ->
+    #dtl{buffer = Buffer, args = Args, props = Props, preset = Preset} = Dtl,       	
     case lists:member(Var, Args) of
         true ->
             {regular, [erl_syntax:variable(Var) | Buffer], Args, Props};
         _ ->
-            {regular, [erl_syntax:variable(Var) | Buffer], [Var | Args], Props} 
-    end;    
+            Key = list_to_atom(tl(atom_to_list(Var))),
+            case proplists:get_value(Key, Preset) of
+                undefined ->
+                    {regular, [erl_syntax:variable(Var) | Buffer], [Var | Args], Props};
+                Val ->
+                    {regular, [binary_string(Val) | Buffer], Args, Props}
+            end
+    end;     
  
-build_tree2(nil, [{tag, Line, TagName, TagArgs}], #dtl{buffer = Buffer, args = Args, ext = Ext, props = Props}) ->
-    case handle_tag(TagName, Line, TagArgs, Buffer, Ext) of
+build_tree2(nil, [{tag, Line, TagName, TagArgs}], Dtl) ->
+    #dtl{buffer = Buffer, args = Args, ext = Ext, props = Props, preset = Preset} = Dtl,
+    case handle_tag(TagName, Line, TagArgs, Buffer, Ext, Preset) of
         {ok, Buffer1} ->
             {regular, lists:flatten([Buffer1, Buffer]), Args, Props};
         Err ->
             Err
     end;
     
-build_tree2(nil, [{for, _, It, Var, [HFor | TFor]}], #dtl{buffer = Buffer, props = Props} = Dtl) ->
+build_tree2(nil, [{for, _, It, Var, [HFor | TFor]}], Dtl) ->
+    #dtl{buffer = Buffer, props = Props} = Dtl,
     {Buffer1, Args1} = handle_for(It, Var, HFor, TFor, Dtl), 
     {regular, lists:flatten([Buffer1, Buffer]), Args1, Props};     
 
 build_tree2(nil, [Token], #dtl{buffer = Buffer, args = Args, props = Props}) ->
     {regular, [Token | Buffer], Args, Props}; 
   
-build_tree2([H | T], [{var, _, Var}], #dtl{buffer = Buffer, var = Var} = Dtl) ->
+build_tree2([H | T], [{var, _, Var}], #dtl{var = Var} = Dtl) ->
+    #dtl{buffer = Buffer} = Dtl,
     build_tree2(H, T, Dtl#dtl{buffer = [erl_syntax:variable(Var) | Buffer]});
  
-build_tree2([H | T], [{var, _, Ns, Var}], #dtl{buffer = Buffer, var = Ns, props = Props} = Dtl) ->
+build_tree2([H | T], [{var, _, Ns, Var}], #dtl{var = Ns} = Dtl) ->
+    #dtl{buffer = Buffer, props = Props} = Dtl,
     Var1 = lists:concat([Ns, ".", Var]),
     Dtl1 = Dtl#dtl{
         buffer = [erl_syntax:variable(Var1) | Buffer], 
         props = [list_to_atom(Var1) | Props]},
     build_tree2(H, T, Dtl1);
-  
-build_tree2([H | T], [{var, _, Var}], #dtl{buffer = Buffer, args = Args} = Dtl) ->           		
+
+
+build_tree2([H | T], [{var, _, Var}], Dtl) ->
+    #dtl{buffer = Buffer, args = Args, preset = Preset} = Dtl,           		
     Dtl1 = case lists:member(Var, Args) of
         true ->
             Dtl#dtl{buffer = [erl_syntax:variable(Var) | Buffer]};
         _ ->
-            Dtl#dtl{
-                buffer = [erl_syntax:variable(Var) | Buffer],
-                args = [Var | Args]}
+            Key = list_to_atom(tl(atom_to_list(Var))),
+            case proplists:get_value(Key, Preset) of
+                undefined ->
+                    Dtl#dtl{
+                        buffer = [erl_syntax:variable(Var) | Buffer],
+                        args = [Var | Args]};
+                Val ->
+                    Dtl#dtl{buffer = [binary_string(Val) | Buffer]}
+            end
     end,
     build_tree2(H, T, Dtl1);
+        
     
-build_tree2([H | T], [{tag, Line, TagName, TagArgs}], #dtl{buffer = Buffer, ext = Ext} = Dtl) ->	
-    case handle_tag(TagName, Line, TagArgs, Buffer, Ext) of
+build_tree2([H | T], [{tag, Line, TagName, TagArgs}], Dtl) ->
+    #dtl{buffer = Buffer, ext = Ext, preset = Preset} = Dtl,
+    case handle_tag(TagName, Line, TagArgs, Buffer, Ext, Preset) of
         {ok, Buffer1} ->          
             build_tree2(H, T, Dtl#dtl{buffer = Buffer1});
         Err ->
@@ -220,8 +249,9 @@ build_tree2([H | T], [Token], #dtl{buffer = Buffer} = Dtl) ->
     build_tree2(H, T, Dtl#dtl{buffer = [Token | Buffer]}).
     
 
-handle_for(It, Var, HFor, TFor, #dtl{args = Args, ext = Ext}) ->
-    {_, List1, Args1, Props1} = build_tree(HFor, TFor, Args, Ext, It),    
+handle_for(It, Var, HFor, TFor, Dtl) ->
+    #dtl{args = Args, ext = Ext, preset = Preset} = Dtl,
+    {_, List1, Args1, Props1} = build_tree(HFor, TFor, Args, Ext, It, Preset),    
 	ItAST = erl_syntax:variable(It),
     Buffer1 = case Props1 of
         [] ->
@@ -250,11 +280,11 @@ handle_for(It, Var, HFor, TFor, #dtl{args = Args, ext = Ext}) ->
 	end.
     
            	        	
-handle_tag(TagName, Line, TagArgs, Acc0, Ext) ->
+handle_tag(TagName, Line, TagArgs, Acc0, Ext, Preset) ->
     case parse(filename:join([erlydtl_deps:get_base_dir(), "priv", "tags", atom_to_list(TagName) ++ Ext])) of
         {ok, ParentAst} ->
 		    [H|T]=ParentAst,
-			{_, List, _, _} = build_tree(H, T, Ext),
+			{_, List, _, _} = build_tree(H, T, Ext, Preset),
 			List1 = lists:foldl(fun(X, Acc) -> 
 			        [parse_transform(X, TagArgs) | Acc]			        
 			    end, 

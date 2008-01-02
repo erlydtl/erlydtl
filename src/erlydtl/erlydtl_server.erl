@@ -188,32 +188,16 @@ code_change(_OldVsn, State, _Extra) ->
 %%====================================================================
 %% Internal functions
 %%====================================================================
-compile([H | T], Module, Function, DocRoot, Ext, Presets, Reload) ->
-    case erlydtl_base:build_tree(H, T, DocRoot, Ext) of
+compile([H | T], Module, Function, DocRoot, Ext, Vars, Reload) ->
+    case erlydtl_base:build_tree(H, T, DocRoot, Ext, Vars) of
         {regular, Out, Args, _} ->
             Out1 = [erlydtl_base:parse_transform(X) ||  X <- Out],
-            create_module(Out1, Args, Module, Function, Presets, Reload);
+            create_module(Out1, Args, Module, Function, Reload);
         {inherited, Out, Args, _} ->
-            create_module(Out, Args, Module, Function, Presets, Reload);
+            create_module(Out, Args, Module, Function, Reload);
         {error, Reason} ->
-            % check whether Reason contains Linenumber ??
             {error, Reason}
     end.   
-    
-create_module(List, Args, Module, Function, [], Reload) ->
-    create_module(List, Args, Module, Function, Reload);      
-            
-create_module(List, Args, Module, Function, Presets,  Reload) ->
-    {List1, Args1} = lists:foldl(fun({Prop, Val}, {List2, Args2}) ->
-            Key = list_to_atom(lists:concat(["A", Prop])),
-            Bin = erlydtl_base:binary_string(Val),
-            List3 = lists:keyreplace(Key, 4, List2, Bin),
-            Args3 = lists:delete(Key, Args2),
-            {List3, Args3}
-        end,
-        {List, Args},
-        Presets),
-    create_module(List1, Args1, Module, Function, Reload).
        
             
 create_module(List, Args, Module, Function, Reload) ->
@@ -238,7 +222,7 @@ create_module(List, Args, Module, Function, Reload) ->
     [ModAST, CmpAST] = [erl_syntax:attribute(erl_syntax:atom(X), [erl_syntax:atom(Y)]) ||
         {X, Y} <- [{"module", Module}, {"compile", "export_all"}]],
     Forms = [erl_syntax:revert(X) || X <- [ModAST, CmpAST, FuncAST]],
-    %io:format("TRACE ~p:~p Forms: ~p~n",[?MODULE, ?LINE, Forms]),
+%io:format("TRACE ~p:~p Forms: ~p~n",[?MODULE, ?LINE, Forms]),
     case compile:forms(Forms) of
         {ok, Module1, Bin} ->
             case erlydtl:write_beam(Module1, Bin, "ebin") of

@@ -90,6 +90,9 @@ compile("csstags" = Name) ->
 
 compile("var_preset" = Name) ->
      compile(Name, ".html");
+     
+compile("for_preset" = Name) ->
+     compile(Name, ".html");     
                
 compile(Name) ->
     io:format("No such template: ~p~n",[Name]).
@@ -126,7 +129,8 @@ render() ->
     render("for_records"),
     render("htmltags"),
     render("csstags"),
-    render("var_preset").
+    render("var_preset"),
+    render("for_preset").
         
 
 %%--------------------------------------------------------------------
@@ -160,7 +164,10 @@ render("csstags" = Name) ->
   
 render("var_preset" = Name) ->
     render(Name, ".html", [{var1, "foostring1"}, {var2, "foostring2"}]);
-          
+ 
+render("for_preset" = Name) ->
+    render(Name, ".html");
+                  
 render(Name) ->
     io:format("No such template: ~p~n",[Name]).  
                 
@@ -191,7 +198,10 @@ render(Name, Ext, Args) ->
 %% @end 
 %%--------------------------------------------------------------------
 preset(test_var_preset) ->
-    [{preset_var1, "preset-var1"}, {preset_var2, "preset-var2"}].
+    [{preset_var1, "preset-var1"}, {preset_var2, "preset-var2"}];
+    
+preset(test_for_preset) ->
+    [{fruit_list, ["preset-apple", "preset-banana", "preset-coconut"]}].
            
               
 %%====================================================================
