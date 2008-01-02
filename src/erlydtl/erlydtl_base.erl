@@ -46,11 +46,11 @@
     build_tree/3, 
     build_tree/4, 
     build_tree/5,  
-    parse_transform/3, 
-    parse_transform/2, 
     parse_transform/1, 
+    parse_transform/2, 
     rel_dir/2, 
-    new_var/2]).
+    new_var/2,
+    binary_string/1]).
 
 
 build_tree(H, T, Ext) ->
@@ -73,37 +73,23 @@ parse(File) ->
                 {ok, Tokens} ->
                     erlydtl_parser:parse(Tokens);
                 Err ->
-                    io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, File ++ " Scanner failure:"]),
-                    io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, Err]),
                     Err
             end;
-        Err ->
-            io:format("TRACE ~p:~p ~p: ~p~n",[?MODULE, ?LINE, "File read error with:", File]),
-            Err   
+        _ ->
+            {error, "reading " ++ File ++ " failed"} 
     end.
-    
-
-parse_transform({var, Line, Val}, Var, Val) when is_atom(Var) ->
-    io:format("TRACE ~p:~p var_parse_transform1atom: ~p~n",[?MODULE, ?LINE, "Val"]),
-    {var, Line, Var}.
 
                                                
 parse_transform({tree, variable, _, Var}, Args) ->
-    %% io:format("TRACE ~p:~p var_parse_transform2 ~p~n",[?MODULE, ?LINE, "variable"]),
     Var2 = list_to_atom(tl(atom_to_list(Var))),
     binary_string(proplists:get_value(Var2, Args));      
 parse_transform(Other, _) ->    
-    %% io:format("TRACE ~p:~p var_parse_transform2 ~p~n",[?MODULE, ?LINE, "Other"]),
     Other.
         
 
 parse_transform({block, _Line , _Name, [nil, T]}) ->
 	parse_transform(T); 
-parse_transform({var, _Line, Val}) ->
-    io:format("TRACE ~p:~p var_parse_transform1: ~p~n",[?MODULE, ?LINE, Val]),    
-    erl_syntax:variable(Val);
-parse_transform(Other) -> 
-    io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, other]),   
+parse_transform(Other) ->   
     Other.   	
 
 
@@ -122,7 +108,12 @@ new_var(List, Acc) ->
         _ ->
             new_var(List, Acc + 1)
     end.
-        
+
+
+binary_string(String) ->
+    erl_syntax:binary([erl_syntax:binary_field(erl_syntax:integer(X)) || X <- String]).
+    %erl_syntax:string(String).  %% less verbose for debugging        
+
 
 %%====================================================================
 %% Internal functions
@@ -132,28 +123,31 @@ build_tree2(nil, [{extends, Line, Name}], Dtl) ->
     case parse(filename:join([DocRoot, Name])) of
         {ok, [AstH | AstT]} ->
 			{_, BaseBuffer, BaseArgs, _} = build_tree(AstH, AstT, DocRoot, Ext),			 
-			{Buffer1, Args1} = lists:foldl(fun(X, {AccBuffer, AccArgs}) ->   
+			Out = lists:foldl(fun(X, {AccBuffer, AccArgs, Status}) ->   
                     case X of
-                        {block, _, BlockName, _} ->
+                        {block, Line1, BlockName, _} ->
                             case lists:keysearch(BlockName, 3, Buffer) of
                         		{value, {block, _, BlockName, [H | T]}} ->
                         		    {_, Buffer2, Args2, _Props2} = build_tree(H, T, Ext),
                         		    Buffer3 = [lists:reverse(Buffer2), AccBuffer],
                         		    Args3 = [Args2, AccArgs],
-                        		    {lists:flatten(Buffer3), lists:flatten(Args3)};
+                        		    {lists:flatten(Buffer3), lists:flatten(Args3), Status};
                         		_ ->
-                            	    io:format("TRACE ~p:~p wrong-block: ~p~n~n",[?MODULE, ?LINE, X]),
-                            	    % create error message
-                            	    {AccBuffer, AccArgs}                        		     
+                            	    {AccBuffer, AccArgs, {block, Line1, Name}}                        		     
                             end;
                         _ ->
-                            io:format("TRACE ~p:~p other-not-block: ~p~n~n",[?MODULE, ?LINE, X]),
-                            {[X | AccBuffer], AccArgs}
+                            {[X | AccBuffer], AccArgs, Status}
                     end
                 end, 
-                {[], BaseArgs}, 
-                BaseBuffer),           		   
-		    {inherited, lists:reverse(lists:flatten([Buffer1])), lists:flatten(Args1), []};
+                {[], BaseArgs, ok}, 
+                BaseBuffer),   
+            case Out of
+                {Buffer1, Args1, ok} ->       		   
+		            Buffer2 = lists:reverse(lists:flatten([Buffer1])),
+		            {inherited, Buffer2, lists:flatten(Args1), []};
+		        {_, _, Err} ->
+		            {error, Err}
+		    end;
 	    {error, _} ->
 		     {error, {extends, Line, "file not found"}}		
     end;
@@ -187,7 +181,6 @@ build_tree2(nil, [{for, _, It, Var, [HFor | TFor]}], #dtl{buffer = Buffer, props
     {regular, lists:flatten([Buffer1, Buffer]), Args1, Props};     
 
 build_tree2(nil, [Token], #dtl{buffer = Buffer, args = Args, props = Props}) ->
-    %io:format("TRACE ~p:~p other1-Token: ~p~n",[?MODULE, ?LINE, Token]),
     {regular, [Token | Buffer], Args, Props}; 
   
 build_tree2([H | T], [{var, _, Var}], #dtl{buffer = Buffer, var = Var} = Dtl) ->
@@ -224,7 +217,6 @@ build_tree2([H | T], [{for, _, It, Var, [HFor | TFor]}], #dtl{buffer = Buffer} =
     build_tree2(H, T, Dtl#dtl{buffer = lists:flatten([Buffer1, Buffer]), args = Args1});
         	
 build_tree2([H | T], [Token], #dtl{buffer = Buffer} = Dtl) ->
-    %io:format("TRACE ~p:~p other2-Token: ~p~n",[?MODULE, ?LINE, Token]),
     build_tree2(H, T, Dtl#dtl{buffer = [Token | Buffer]}).
     
 
@@ -259,7 +251,6 @@ handle_for(It, Var, HFor, TFor, #dtl{args = Args, ext = Ext}) ->
     
            	        	
 handle_tag(TagName, Line, TagArgs, Acc0, Ext) ->
-    io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, TagArgs]),
     case parse(filename:join([erlydtl_deps:get_base_dir(), "priv", "tags", atom_to_list(TagName) ++ Ext])) of
         {ok, ParentAst} ->
 		    [H|T]=ParentAst,
@@ -273,8 +264,3 @@ handle_tag(TagName, Line, TagArgs, Acc0, Ext) ->
 		_ ->
     	    {error, {TagName, Line, "loading tag source template failed"}}
     end.
-  
-    
-binary_string(String) ->
-    % erl_syntax:binary([erl_syntax:binary_field(erl_syntax:integer(X)) || X <- String]).
-    erl_syntax:string(String).

@@ -5,6 +5,7 @@
 string({_, String}) ->
     %erl_syntax:binary([erl_syntax:binary_field(erl_syntax:integer(X)) || X <- String]).
     erl_syntax:string(String).
+    
 
 var({_, Line, Var}) ->
     case string:tokens(Var, ".") of
@@ -139,7 +140,7 @@ yecctoken2string(Other) ->
 
 
 
--file("src/erlydtl/erlydtl_parser.erl", 142).
+-file("src/erlydtl/erlydtl_parser.erl", 143).
 
 yeccpars2(0, __Cat, __Ss, __Stack, __T, __Ts, __Tzr) ->
  __NewStack = yeccpars2_0_(__Stack),
@@ -311,4 +312,4 @@ yeccpars2_12_([__3,__2,__1 | __Stack]) ->
   end | __Stack].
 
 
--file("src/erlydtl/erlydtl_parser.yrl", 113).
+-file("src/erlydtl/erlydtl_parser.yrl", 114).
