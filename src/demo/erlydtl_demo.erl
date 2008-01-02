@@ -34,7 +34,7 @@
 -author('rsaccon@gmail.com').
 
 %% API
--export([compile/0, compile/1, compile/2, render/0, render/1]).
+-export([compile/0, compile/1, compile/2, render/0, render/1, preset/1]).
 
 %%====================================================================
 %% API
@@ -51,7 +51,12 @@ compile() ->
         true,
         fun(Path, _Acc) ->
             Module = filename:rootname(filename:basename(Path)),
-            erlydtl_server:compile(Path, DocRoot, Module)
+            case erlydtl_server:compile(Path, DocRoot, Module, {?MODULE, preset}) of
+                ok ->
+                    io:format("compile success: ~p~n",[Module]);
+                _ ->
+                    io:format("compile failure: ~p~n",[Module])
+            end
         end,
         []).
 
@@ -82,7 +87,10 @@ compile("htmltags" = Name) ->
                     
 compile("csstags" = Name) ->
      compile(Name, ".css");
-      
+
+compile("var_preset" = Name) ->
+     compile(Name, ".html");
+               
 compile(Name) ->
     io:format("No such template: ~p~n",[Name]).
                
@@ -97,7 +105,12 @@ compile(Name, Ext) ->
     DocRoot = filename:join([filename:dirname(code:which(?MODULE)),"..", "demo", "templates"]),
     Module = "test_" ++ Name,
     Path = filename:join([DocRoot, Module ++ Ext]),
-    erlydtl_server:compile(Path, DocRoot, Module).
+    case erlydtl_server:compile(Path, DocRoot, Module, {?MODULE, preset}) of
+        ok ->
+            io:format("compile success: ~p~n",[Module]);
+        _ ->
+            io:format("compile failure: ~p~n",[Module])
+    end.
 
 
 %%--------------------------------------------------------------------
@@ -112,7 +125,8 @@ render() ->
     render("for"),
     render("for_records"),
     render("htmltags"),
-    render("csstags").
+    render("csstags"),
+    render("var_preset").
         
 
 %%--------------------------------------------------------------------
@@ -143,7 +157,10 @@ render("htmltags" = Name) ->
     
 render("csstags" = Name) ->
     render(Name, ".css");
-    
+  
+render("var_preset" = Name) ->
+    render(Name, ".html", [{var1, "foostring1"}, {var2, "foostring2"}]);
+          
 render(Name) ->
     io:format("No such template: ~p~n",[Name]).  
                 
@@ -168,6 +185,14 @@ render(Name, Ext, Args) ->
     render2(OutDir, list_to_atom("test_" ++ Name), Ext, Args).
             
 
+%%--------------------------------------------------------------------
+%% @spec (atom()) -> proplist()
+%% @doc returns template preset variables
+%% @end 
+%%--------------------------------------------------------------------
+preset(test_var_preset) ->
+    [{preset_var1, "preset-var1"}, {preset_var2, "preset-var2"}].
+           
               
 %%====================================================================
 %% Internal functions
@@ -181,9 +206,10 @@ render2(OutDir, Module, Ext, Arg) ->
             case file:open(filename:join([OutDir, lists:concat([Module, Ext])]), [write]) of
         		{ok, IoDev} ->
         		    file:write(IoDev, Val),
-        		    file:close(IoDev);        		    
+        		    file:close(IoDev),
+        		    io:format("render success: ~p~n",[Module]);        		    
         		_ ->
-        		    io:format("TRACE ~p:~p ~p: file write failure~n",[?MODULE, ?LINE, Module])
+        		    io:format("render failure: ~p~n",[Module])
         	end
     end.
     
@@ -196,8 +222,8 @@ render2(OutDir, Module, Ext) ->
         		{ok, IoDev} ->
         		    file:write(IoDev, Val),
         		    file:close(IoDev),
-        		    io:format("TRACE ~p:~p ~p: success~n",[?MODULE, ?LINE, Module]);
+        		    io:format("render success: ~p~n",[Module]);
         		_ ->
-        		    io:format("TRACE ~p:~p ~p: file write failure~n",[?MODULE, ?LINE, Module])
+        		    io:format("render failure: ~p~n",[Module])
         	end
     end.

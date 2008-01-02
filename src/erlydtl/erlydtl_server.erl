@@ -36,7 +36,7 @@
 -behaviour(gen_server).
 	
 %% API
--export([start_link/0, compile/1, compile/3, compile/4]).
+-export([start_link/0, compile/1, compile/3, compile/4, compile/5]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -56,8 +56,8 @@
 %%--------------------------------------------------------------------
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
-    
-
+        
+        
 %%--------------------------------------------------------------------
 %% @spec (File::string()) -> 
 %%     {Ok::atom, Ast::tuple() | {Error::atom(), Msg::string()}
@@ -68,25 +68,42 @@ compile(File) ->
     compile(File, todo, todo).
         
 %%--------------------------------------------------------------------
-%% @spec (File::string(), DocRoot::string(), Module::string()) -> 
+%% @spec (File::string(), DocRoot::string(), Mod::string()) -> 
 %%     {Ok::atom, Ast::tuple() | {Error::atom(), Msg:string()}
 %% @doc compiles a template to a beam file
 %% @end 
 %%--------------------------------------------------------------------
-compile(File, DocRoot, Module) ->
-    compile(File, DocRoot, Module, "render").
+compile(File, DocRoot, Mod) ->
+    compile(File, DocRoot, Mod, "render").
     
 
 %%--------------------------------------------------------------------
-%% @spec (File::string(), DocRoot::string(), Module::string(), Function::atom()) -> 
+%% @spec (File::string(), DocRoot::string(), Mod::string(), Vars::tuple()) -> 
 %%     {Ok::atom, Ast::tuple() | {Error::atom(), Msg:string()}
 %% @doc compiles a template to a beam file
 %% @end 
 %%--------------------------------------------------------------------
-compile(File, DocRoot, Module, Function) ->   
-    gen_server:call(?MODULE, {compile, File, DocRoot, Module, Function}).
+compile(File, DocRoot, Mod, VarsCallback) when is_tuple(VarsCallback)->
+    compile(File, DocRoot, Mod, "render", VarsCallback);
+compile(File, DocRoot, Mod, Func) ->   
+    gen_server:call(?MODULE, {compile, File, DocRoot, Mod, Func, []}).
         
-
+%%--------------------------------------------------------------------
+%% @spec (File::string(), DocRoot::string(), Mod::string(), Func::atom(),
+%%         Vars::tuple()) -> 
+%%     {Ok::atom, Ast::tuple() | {Error::atom(), Msg:string()}
+%% @doc compiles a template to a beam file
+%% @end 
+%%--------------------------------------------------------------------            
+compile(File, DocRoot, Mod, Func, {VarsMod, VarsFunc}) ->   
+    case catch VarsMod:VarsFunc(list_to_atom(Mod)) of
+        Vars when is_list(Vars) ->
+            gen_server:call(?MODULE, {compile, File, DocRoot, Mod, Func, Vars});
+        _ -> 
+            gen_server:call(?MODULE, {compile, File, DocRoot, Mod, Func, []})
+    end.
+    
+        
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -113,16 +130,16 @@ init([]) ->
 %% @doc Handling call messages
 %% @end 
 %%--------------------------------------------------------------------
-handle_call({compile, File, DocRoot, Module, Function}, _From, State) ->
+handle_call({compile, File, DocRoot, Mod, Func, Vars}, _From, State) ->
     Reply = case erlydtl_base:parse(File) of
         {ok, Ast} ->
 		    DocRoot2 = erlydtl_base:rel_dir(filename:dirname(File), DocRoot),
 		    Ext = filename:extension(File),
-            compile(Ast, Module, Function, DocRoot2, Ext, State#state.reload);
+		    compile(Ast, Mod, Func, DocRoot2, Ext, Vars, State#state.reload);
         Err ->
             Err
     end,
-    {reply, Reply, State};
+    {reply, Reply, State};       
 
 handle_call(_Request, _From, State) ->
     Reply = ok,
@@ -171,19 +188,34 @@ code_change(_OldVsn, State, _Extra) ->
 %%====================================================================
 %% Internal functions
 %%====================================================================
-compile([H | T], Module, Function, DocRoot, Ext, Reload) ->
+compile([H | T], Module, Function, DocRoot, Ext, Presets, Reload) ->
     case erlydtl_base:build_tree(H, T, DocRoot, Ext) of
         {regular, Out, Args, _} ->
             Out1 = [erlydtl_base:parse_transform(X) ||  X <- Out],
-            create_module(Out1, Args, Module, Function, Reload);
+            create_module(Out1, Args, Module, Function, Presets, Reload);
         {inherited, Out, Args, _} ->
-            create_module(Out, Args, Module, Function, Reload);
+            create_module(Out, Args, Module, Function, Presets, Reload);
         {error, Reason} ->
-            % check whether Reason contains Linenumber
+            % check whether Reason contains Linenumber ??
             {error, Reason}
     end.   
     
-
+create_module(List, Args, Module, Function, [], Reload) ->
+    create_module(List, Args, Module, Function, Reload);      
+            
+create_module(List, Args, Module, Function, Presets,  Reload) ->
+    {List1, Args1} = lists:foldl(fun({Prop, Val}, {List2, Args2}) ->
+            Key = list_to_atom(lists:concat(["A", Prop])),
+            Bin = erlydtl_base:binary_string(Val),
+            List3 = lists:keyreplace(Key, 4, List2, Bin),
+            Args3 = lists:delete(Key, Args2),
+            {List3, Args3}
+        end,
+        {List, Args},
+        Presets),
+    create_module(List1, Args1, Module, Function, Reload).
+       
+            
 create_module(List, Args, Module, Function, Reload) ->
     {BodyAST, Args1} = case Args of 
         []  ->
@@ -206,7 +238,7 @@ create_module(List, Args, Module, Function, Reload) ->
     [ModAST, CmpAST] = [erl_syntax:attribute(erl_syntax:atom(X), [erl_syntax:atom(Y)]) ||
         {X, Y} <- [{"module", Module}, {"compile", "export_all"}]],
     Forms = [erl_syntax:revert(X) || X <- [ModAST, CmpAST, FuncAST]],
-%io:format("TRACE ~p:~p Forms: ~p~n",[?MODULE, ?LINE, Forms]),
+    %io:format("TRACE ~p:~p Forms: ~p~n",[?MODULE, ?LINE, Forms]),
     case compile:forms(Forms) of
         {ok, Module1, Bin} ->
             case erlydtl:write_beam(Module1, Bin, "ebin") of
