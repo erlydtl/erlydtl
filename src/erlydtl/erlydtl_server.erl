@@ -83,7 +83,7 @@ compile(File, DocRoot, Mod) ->
 %% @doc compiles a template to a beam file
 %% @end 
 %%--------------------------------------------------------------------
-compile(File, DocRoot, Mod, VarsCallback) when is_tuple(VarsCallback)->
+compile(File, DocRoot, Mod, {VarsMod, VarsFunc}) ->
     compile(File, DocRoot, Mod, "render", VarsCallback);
 compile(File, DocRoot, Mod, Func) ->   
     gen_server:call(?MODULE, {compile, File, DocRoot, Mod, Func, []}).
