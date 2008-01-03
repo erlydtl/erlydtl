@@ -34,7 +34,7 @@
 -author('rsaccon@gmail.com').
 
 %% API
--export([compile/0, compile/1, compile/2, render/0, render/1, preset/1]).
+-export([compile_all/0, compile/1, compile/2, render_all/0, render/1, preset/1]).
 
 %%====================================================================
 %% API
@@ -44,7 +44,7 @@
 %% @doc  compiles the templates to beam files
 %% @end 
 %%--------------------------------------------------------------------
-compile() ->
+compile_all() ->
     DocRoot = filename:join([filename:dirname(code:which(?MODULE)),"..", "demo", "templates"]),
     filelib:fold_files(DocRoot,
         "\.html$|\.css$",
@@ -86,14 +86,17 @@ compile("htmltags" = Name) ->
     compile(Name, ".html");
                     
 compile("csstags" = Name) ->
-     compile(Name, ".css");
+    compile(Name, ".css");
 
 compile("var_preset" = Name) ->
-     compile(Name, ".html");
+    compile(Name, ".html");
      
 compile("for_preset" = Name) ->
-     compile(Name, ".html");     
-               
+    compile(Name, ".html");     
+
+compile("for_records_preset" = Name) ->
+    compile(Name, ".html");
+          
 compile(Name) ->
     io:format("No such template: ~p~n",[Name]).
                
@@ -121,7 +124,7 @@ compile(Name, Ext) ->
 %% @doc renders template to a file
 %% @end 
 %%--------------------------------------------------------------------
-render() ->
+render_all() ->
     render("var"),
     render("extends"),
     render("comment"),
@@ -130,7 +133,8 @@ render() ->
     render("htmltags"),
     render("csstags"),
     render("var_preset"),
-    render("for_preset").
+    render("for_preset"),
+    render("for_records_preset").
         
 
 %%--------------------------------------------------------------------
@@ -167,7 +171,10 @@ render("var_preset" = Name) ->
  
 render("for_preset" = Name) ->
     render(Name, ".html");
-                  
+            
+render("for_records_preset" = Name) ->
+    render(Name, ".html");
+        
 render(Name) ->
     io:format("No such template: ~p~n",[Name]).  
                 
@@ -201,8 +208,14 @@ preset(test_var_preset) ->
     [{preset_var1, "preset-var1"}, {preset_var2, "preset-var2"}];
     
 preset(test_for_preset) ->
-    [{fruit_list, ["preset-apple", "preset-banana", "preset-coconut"]}].
+    [{fruit_list, ["preset-apple", "preset-banana", "preset-coconut"]}];
            
+preset(test_for_records_preset) ->
+    Link1 = [{name, "Amazon (preset)"}, {url, "http://amazon.com"}],
+    Link2 = [{name, "Google (preset)"}, {url, "http://google.com"}],
+    Link3 = [{name, "Microsoft (preset)"}, {url, "http://microsoft.com"}],
+    [{link_list, [Link1, Link2, Link3]}].
+
               
 %%====================================================================
 %% Internal functions
