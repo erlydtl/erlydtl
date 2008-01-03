@@ -155,14 +155,12 @@ build_tree2(nil, [{extends, Line, Name}], Dtl) ->
 		     {error, {extends, Line, "file not found"}}		
     end;
     
-build_tree2(nil, [{var, _, Var}], #dtl{var = Var} = Dtl) ->     
-    #dtl{buffer = Buffer, args = Args, props = Props, preset = _Preset} = Dtl,  
+build_tree2(nil, [{var, _, Var}], #dtl{var = Var} = Dtl) ->    
+    #dtl{buffer = Buffer, args = Args, props = Props} = Dtl,  
     {regular, [erl_syntax:variable(Var) | Buffer], Args, Props};
-    %Out = subst_var(Var, Preset),
-    %{regular, [Out | Buffer], Args, Props};
 
 build_tree2(nil, [{var, _, Ns, Var}], #dtl{var = Ns} = Dtl) ->
-    #dtl{buffer = Buffer, args = Args, props = Props,  preset = _Preset} = Dtl,     
+    #dtl{buffer = Buffer, args = Args, props = Props} = Dtl,     
     Var1 = lists:concat([Ns, ".", Var]),
     Props1 = [list_to_atom(Var1) | Props],
     {regular, [erl_syntax:variable(Var1) | Buffer], Args, Props1};
@@ -253,11 +251,31 @@ handle_for(It, Var, HFor, TFor, Dtl) ->
     #dtl{args = Args, ext = Ext, preset = Preset} = Dtl,
     {_, List1, Args1, Props1} = build_tree(HFor, TFor, Args, Ext, It, Preset),    
 	ItAST = erl_syntax:variable(It),
-    Buffer1 = case Props1 of
+    case Props1 of
         [] ->
-            BodyAST = erl_syntax:generator(ItAST, erl_syntax:variable(Var)),  
-            erl_syntax:list_comp(erl_syntax:list(List1), [BodyAST]);
-        _ ->                                 
+            Key = list_to_atom(tl(atom_to_list(Var))),
+            case proplists:get_value(Key, Preset) of
+                undefined ->
+                    BodyAST = erl_syntax:generator(ItAST, erl_syntax:variable(Var)),  
+                    List2 = erl_syntax:list_comp(erl_syntax:list(List1), [BodyAST]),
+                    case lists:member(Var, Args1) of
+                        true ->
+                            {List2, Args1};
+                        _ ->
+                            {List2, [Var | Args1]}
+                	end;                   
+                Vals ->
+                    List2 = lists:map(fun (X) -> 
+                            lists:map(fun ({tree, variable, _, It2}) when It2 =:= It ->
+                                    binary_string(X);
+                                (Other) ->
+                                    Other
+                                end, List1)
+                        end, Vals),
+                    {lists:flatten(List2), Args1}
+            end;
+        _ -> 
+            io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, Props1]),
             FunBodyAST = lists:foldl(fun(X, Acc) -> 
                     [_,Prop] = string:tokens(tl(atom_to_list(X)), "."),
                     A = erl_syntax:variable(X),
@@ -268,16 +286,16 @@ handle_for(It, Var, HFor, TFor, Dtl) ->
                  [erl_syntax:list(List1)],
                  Props1),
             FunClauseAST = erl_syntax:clause([ItAST], none, FunBodyAST),
-            erl_syntax:application(erl_syntax:atom(lists), 
+            List2 = erl_syntax:application(erl_syntax:atom(lists), 
                 erl_syntax:atom(map),
-                [erl_syntax:fun_expr([FunClauseAST]), erl_syntax:variable(Var)])
-    end,   
-    case lists:member(Var, Args1) of
-        true ->
-            {Buffer1, Args1};
-        _ ->
-            {Buffer1, [Var | Args1]}
-	end.
+                [erl_syntax:fun_expr([FunClauseAST]), erl_syntax:variable(Var)]),
+            case lists:member(Var, Args1) of
+                true ->
+                    {List2, Args1};
+                _ ->
+                    {List2, [Var | Args1]}
+            end
+    end.
     
            	        	
 handle_tag(TagName, Line, TagArgs, Acc0, Ext, Preset) ->
