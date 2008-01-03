@@ -251,9 +251,9 @@ handle_for(It, Var, HFor, TFor, Dtl) ->
     #dtl{args = Args, ext = Ext, preset = Preset} = Dtl,
     {_, List1, Args1, Props1} = build_tree(HFor, TFor, Args, Ext, It, Preset),    
 	ItAST = erl_syntax:variable(It),
+	Key = list_to_atom(tl(atom_to_list(Var))),
     case Props1 of
         [] ->
-            Key = list_to_atom(tl(atom_to_list(Var))),
             case proplists:get_value(Key, Preset) of
                 undefined ->
                     BodyAST = erl_syntax:generator(ItAST, erl_syntax:variable(Var)),  
@@ -266,7 +266,7 @@ handle_for(It, Var, HFor, TFor, Dtl) ->
                 	end;                   
                 Vals ->
                     List2 = lists:map(fun (X) -> 
-                            lists:map(fun ({tree, variable, _, It2}) when It2 =:= It ->
+                            lists:map(fun ({tree, variable, _, It1}) when It1 =:= It ->
                                     binary_string(X);
                                 (Other) ->
                                     Other
@@ -274,29 +274,46 @@ handle_for(It, Var, HFor, TFor, Dtl) ->
                         end, Vals),
                     {lists:flatten(List2), Args1}
             end;
-        _ -> 
-            io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, Props1]),
-            FunBodyAST = lists:foldl(fun(X, Acc) -> 
-                    [_,Prop] = string:tokens(tl(atom_to_list(X)), "."),
-                    A = erl_syntax:variable(X),
-                    B = erl_syntax:application(erl_syntax:atom(proplists), 
-                        erl_syntax:atom(get_value), [erl_syntax:atom(Prop), ItAST]),
-                    [erl_syntax:match_expr(A, B) | Acc]
-                 end,
-                 [erl_syntax:list(List1)],
-                 Props1),
-            FunClauseAST = erl_syntax:clause([ItAST], none, FunBodyAST),
-            List2 = erl_syntax:application(erl_syntax:atom(lists), 
-                erl_syntax:atom(map),
-                [erl_syntax:fun_expr([FunClauseAST]), erl_syntax:variable(Var)]),
-            case lists:member(Var, Args1) of
-                true ->
-                    {List2, Args1};
-                _ ->
-                    {List2, [Var | Args1]}
+        _ ->
+            case proplists:get_value(Key, Preset) of
+                undefined ->
+                    FunBodyAST = lists:foldl(fun(X, Acc) -> 
+                            [_,Prop] = string:tokens(tl(atom_to_list(X)), "."),
+                            A = erl_syntax:variable(X),
+                            B = erl_syntax:application(erl_syntax:atom(proplists), 
+                                erl_syntax:atom(get_value), [erl_syntax:atom(Prop), ItAST]),
+                            [erl_syntax:match_expr(A, B) | Acc]
+                         end,
+                         [erl_syntax:list(List1)],
+                         Props1),
+                    FunClauseAST = erl_syntax:clause([ItAST], none, FunBodyAST),
+                    List2 = erl_syntax:application(erl_syntax:atom(lists), 
+                        erl_syntax:atom(map),
+                        [erl_syntax:fun_expr([FunClauseAST]), erl_syntax:variable(Var)]),
+                    case lists:member(Var, Args1) of
+                        true ->
+                            {List2, Args1};
+                        _ ->
+                            {List2, [Var | Args1]}
+                    end;
+                Vals ->                    
+                    Ns = tl(atom_to_list(It)),
+                    List2 = lists:map(fun (X) -> 
+                            lists:map(fun ({tree, variable, _, It1} = Node) ->
+                                    case string:tokens(tl(atom_to_list(It1)), ".") of
+                                        [Ns, Key1 | _] ->
+                                            binary_string(proplists:get_value(list_to_atom(Key1), X));
+                                        _ ->
+                                            Node
+                                    end;
+                                (Other) ->
+                                    Other
+                                end, List1)
+                        end, Vals),
+                    {lists:flatten(List2), Args1}
             end
     end.
-    
+     
            	        	
 handle_tag(TagName, Line, TagArgs, Acc0, Ext, Preset) ->
     case parse(filename:join([erlydtl_deps:get_base_dir(), "priv", "tags", atom_to_list(TagName) ++ Ext])) of
