@@ -78,13 +78,13 @@ compile(File, DocRoot, Mod) ->
     
 
 %%--------------------------------------------------------------------
-%% @spec (File::string(), DocRoot::string(), Mod::string(), Vars::tuple()) -> 
+%% @spec (File::string(), DocRoot::string(), Mod::string(), Callback::tuple()) -> 
 %%     {Ok::atom, Ast::tuple() | {Error::atom(), Msg:string()}
 %% @doc compiles a template to a beam file
 %% @end 
 %%--------------------------------------------------------------------
-compile(File, DocRoot, Mod, {VarsMod, VarsFunc}) ->
-    compile(File, DocRoot, Mod, "render", VarsCallback);
+compile(File, DocRoot, Mod, {_Module, _Function} = Callback) ->
+    compile(File, DocRoot, Mod, "render", Callback);
 compile(File, DocRoot, Mod, Func) ->   
     gen_server:call(?MODULE, {compile, File, DocRoot, Mod, Func, []}).
         
