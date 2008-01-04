@@ -125,7 +125,7 @@ build_tree2(nil, [{extends, Line, Name}], Dtl) ->
     #dtl{buffer = Buffer, doc_root = DocRoot, ext = Ext, preset = Preset} = Dtl,
     case parse(filename:join([DocRoot, Name])) of
         {ok, [AstH | AstT]} ->
-			{_, BaseBuffer, BaseArgs, _} = build_tree(AstH, AstT, DocRoot, Ext),			 
+			{_, BaseBuffer, BaseArgs, _} = build_tree(AstH, AstT, DocRoot, Ext, Preset),			 
 			Out = lists:foldl(fun(X, {AccBuffer, AccArgs, Status}) ->   
                     case X of
                         {block, Line1, BlockName, _} ->

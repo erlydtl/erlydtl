@@ -78,25 +78,25 @@ compile(File, DocRoot, Mod) ->
     
 
 %%--------------------------------------------------------------------
-%% @spec (File::string(), DocRoot::string(), Mod::string(), Callback::tuple()) -> 
+%% @spec (File::string(), DocRoot::string(), Mod::string(), VarsCallback::tuple()) -> 
 %%     {Ok::atom, Ast::tuple() | {Error::atom(), Msg:string()}
 %% @doc compiles a template to a beam file
 %% @end 
 %%--------------------------------------------------------------------
-compile(File, DocRoot, Mod, {_Module, _Function} = Callback) ->
-    compile(File, DocRoot, Mod, "render", Callback);
+compile(File, DocRoot, Mod, {_, _} = VarsCallback) ->
+    compile(File, DocRoot, Mod, "render", VarsCallback);
 compile(File, DocRoot, Mod, Func) ->   
     gen_server:call(?MODULE, {compile, File, DocRoot, Mod, Func, []}).
         
 %%--------------------------------------------------------------------
 %% @spec (File::string(), DocRoot::string(), Mod::string(), Func::atom(),
-%%         Vars::tuple()) -> 
+%%         {VarsCbMod::atom(), VarsCbFunc::atom()}) -> 
 %%     {Ok::atom, Ast::tuple() | {Error::atom(), Msg:string()}
 %% @doc compiles a template to a beam file
 %% @end 
 %%--------------------------------------------------------------------            
-compile(File, DocRoot, Mod, Func, {VarsMod, VarsFunc}) ->   
-    case catch VarsMod:VarsFunc(list_to_atom(Mod)) of
+compile(File, DocRoot, Mod, Func, {VarsCbMod, VarsCbFunc}) ->   
+    case catch VarsCbMod:VarsCbFunc(list_to_atom(Mod)) of
         Vars when is_list(Vars) ->
             gen_server:call(?MODULE, {compile, File, DocRoot, Mod, Func, Vars});
         _ -> 
@@ -222,7 +222,7 @@ create_module(List, Args, Module, Function, Reload) ->
     [ModAST, CmpAST] = [erl_syntax:attribute(erl_syntax:atom(X), [erl_syntax:atom(Y)]) ||
         {X, Y} <- [{"module", Module}, {"compile", "export_all"}]],
     Forms = [erl_syntax:revert(X) || X <- [ModAST, CmpAST, FuncAST]],
-%io:format("TRACE ~p:~p Forms: ~p~n",[?MODULE, ?LINE, Forms]),
+    % io:format("TRACE ~p:~p Forms: ~p~n",[?MODULE, ?LINE, Forms]),
     case compile:forms(Forms) of
         {ok, Module1, Bin} ->
             case erlydtl:write_beam(Module1, Bin, "ebin") of
