@@ -173,7 +173,10 @@ render("for_preset" = Name) ->
     render(Name, ".html");
             
 render("for_records_preset" = Name) ->
-    render(Name, ".html");
+    Link1 = [{name, "Canon"}, {url, "http://canon.com"}],
+    Link2 = [{name, "Leica"}, {url, "http://leica.com"}],
+    Link3 = [{name, "Nikon"}, {url, "http://nikon.com"}],
+    render(Name, ".html", [{photo_links, [Link1, Link2, Link3]}]);
         
 render(Name) ->
     io:format("No such template: ~p~n",[Name]).  
@@ -204,6 +207,9 @@ render(Name, Ext, Args) ->
 %% @doc returns template preset variables
 %% @end 
 %%--------------------------------------------------------------------
+preset(test_extends) ->
+    [{preset_base_var, "preset-base-barstring"}];
+
 preset(test_var_preset) ->
     [{preset_var1, "preset-var1"}, {preset_var2, "preset-var2"}];
     
@@ -214,7 +220,7 @@ preset(test_for_records_preset) ->
     Link1 = [{name, "Amazon (preset)"}, {url, "http://amazon.com"}],
     Link2 = [{name, "Google (preset)"}, {url, "http://google.com"}],
     Link3 = [{name, "Microsoft (preset)"}, {url, "http://microsoft.com"}],
-    [{link_list, [Link1, Link2, Link3]}].
+    [{software_links, [Link1, Link2, Link3]}].
 
               
 %%====================================================================

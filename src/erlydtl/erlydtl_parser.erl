@@ -4,7 +4,7 @@
 
 string({_, String}) ->
     erl_syntax:binary([erl_syntax:binary_field(erl_syntax:integer(X)) || X <- String]).
-    % erl_syntax:string(String).  %% less verbose for debugging 
+    %erl_syntax:string(String).  %% less verbose for debugging 
     
 
 var({_, Line, Var}) ->
