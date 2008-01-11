@@ -1,0 +1,34 @@
+Capfirst: {{ "capitalized"|capfirst }}
+
+Centered:
+<pre>
+{{ "center"|center:20 }}
+</pre>
+
+First letter: {{ "first"|first }}
+
+Fix ampersands: {{ "&"|fix_ampersands }}
+
+Force_escape: {{ "<b></b>"|force_escape }}
+
+Joined: {{ list|join:", " }}
+
+Last: {{ "last"|last }}
+
+Length: {{ list|length }}
+
+Length is 2?: {{ list|length_is:2 }}
+
+Left adjust: 
+<pre>
+{{ "left"|ljust:20 }}
+</pre>
+
+Lowercase: {{ "LOWERCASE"|lower }}
+
+Right adjust:
+<pre>
+{{ "right"|rjust:20 }}
+</pre>
+
+Uppercase: {{ "uppercase"|upper }}
