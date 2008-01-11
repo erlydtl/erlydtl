@@ -5,8 +5,7 @@ APP_NAME=erlydtl
 
 
 all:
-	( $(ERL) -make && \
-	if [ ! -e ebin/$(APP_NAME).app ]; then cp -f src/$(APP_NAME)/$(APP_NAME).app.src ebin/$(APP_NAME).app; fi )	
+	$(ERL) -make 
 
 run:
 	$(ERL) -pa `pwd`/ebin -s $(APP_NAME)
