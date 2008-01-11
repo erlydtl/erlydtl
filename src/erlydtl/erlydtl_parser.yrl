@@ -1,14 +1,15 @@
 %%%-------------------------------------------------------------------
 %%% File:      erlydtl_parser.erl
 %%% @author    Roberto Saccon <rsaccon@gmail.com> [http://rsaccon.com]
-%%% @copyright 2007 Roberto Saccon, Tait Larson
+%%% @author    Evan Miller <emmiller@gmail.com>
+%%% @copyright 2008 Roberto Saccon, Evan Miller
 %%% @doc Template language grammar
 %%% @reference  See <a href="http://erlydtl.googlecode.com" target="_top">http://erlydtl.googlecode.com</a> for more information
 %%% @end  
 %%%
 %%% The MIT License
 %%%
-%%% Copyright (c) 2007 Roberto Saccon
+%%% Copyright (c) 2007 Roberto Saccon, Evan Miller
 %%%
 %%% Permission is hereby granted, free of charge, to any person obtaining a copy
 %%% of this software and associated documentation files (the "Software"), to deal
@@ -28,87 +29,226 @@
 %%% OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 %%% THE SOFTWARE.
 %%%
-%%% @since 2007-11-11 by Roberto Saccon
+%%% @since 2007-11-11 by Roberto Saccon, Evan Miller
 %%%-------------------------------------------------------------------
 
-
-Nonterminals 
+Nonterminals
     Elements
-    Element.
+    Literal
 
-Terminals 
-    string
-    var
-    extends
-    block
-    endblock
-    tag
-    for
-    endfor.
+    VariableBraced
 
-Rootsymbol    
-    Elements. 
+    ExtendsTag
+    IncludeTag
+
+    CustomTag
+    Args
+
+    BlockBlock
+    BlockBraced
+    EndBlockBraced
+
+    CommentBlock
+    CommentBraced
+    EndCommentBraced
+
+    ForBlock
+    ForBraced
+    EndForBraced
+    ForExpression
+    ForGroup
+
+    IfBlock
+    IfBraced
+    IfExpression
+    ElseBraced
+    EndIfBraced
+
+    AutoEscapeBlock
+    AutoEscapeBraced
+    EndAutoEscapeBraced
+
+    Variable
+    Filter.
+
+Terminals
+    autoescape_keyword
+    block_keyword
+    close_tag
+    close_var
+    comment_keyword
+    colon
+    comma
+    dot
+    else_keyword
+    endautoescape_keyword
+    endblock_keyword
+    endcomment_keyword
+    endfor_keyword
+    endif_keyword
+    equal
+    extends_keyword
+    for_keyword
+    identifier
+    if_keyword
+    in_keyword
+    include_keyword
+    not_keyword
+    number_literal
+    open_tag
+    open_var
+    pipe
+    string_literal
+    text.
+
+Rootsymbol
+    Elements.
+
+Elements -> '$empty' : [].
+Elements -> Elements text : '$1' ++ ['$2'].
+Elements -> Elements VariableBraced : '$1' ++ ['$2'].
+Elements -> Elements ExtendsTag : '$1' ++ ['$2'].
+Elements -> Elements IncludeTag : '$1' ++ ['$2'].
+Elements -> Elements CustomTag : '$1' ++ ['$2'].
+Elements -> Elements BlockBlock : '$1' ++ ['$2'].
+Elements -> Elements ForBlock : '$1' ++ ['$2'].
+Elements -> Elements IfBlock : '$1' ++ ['$2'].
+Elements -> Elements AutoEscapeBlock : '$1' ++ ['$2'].
+Elements -> Elements CommentBlock : '$1' ++ ['$2'].
+
+VariableBraced -> open_var Variable close_var : '$2'.
+
+Variable -> Variable pipe Filter : {apply_filter, '$1', '$3'}.
+Variable -> identifier : {variable, {'$1'}}.
+Variable -> identifier dot identifier : {variable, {'$1', '$3'}}.
+Variable -> string_literal : '$1'.
+Variable -> number_literal : '$1'.
+
+ExtendsTag -> open_tag extends_keyword string_literal close_tag : {extends, '$3'}.
+IncludeTag -> open_tag include_keyword string_literal close_tag : {include, '$3'}.
+
+CustomTag -> open_tag identifier Args close_tag : {tag, '$2', '$3'}.
+
+Args -> '$empty' : [].
+Args -> Args identifier equal Variable : '$1' ++ [{'$2', '$4'}].
+
+BlockBlock -> BlockBraced Elements EndBlockBraced : {block, '$1', '$2'}.
+BlockBraced -> open_tag block_keyword identifier close_tag : '$3'.
+EndBlockBraced -> open_tag endblock_keyword close_tag.
+
+CommentBlock -> CommentBraced Elements EndCommentBraced : {comment, '$2'}.
+CommentBraced -> open_tag comment_keyword close_tag.
+EndCommentBraced -> open_tag endcomment_keyword close_tag.
+
+ForBlock -> ForBraced Elements EndForBraced : {for, '$1', '$2'}.
+ForBraced -> open_tag for_keyword ForExpression close_tag : '$3'.
+EndForBraced -> open_tag endfor_keyword close_tag.
+ForExpression -> identifier : '$1'.
+ForExpression -> ForGroup in_keyword identifier : {'in', '$1', '$3'}.
+ForGroup -> identifier : '$1'.
+ForGroup -> ForGroup comma identifier : ['$1', '$3'].
+
+IfBlock -> IfBraced Elements ElseBraced Elements EndIfBraced : {ifelse, '$1', '$2', '$4'}.
+IfBlock -> IfBraced Elements EndIfBraced : {'if', '$1', '$2'}.
+IfBraced -> open_tag if_keyword IfExpression close_tag : '$3'.
+IfExpression -> not_keyword IfExpression : {'not', '$2'}.
+IfExpression -> Variable : '$1'.
+
+ElseBraced -> open_tag else_keyword close_tag.
+EndIfBraced -> open_tag endif_keyword close_tag.
+
+AutoEscapeBlock -> AutoEscapeBraced Elements EndAutoEscapeBraced : {autoescape, '$1', '$2'}.
+AutoEscapeBraced -> open_tag autoescape_keyword identifier close_tag : '$3'.
+EndAutoEscapeBraced -> open_tag endautoescape_keyword close_tag.
+
+Filter -> identifier : ['$1'].
+Filter -> identifier colon Literal : ['$1', '$3'].
+
+Literal -> string_literal : '$1'.
+Literal -> number_literal : '$1'.
 
 
-%% -------------------------------------------------------------------
-%% Rules
-%% -------------------------------------------------------------------
-
-Elements -> '$empty' : nil.
-Elements -> Elements Element : ['$1', '$2'].
-
-Element -> string : string('$1').
-Element -> var : var('$1').
-Element -> extends : extends('$1').
-Element -> block Elements endblock : block('$1', '$2').
-Element -> tag : tag('$1').
-Element -> for Elements endfor : for('$1', '$2').
 
 
-Erlang code.
+%% initial, now deprecated version by below:
 
-string({_, String}) ->
-    erl_syntax:binary([erl_syntax:binary_field(erl_syntax:integer(X)) || X <- String]).
-    %erl_syntax:string(String).  %% less verbose for debugging 
-    
-
-var({_, Line, Var}) ->
-    case string:tokens(Var, ".") of
-        [Namespace, Var1] ->
-            {var, Line, list_to_atom("A" ++ Namespace), list_to_atom(Var1)};
-        _ ->
-            {var, Line, list_to_atom("A" ++ Var)}
-    end.
-
-
-extends({_, Line, [Name]}) ->
-    %% TODO: check if string (enclosed with  "") or variable. 
-    %% for now we handle it (even not enclosed with "") as string
-    {extends, Line, string:strip(Name, both, $")}.
-
-
-block({_, Line, [Name]}, Content) ->
-    {block, Line, list_to_atom(Name), Content}.
-
-
-tag({_, Line, [TagName | Args]}) ->
-    %% TODO: check if string (enclosed with  "") or variable. 
-    %% for now we handle it (even not enclosed with "") as string
-	Args2 = lists:foldl(fun(X, Acc) ->
-	        case string:chr(X, $=) of
-				0 ->
-				    Acc;
-				Pos ->
-			        Var = list_to_atom(string:sub_string(X, 1, Pos-1)),
-			        Val = string:sub_string(X, Pos+1),
-			        Val2 = string:strip(Val, both, $"),
-					[{Var, Val2}| Acc]
-			end
-		end,
-    	[],
-    	Args),
-    {tag, Line, TagName, Args2}.
-
-
-for({_, Line, [Iterator, _, Var]}, Content) ->
-    {for, Line, list_to_atom("A" ++ Iterator), list_to_atom("A" ++ Var), Content}.
+%% Nonterminals 
+%%     Elements
+%%     Element.
+%% 
+%% Terminals 
+%%     string
+%%     var
+%%     extends
+%%     block
+%%     endblock
+%%     tag
+%%     for
+%%     endfor.
+%% 
+%% Rootsymbol    
+%%     Elements. 
+%% 
+%% 
+%% %% -------------------------------------------------------------------
+%% %% Rules
+%% %% -------------------------------------------------------------------
+%% 
+%% Elements -> '$empty' : nil.
+%% Elements -> Elements Element : ['$1', '$2'].
+%% 
+%% Element -> string : string('$1').
+%% Element -> var : var('$1').
+%% Element -> extends : extends('$1').
+%% Element -> block Elements endblock : block('$1', '$2').
+%% Element -> tag : tag('$1').
+%% Element -> for Elements endfor : for('$1', '$2').
+%% 
+%% 
+%% Erlang code.
+%% 
+%% string({_, String}) ->
+%%     erl_syntax:binary([erl_syntax:binary_field(erl_syntax:integer(X)) || X <- String]).
+%%     %erl_syntax:string(String).  %% less verbose for debugging 
+%%     
+%% 
+%% var({_, Line, Var}) ->
+%%     case string:tokens(Var, ".") of
+%%         [Namespace, Var1] ->
+%%             {var, Line, list_to_atom("A" ++ Namespace), list_to_atom(Var1)};
+%%         _ ->
+%%             {var, Line, list_to_atom("A" ++ Var)}
+%%     end.
+%% 
+%% 
+%% extends({_, Line, [Name]}) ->
+%%     %% TODO: check if string (enclosed with  "") or variable. 
+%%     %% for now we handle it (even not enclosed with "") as string
+%%     {extends, Line, string:strip(Name, both, $")}.
+%% 
+%% 
+%% block({_, Line, [Name]}, Content) ->
+%%     {block, Line, list_to_atom(Name), Content}.
+%% 
+%% 
+%% tag({_, Line, [TagName | Args]}) ->
+%%     %% TODO: check if string (enclosed with  "") or variable. 
+%%     %% for now we handle it (even not enclosed with "") as string
+%%  Args2 = lists:foldl(fun(X, Acc) ->
+%%          case string:chr(X, $=) of
+%%              0 ->
+%%                  Acc;
+%%              Pos ->
+%%                  Var = list_to_atom(string:sub_string(X, 1, Pos-1)),
+%%                  Val = string:sub_string(X, Pos+1),
+%%                  Val2 = string:strip(Val, both, $"),
+%%                  [{Var, Val2}| Acc]
+%%          end
+%%      end,
+%%      [],
+%%      Args),
+%%     {tag, Line, TagName, Args2}.
+%% 
+%% 
+%% for({_, Line, [Iterator, _, Var]}, Content) ->
+%%     {for, Line, list_to_atom("A" ++ Iterator), list_to_atom("A" ++ Var), Content}.

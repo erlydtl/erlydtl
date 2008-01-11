@@ -1,14 +1,15 @@
 %%%-------------------------------------------------------------------
 %%% File:      erlydtl_server.erl
 %%% @author    Roberto Saccon <rsaccon@gmail.com> [http://rsaccon.com]
-%%% @copyright 2007 Roberto Saccon
+%%% @author    Evan Miller <emmiller@gmail.com>
+%%% @copyright 2008 Roberto Saccon, Evan Miller
 %%% @doc  
 %%% Server for compiling ErlyDTL templeates
 %%% @end  
 %%%
 %%% The MIT License
 %%%
-%%% Copyright (c) 2007 Roberto Saccon
+%%% Copyright (c) 2007 Roberto Saccon, Evan Miller
 %%%
 %%% Permission is hereby granted, free of charge, to any person obtaining a copy
 %%% of this software and associated documentation files (the "Software"), to deal
@@ -28,10 +29,11 @@
 %%% OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 %%% THE SOFTWARE.
 %%%
-%%% @since 2007-11-17 by Roberto Saccon
+%%% @since 2007-11-17 by Roberto Saccon, Evan Miller
 %%%-------------------------------------------------------------------
 -module(erlydtl_server).
 -author('rsaccon@gmail.com').
+-author('emmiller@gmail.com').
 
 -behaviour(gen_server).
 	

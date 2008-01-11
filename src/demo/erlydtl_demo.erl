@@ -51,7 +51,8 @@ compile_all() ->
         true,
         fun(Path, _Acc) ->
             Module = filename:rootname(filename:basename(Path)),
-            case erlydtl_server:compile(Path, DocRoot, Module, {?MODULE, preset}) of
+            % case erlydtl_server:compile(Path, DocRoot, Module, {?MODULE, preset}) of
+            case erlydtl_compiler:compile(Path, DocRoot, Module) of
                 ok ->
                     io:format("compile success: ~p~n",[Module]);
                 _ ->
@@ -111,7 +112,8 @@ compile(Name, Ext) ->
     DocRoot = filename:join([filename:dirname(code:which(?MODULE)),"..", "demo", "templates"]),
     Module = "test_" ++ Name,
     Path = filename:join([DocRoot, Module ++ Ext]),
-    case erlydtl_server:compile(Path, DocRoot, Module, {?MODULE, preset}) of
+    % case erlydtl_server:compile(Path, DocRoot, Module, {?MODULE, preset}) of
+    case erlydtl_compiler:compile(Path, DocRoot, Module) of
         ok ->
             io:format("compile success: ~p~n",[Module]);
         _ ->
@@ -235,7 +237,9 @@ render2(OutDir, Module, Ext, Arg) ->
             io:format("TRACE ~p:~p Errors: ~p~n",[?MODULE, ?LINE, Err]),
             io:format("TRACE ~p:~p Warnings: ~p~n",[?MODULE, ?LINE, Warnings]);
         {'EXIT', Reason} -> 
-            io:format("TRACE ~p:~p ~p: render failure: ~n",[?MODULE, ?LINE, Reason])
+            io:format("TRACE ~p:~p ~p: render failure: ~n",[?MODULE, ?LINE, Reason]);
+        Val -> %% only temporarly
+            write_file(OutDir, Module, Ext, Val, [])
     end.
     
     
@@ -247,7 +251,9 @@ render2(OutDir, Module, Ext) ->
             io:format("TRACE ~p:~p Errors: ~p~n",[?MODULE, ?LINE, Err]),
             io:format("TRACE ~p:~p Warnings: ~p~n",[?MODULE, ?LINE, Warnings]);
         {'EXIT', Reason} -> 
-            io:format("TRACE ~p:~p ~p: render failure: ~n",[?MODULE, ?LINE, Reason])
+            io:format("TRACE ~p:~p ~p: render failure: ~n",[?MODULE, ?LINE, Reason]);
+        Val -> %% only temporarly
+            write_file(OutDir, Module, Ext, Val, [])
     end.
 
 
