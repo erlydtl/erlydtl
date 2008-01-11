@@ -188,41 +188,54 @@ code_change(_OldVsn, State, _Extra) ->
 %%====================================================================
 %% Internal functions
 %%====================================================================
-compile([H | T], Module, Function, DocRoot, Ext, Vars, Reload) ->
+compile([H | T], Module, FuncName, DocRoot, Ext, Vars, Reload) ->
     case erlydtl_base:build_tree(H, T, DocRoot, Ext, Vars) of
         {regular, Out, Args, _} ->
             Out1 = [erlydtl_base:parse_transform(X) ||  X <- Out],
-            create_module(Out1, Args, Module, Function, Reload);
+            create_module(Out1, Args, Module, FuncName, Reload);
         {inherited, Out, Args, _} ->
-            create_module(Out, Args, Module, Function, Reload);
+            create_module(Out, Args, Module, FuncName, Reload);
         {error, Reason} ->
             {error, Reason}
     end.   
        
-            
-create_module(List, Args, Module, Function, Reload) ->
-    {BodyAST, Args1} = case Args of 
+    
+create_module(List, Args, Module, FuncName, Reload) ->
+    case Args of 
         []  ->
-            {[erl_syntax:list(List)], []};
-        _ ->
+            Body = erl_syntax:tuple([
+                erl_syntax:atom(ok), 
+                erl_syntax:list(List),
+                erl_syntax:list([])]),
+            create_module2([Body], [], Module, FuncName, Reload);
+        _ ->            
+            Warnings = erl_syntax:list([]), %% TODO: add warnings for unused variables
+            Ret = erl_syntax:tuple([erl_syntax:atom(ok), erl_syntax:list(List), Warnings]),
             Var = erl_syntax:variable(erlydtl_base:new_var(Args, 0)),
-            BodyAST0 = lists:foldl(fun(X, Acc) -> 
+            Body = lists:foldl(fun(X, Acc) -> 
                     X2 = list_to_atom(tl(atom_to_list(X))),
                     A = erl_syntax:variable(X),
                     B = erl_syntax:application(erl_syntax:atom(proplists), 
                         erl_syntax:atom(get_value), [erl_syntax:atom(X2), Var]),
-                    [erl_syntax:match_expr(A, B) | Acc]
+                    ClauseOk = erl_syntax:clause([erl_syntax:variable('_')], none, [B]),                 
+                    Err = erlydtl_base:binary_string("{{ undefined }}"), %% TDOD: return list of errors instead of rendereing  "undefined"                     
+                    ClauseErr = erl_syntax:clause([erl_syntax:atom(undefined)], none, [Err]),                 
+                    C = erl_syntax:case_expr(B, [ClauseErr, ClauseOk]),                
+                    D = erl_syntax:match_expr(A, C),
+                    [D | Acc]
                 end,
-                [erl_syntax:list(List)],
-                Args),
-            {BodyAST0, [Var]}
-    end,
-    ClauseAST = erl_syntax:clause(Args1, none, BodyAST),
-    FuncAST = erl_syntax:function(erl_syntax:atom(Function), [ClauseAST]),
-    [ModAST, CmpAST] = [erl_syntax:attribute(erl_syntax:atom(X), [erl_syntax:atom(Y)]) ||
+                [Ret],
+                Args), 
+            create_module2(Body, [Var], Module, FuncName, Reload)
+    end.
+    
+    
+create_module2(Body, Args, Module, FuncName, Reload) ->
+    Clause = erl_syntax:clause(Args, none, Body),
+    Func = erl_syntax:function(erl_syntax:atom(FuncName), [Clause]),
+    [AttrMod, AttrExp] = [erl_syntax:attribute(erl_syntax:atom(X), [erl_syntax:atom(Y)]) ||
         {X, Y} <- [{"module", Module}, {"compile", "export_all"}]],
-    Forms = [erl_syntax:revert(X) || X <- [ModAST, CmpAST, FuncAST]],
-    % io:format("TRACE ~p:~p Forms: ~p~n",[?MODULE, ?LINE, Forms]),
+    Forms = [erl_syntax:revert(X) || X <- [AttrMod, AttrExp, Func]],
     case compile:forms(Forms) of
         {ok, Module1, Bin} ->
             case erlydtl:write_beam(Module1, Bin, "ebin") of
