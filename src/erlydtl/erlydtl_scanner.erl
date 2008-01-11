@@ -54,24 +54,24 @@ scan(Template) ->
 
 scan([], Scanned, _, in_text) ->
     {ok, lists:reverse(lists:map(
-		fun
-		({identifier, Pos, String}) ->
-		    RevString = lists:reverse(String),
-		    Keywords = ["for", "endfor", "in", "include", "block", "endblock",
-		    	"extends", "autoescape", "endautoescape", "if", "else", "endif",
-			"not", "or", "and", "comment", "endcomment", "cycle", "firstof",
-			"ifchanged", "ifequal", "endifequal", "ifnotequal", "endifnotequal",
-			"now", "regroup", "spaceless", "endspaceless", "ssi", "templatetag"], 
-		    Type = case lists:member(RevString, Keywords) of
-		        true ->
-			    list_to_atom(RevString ++ "_keyword");
-			_ ->
-			    identifier
-		    end,
-		    {Type, Pos, RevString};
-		({Type, Pos, String}) ->
-		    {Type, Pos, lists:reverse(String)} 
-		end, Scanned))};
+                fun
+                    ({identifier, Pos, String}) ->
+                        RevString = lists:reverse(String),
+                        Keywords = ["for", "endfor", "in", "include", "block", "endblock",
+                            "extends", "autoescape", "endautoescape", "if", "else", "endif",
+                            "not", "or", "and", "comment", "endcomment", "cycle", "firstof",
+                            "ifchanged", "ifequal", "endifequal", "ifnotequal", "endifnotequal",
+                            "now", "regroup", "spaceless", "endspaceless", "ssi", "templatetag"], 
+                        Type = case lists:member(RevString, Keywords) of
+                            true ->
+                                list_to_atom(RevString ++ "_keyword");
+                            _ ->
+                                identifier
+                        end,
+                        {Type, Pos, RevString};
+                    ({Type, Pos, String}) ->
+                        {Type, Pos, lists:reverse(String)} 
+                end, Scanned))};
 
 scan([], _Scanned, _, {in_comment, _}) ->
     {error, "Reached end of file inside a comment."};
@@ -99,11 +99,11 @@ scan("#}" ++ T, Scanned, {Row, Column}, {in_comment, "#}"}) ->
 
 scan("<!--{%" ++ T, Scanned, {Row, Column}, in_text) ->
     scan(T, [{open_tag, {Row, Column}, lists:reverse("<!--{%")} | Scanned], 
-	    {Row, Column + length("<!--{%")}, {in_code, "%}-->"});
+        {Row, Column + length("<!--{%")}, {in_code, "%}-->"});
 
 scan("{%" ++ T, Scanned, {Row, Column}, in_text) ->
     scan(T, [{open_tag, {Row, Column}, lists:reverse("{%")} | Scanned], 
-	    {Row, Column + 2}, {in_code, "%}"});
+        {Row, Column + 2}, {in_code, "%}"});
 
 scan([_ | T], Scanned, {Row, Column}, {in_comment, Closer}) ->
     scan(T, Scanned, {Row, Column + 1}, {in_comment, Closer});
@@ -154,45 +154,45 @@ scan(" " ++ T, Scanned, {Row, Column}, {_, Closer}) ->
 
 scan("}}-->" ++ T, Scanned, {Row, Column}, {in_code, "}}-->"}) ->
     scan(T, [{close_var, {Row, Column}, lists:reverse("}}-->")} | Scanned], 
-	    {Row, Column + 2}, in_text);
+        {Row, Column + 2}, in_text);
 
 scan("}}" ++ T, Scanned, {Row, Column}, {in_code, "}}"}) ->
     scan(T, [{close_var, {Row, Column}, "}}"} | Scanned], {Row, Column + 2}, in_text);
 
 scan("%}-->" ++ T, Scanned, {Row, Column}, {in_code, "%}-->"}) ->
     scan(T, [{close_tag, {Row, Column}, lists:reverse("%}-->")} | Scanned], 
-	    {Row, Column + 2}, in_text);
+        {Row, Column + 2}, in_text);
 
 scan("%}" ++ T, Scanned, {Row, Column}, {in_code, "%}"}) ->
     scan(T, [{close_tag, {Row, Column}, lists:reverse("%}")} | Scanned], 
-	    {Row, Column + 2}, in_text);
+        {Row, Column + 2}, in_text);
 
 scan([H | T], Scanned, {Row, Column}, {in_code, Closer}) ->
     case char_type(H) of
         letter_underscore ->
-	    scan(T, [{identifier, {Row, Column}, [H]} | Scanned], {Row, Column + 1}, {in_identifier, Closer});
+            scan(T, [{identifier, {Row, Column}, [H]} | Scanned], {Row, Column + 1}, {in_identifier, Closer});
         digit ->
-	    scan(T, [{number_literal, {Row, Column}, [H]} | Scanned], {Row, Column + 1}, {in_number, Closer});
+            scan(T, [{number_literal, {Row, Column}, [H]} | Scanned], {Row, Column + 1}, {in_number, Closer});
         _ ->
-	    {error, io:format("Illegal character line ~p column ~p", [Row, Column])}
+            {error, io:format("Illegal character line ~p column ~p", [Row, Column])}
     end;
 
 scan([H | T], Scanned, {Row, Column}, {in_number, Closer}) ->
     case char_type(H) of
         digit ->
-	    scan(T, append_char(Scanned, H), {Row, Column + 1}, {in_number, Closer});
+            scan(T, append_char(Scanned, H), {Row, Column + 1}, {in_number, Closer});
         _ ->
-	    {error, io:format("Illegal character line ~p column ~p", [Row, Column])}
+            {error, io:format("Illegal character line ~p column ~p", [Row, Column])}
     end;
 
 scan([H | T], Scanned, {Row, Column}, {in_identifier, Closer}) ->
     case char_type(H) of
         letter_underscore ->
-	    scan(T, append_char(Scanned, H), {Row, Column + 1}, {in_identifier, Closer});
-	digit ->
-	    scan(T, append_char(Scanned, H), {Row, Column + 1}, {in_identifier, Closer});
+            scan(T, append_char(Scanned, H), {Row, Column + 1}, {in_identifier, Closer});
+        digit ->
+            scan(T, append_char(Scanned, H), {Row, Column + 1}, {in_identifier, Closer});
         _ ->
-	    {error, io:format("Illegal character line ~p column ~p", [Row, Column])}
+            {error, io:format("Illegal character line ~p column ~p", [Row, Column])}
     end.
 
 % internal functions
@@ -204,25 +204,25 @@ append_char(Scanned, Char) ->
 append_text_char(Scanned, {Row, Column}, Char) ->
     case length(Scanned) of
         0 ->
-	    [{text, {Row, Column}, [Char]}];
+            [{text, {Row, Column}, [Char]}];
         _ ->
-	    [Token | Scanned1] = Scanned,
-	    case element(1, Token) of
-	        text ->
-		    [{text, element(2, Token), [Char | element(3, Token)]} | Scanned1];
-    		_ ->
-		    [{text, element(2, Token), [Char]} | Scanned]
- 	    end
+            [Token | Scanned1] = Scanned,
+            case element(1, Token) of
+                text ->
+                    [{text, element(2, Token), [Char | element(3, Token)]} | Scanned1];
+                _ ->
+                    [{text, element(2, Token), [Char]} | Scanned]
+            end
     end.
 
 char_type(Char) ->
     case Char of 
         C when ((C >= $a) and (C =< $z)) or ((C >= $A) and (C =< $Z)) or (C == $_) ->
-	    letter_underscore;
-	C when ((C >= $0) and (C =< $9)) ->
-    	    digit;
- 	_ ->
-	    undefined
+            letter_underscore;
+        C when ((C >= $0) and (C =< $9)) ->
+            digit;
+        _ ->
+            undefined
     end.
 
 

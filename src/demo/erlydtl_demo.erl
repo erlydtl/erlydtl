@@ -268,15 +268,15 @@ render2(OutDir, Module, Arg) ->
     
 write_file(OutDir, Module, Val, Warnings) ->
     case file:open(filename:join([OutDir, lists:concat([Module, ".", Module:file_extension()])]), [write]) of
-	{ok, IoDev} ->
-	    file:write(IoDev, Val),
-	    file:close(IoDev),
-	    case Warnings of
-		[] ->
-		    io:format("render success: ~p~n",[Module]);    
-		_ -> 
-		    io:format("render success: ~p - Warnings: ~p~n",[Module, Warnings])
-	    end;
-	_ ->
-	    io:format("render failure: ~p~n",[Module])
+        {ok, IoDev} ->
+            file:write(IoDev, Val),
+            file:close(IoDev),
+            case Warnings of
+                [] ->
+                    io:format("render success: ~p~n",[Module]);    
+                _ -> 
+                    io:format("render success: ~p - Warnings: ~p~n",[Module, Warnings])
+            end;
+        _ ->
+            io:format("render failure: ~p~n",[Module])
     end.
