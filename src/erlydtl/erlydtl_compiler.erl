@@ -56,37 +56,44 @@ compile(File, DocRoot, Module, Function) ->
 compile(File, DocRoot, Module, Function, OutDir) ->
     case parse(File) of
         {ok, DjangoAst} ->
-        RenderFunctionAst = erl_syntax:function(
-            erl_syntax:atom(Function), 
-            [erl_syntax:clause([erl_syntax:variable("Variables")], none, 
-            [body_ast(DjangoAst, #dtl_context{doc_root = DocRoot, parse_trail = [File]})])]),
-        ExtensionFunctionAst = erl_syntax:function(
-            erl_syntax:atom(file_extension),
-            [erl_syntax:clause([], none, [erl_syntax:string(file_extension(File))])]),
-        ModuleAst  = erl_syntax:attribute(erl_syntax:atom(module), [erl_syntax:atom(Module)]),
-        CompileAst = erl_syntax:attribute(erl_syntax:atom(compile), [erl_syntax:atom("export_all")]),
+            Render1FunctionAst = erl_syntax:function(
+                erl_syntax:atom(Function), 
+                [erl_syntax:clause([erl_syntax:variable("Variables")], none, 
+                        [body_ast(DjangoAst, #dtl_context{doc_root = DocRoot, parse_trail = [File]})])]),
+            Render0FunctionAst = erl_syntax:function(
+                erl_syntax:atom(Function),
+                [erl_syntax:clause([], none, 
+                        [erl_syntax:application(erl_syntax:atom(Module), erl_syntax:atom(Function),
+                                [erl_syntax:list([])])]
+                    )]),
+            ExtensionFunctionAst = erl_syntax:function(
+                erl_syntax:atom(file_extension),
+                [erl_syntax:clause([], none, [erl_syntax:string(file_extension(File))])]),
+            ModuleAst  = erl_syntax:attribute(erl_syntax:atom(module), [erl_syntax:atom(Module)]),
+            CompileAst = erl_syntax:attribute(erl_syntax:atom(compile), [erl_syntax:atom("export_all")]),
 
-        Forms = [erl_syntax:revert(X) || X <- [ModuleAst, CompileAst, ExtensionFunctionAst, RenderFunctionAst]],
+            Forms = [erl_syntax:revert(X) || X <- [ModuleAst, CompileAst, ExtensionFunctionAst, 
+                    Render0FunctionAst, Render1FunctionAst]],
 
-        case compile:forms(Forms) of
-            {ok, Module1, Bin} ->       
-            Path = filename:join([OutDir, atom_to_list(Module1) ++ ".beam"]),
-            case file:write_file(Path, Bin) of
-                ok ->
-                code:purge(Module1),
-                case code:load_binary(Module1, atom_to_list(Module1) ++ ".erl", Bin) of
-                    {module, _} -> ok;
-                _ -> {error, "code reload failed"}
+            case compile:forms(Forms) of
+                {ok, Module1, Bin} ->       
+                Path = filename:join([OutDir, atom_to_list(Module1) ++ ".beam"]),
+                case file:write_file(Path, Bin) of
+                    ok ->
+                    code:purge(Module1),
+                    case code:load_binary(Module1, atom_to_list(Module1) ++ ".erl", Bin) of
+                        {module, _} -> ok;
+                    _ -> {error, "code reload failed"}
+                    end;
+                _ ->
+                    {error, "beam generation failed"}
                 end;
             _ ->
-                {error, "beam generation failed"}
+                {error, "compilation failed"}
             end;
-        _ ->
-            {error, "compilation failed"}
-        end;
-    Error ->
-        Error
-    end.
+        Error ->
+            Error
+        end.
 
         
 scan(File) ->
@@ -251,10 +258,10 @@ resolve_variable_name_ast(VarName, Context) ->
     end,
     case Context#dtl_context.auto_escape of
         on ->
-        erl_syntax:application(erl_syntax:atom(emiller_filters), erl_syntax:atom(force_escape),
-            [VarValue1]);
-    _ ->
-        VarValue1
+            erl_syntax:application(erl_syntax:atom(erlydtl_filters), erl_syntax:atom(force_escape),
+                [VarValue1]);
+        _ ->
+            VarValue1
     end.
 
 ifelse_ast(Variable, IfContentsAst, ElseContentsAst, Context) ->
@@ -303,12 +310,13 @@ tag_ast(Name, Args, Context) ->
         ({{identifier, _, Key}, {variable, Value}}) ->
             {list_to_atom(Key), resolve_variable_ast(Value, Context)}
         end, Args),
-    case parse(filename:join([erlydtl_deps:get_base_dir(), "priv", "tags", Name])) of
+    Source = filename:join([erlydtl_deps:get_base_dir(), "priv", "tags", Name]),
+    case parse(Source) of
         {ok, TagAst} ->
-        body_ast(TagAst, Context#dtl_context{
-            local_scopes = [ InterpretedArgs | Context#dtl_context.local_scopes ]});
-    _ ->
-        {error, Name, "Loading tag source failed"}
+	    body_ast(TagAst, Context#dtl_context{
+		    local_scopes = [ InterpretedArgs | Context#dtl_context.local_scopes ]});
+	_ ->
+	    {error, Name, "Loading tag source failed: " ++ Source}
     end.
 
 unescape_string_literal(String) ->

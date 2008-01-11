@@ -46,6 +46,7 @@
 %%--------------------------------------------------------------------
 compile_all() ->
     DocRoot = filename:join([filename:dirname(code:which(?MODULE)),"..", "demo", "templates"]),
+    io:format("Compiling folder: ~p~n", [DocRoot]),
     filelib:fold_files(DocRoot,
         "\.html$|\.css$",
         true,
@@ -145,63 +146,53 @@ render_all() ->
 %% @end 
 %%--------------------------------------------------------------------
 render("var" = Name) ->
-    render(Name, ".html", [{var1, "foostring1"}, {var2, "foostring2"}, {var_not_used, "foostring3"}]);
+    render(Name, [{var1, "foostring1"}, {var2, "foostring2"}, {var_not_used, "foostring3"}]);
  
 render("extends" = Name) ->
-    render(Name, ".html", [{base_var, "base-barstring"}, {test_var, "test-barstring"}]);
+    render(Name, [{base_var, "base-barstring"}, {test_var, "test-barstring"}]);
         
 render("comment" = Name) ->
-    render(Name, ".html");
+    render(Name, []);
 
 render("for" = Name) ->
-    render(Name, ".html", [{fruit_list, ["apple", "banana", "coconut"]}]);
+    render(Name, [{fruit_list, ["apple", "banana", "coconut"]}]);
             
 render("for_records" = Name) ->
     Link1 = [{name, "Amazon"}, {url, "http://amazon.com"}],
     Link2 = [{name, "Google"}, {url, "http://google.com"}],
     Link3 = [{name, "Microsoft"}, {url, "http://microsoft.com"}],
-    render(Name, ".html", [{link_list, [Link1, Link2, Link3]}]);
+    render(Name, [{link_list, [Link1, Link2, Link3]}]);
                 
 render("htmltags" = Name) ->
-    render(Name, ".html");
+    render(Name, []);
     
 render("csstags" = Name) ->
-    render(Name, ".css");
+    render(Name, []);
   
 render("var_preset" = Name) ->
-    render(Name, ".html", [{var1, "foostring1"}, {var2, "foostring2"}]);
+    render(Name, [{var1, "foostring1"}, {var2, "foostring2"}]);
  
 render("for_preset" = Name) ->
-    render(Name, ".html");
+    render(Name, []);
             
 render("for_records_preset" = Name) ->
     Link1 = [{name, "Canon"}, {url, "http://canon.com"}],
     Link2 = [{name, "Leica"}, {url, "http://leica.com"}],
     Link3 = [{name, "Nikon"}, {url, "http://nikon.com"}],
-    render(Name, ".html", [{photo_links, [Link1, Link2, Link3]}]);
+    render(Name, [{photo_links, [Link1, Link2, Link3]}]);
         
 render(Name) ->
     io:format("No such template: ~p~n",[Name]).  
                 
                 
 %%--------------------------------------------------------------------
-%% @spec (atom(), string()) -> any()
-%% @doc renders template to a file
-%% @end 
-%%--------------------------------------------------------------------
-render(Name, Ext) ->
-    OutDir = filename:join([filename:dirname(code:which(?MODULE)),"..", "demo", "out"]),
-    render2(OutDir, list_to_atom("test_" ++ Name), Ext).   
-    
-
-%%--------------------------------------------------------------------
 %% @spec (atom(), string(), string()) -> any()
 %% @doc renders template to a file
 %% @end 
 %%--------------------------------------------------------------------
-render(Name, Ext, Args) ->
+render(Name, Args) ->
     OutDir = filename:join([filename:dirname(code:which(?MODULE)),"..", "demo", "out"]),
-    render2(OutDir, list_to_atom("test_" ++ Name), Ext, Args).
+    render2(OutDir, list_to_atom("test_" ++ Name), Args).
             
 
 %%--------------------------------------------------------------------
@@ -229,45 +220,31 @@ preset(test_for_records_preset) ->
 %% Internal functions
 %%====================================================================
 
-render2(OutDir, Module, Ext, Arg) ->
-    case catch apply(Module, render, [Arg]) of
+render2(OutDir, Module, Arg) ->
+    case catch Module:render(Arg) of
         {ok, Val, Warnings} -> 
-            write_file(OutDir, Module, Ext, Val, Warnings);
+            write_file(OutDir, Module, Val, Warnings);
         {error, Err, Warnings} ->
             io:format("TRACE ~p:~p Errors: ~p~n",[?MODULE, ?LINE, Err]),
             io:format("TRACE ~p:~p Warnings: ~p~n",[?MODULE, ?LINE, Warnings]);
         {'EXIT', Reason} -> 
             io:format("TRACE ~p:~p ~p: render failure: ~n",[?MODULE, ?LINE, Reason]);
         Val -> %% only temporarly
-            write_file(OutDir, Module, Ext, Val, [])
+            write_file(OutDir, Module, Val, [])
     end.
     
     
-render2(OutDir, Module, Ext) ->
-    case catch Module:render() of      
-        {ok, Val, Warnings} -> 
-            write_file(OutDir, Module, Ext, Val, Warnings);
-        {error, Err, Warnings} ->
-            io:format("TRACE ~p:~p Errors: ~p~n",[?MODULE, ?LINE, Err]),
-            io:format("TRACE ~p:~p Warnings: ~p~n",[?MODULE, ?LINE, Warnings]);
-        {'EXIT', Reason} -> 
-            io:format("TRACE ~p:~p ~p: render failure: ~n",[?MODULE, ?LINE, Reason]);
-        Val -> %% only temporarly
-            write_file(OutDir, Module, Ext, Val, [])
+write_file(OutDir, Module, Val, Warnings) ->
+    case file:open(filename:join([OutDir, lists:concat([Module, ".", Module:file_extension()])]), [write]) of
+	{ok, IoDev} ->
+	    file:write(IoDev, Val),
+	    file:close(IoDev),
+	    case Warnings of
+		[] ->
+		    io:format("render success: ~p~n",[Module]);    
+		_ -> 
+		    io:format("render success: ~p - Warnings: ~p~n",[Module, Warnings])
+	    end;
+	_ ->
+	    io:format("render failure: ~p~n",[Module])
     end.
-
-
-write_file(OutDir, Module, Ext, Val, Warnings) ->
-    case file:open(filename:join([OutDir, lists:concat([Module, Ext])]), [write]) of
-		{ok, IoDev} ->
-		    file:write(IoDev, Val),
-		    file:close(IoDev),
-		    case Warnings of
-		        [] ->
-		            io:format("render success: ~p~n",[Module]);    
-		        _ -> 
-		            io:format("render success: ~p - Warnings: ~p~n",[Module, Warnings])
-		    end;
-		_ ->
-		    io:format("render failure: ~p~n",[Module])
-	end.
