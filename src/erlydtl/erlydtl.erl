@@ -1,7 +1,8 @@
 %%%-------------------------------------------------------------------
 %%% File:      erlydtl.erl
 %%% @author    Roberto Saccon <rsaccon@gmail.com> [http://rsaccon.com]
-%%% @copyright 2007 Roberto Saccon
+%%% @author    Evan Miller <emmiller@gmail.com>
+%%% @copyright 2008 Roberto Saccon, Evan Miller
 %%% @doc  
 %%% Helper module to start and stop ErlyDTL application and for 
 %%% creating yecc-grammar based template parser
@@ -9,7 +10,7 @@
 %%%
 %%% The MIT License
 %%%
-%%% Copyright (c) 2007 Roberto Saccon
+%%% Copyright (c) 2008 Roberto Saccon, Evan Miller
 %%%
 %%% Permission is hereby granted, free of charge, to any person obtaining a copy
 %%% of this software and associated documentation files (the "Software"), to deal
@@ -29,10 +30,11 @@
 %%% OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 %%% THE SOFTWARE.
 %%%
-%%% @since 2007-11-17 by Roberto Saccon
+%%% @since 2007-11-11 by Roberto Saccon, Evan Miller
 %%%-------------------------------------------------------------------
 -module(erlydtl).
 -author('rsaccon@gmail.com').
+-author('emmiller@gmail.com').
 
 %% API
 -export([start/0, stop/0, create_parser/0, reload/2, write_beam/3]).
