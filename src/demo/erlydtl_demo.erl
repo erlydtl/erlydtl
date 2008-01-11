@@ -74,7 +74,19 @@ compile("var" = Name) ->
 
 compile("extends" = Name) ->
     compile(Name, ".html"); 
+
+compile("include" = Name) ->
+    compile(Name, ".html"); 
+
+compile("autoescape" = Name) ->
+    compile(Name, ".html"); 
+
+compile("if" = Name) ->
+    compile(Name, ".html"); 
           
+compile("filters" = Name) ->
+    compile(Name, ".html"); 
+
 compile("comment" = Name) ->
     compile(Name, ".html");
                
@@ -128,16 +140,21 @@ compile(Name, Ext) ->
 %% @end 
 %%--------------------------------------------------------------------
 render_all() ->
-    render("var"),
-    render("extends"),
+    render("autoescape"),
     render("comment"),
-    render("for"),
-    render("for_records"),
-    render("htmltags"),
     render("csstags"),
-    render("var_preset"),
+    render("extends"),
+    render("filters"),
+    render("for"),
+    render("for_list"),
     render("for_preset"),
-    render("for_records_preset").
+    render("for_records"),
+    render("for_records_preset"),
+    render("htmltags"),
+    render("if"),
+    render("include"),
+    render("var"),
+    render("var_preset").
         
 
 %%--------------------------------------------------------------------
@@ -148,6 +165,18 @@ render_all() ->
 render("var" = Name) ->
     render(Name, [{var1, "foostring1"}, {var2, "foostring2"}, {var_not_used, "foostring3"}]);
  
+render("filters" = Name) ->
+    render(Name, [{'list', ["eins", "zwei", "drei"]}]);
+
+render("include" = Name) ->
+    render(Name, [{var1, "foostring1"}, {var2, "foostring2"}]);
+ 
+render("autoescape" = Name) ->
+    render(Name, [{var1, "<b>bold</b>"}]);
+
+render("if" = Name) ->
+    render(Name, [{var1, "something"}]);
+
 render("extends" = Name) ->
     render(Name, [{base_var, "base-barstring"}, {test_var, "test-barstring"}]);
         
@@ -157,6 +186,9 @@ render("comment" = Name) ->
 render("for" = Name) ->
     render(Name, [{fruit_list, ["apple", "banana", "coconut"]}]);
             
+render("for_list" = Name) ->
+    render(Name, [{fruit_list, [["apple", "apples"], ["banana", "bananas"], ["coconut", "coconuts"]]}]);
+
 render("for_records" = Name) ->
     Link1 = [{name, "Amazon"}, {url, "http://amazon.com"}],
     Link2 = [{name, "Google"}, {url, "http://google.com"}],
