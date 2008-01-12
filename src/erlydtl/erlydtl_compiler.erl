@@ -32,7 +32,7 @@
 %%% @since 2007-12-16 by Roberto Saccon, Evan Miller
 %%%-------------------------------------------------------------------
 -module(erlydtl_compiler).
--author('emmiller@gmail.com').
+-author('rsaccon@gmail.com').
 -author('emmiller@gmail.com').
 
 -export([compile/2, compile/3, compile/4, compile/5, parse/1, scan/1]).
