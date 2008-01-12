@@ -95,6 +95,9 @@ compile("for" = Name) ->
  
 compile("for_records" = Name) ->
     compile(Name, ".html");
+    
+compile("for_list" = Name) ->
+    compile(Name, ".html");
                                 
 compile("htmltags" = Name) ->
     compile(Name, ".html");
