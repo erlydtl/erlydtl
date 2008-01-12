@@ -62,7 +62,7 @@ compile(File, DocRoot, Module, Function, OutDir) ->
         {ok, DjangoParseTree} ->
             {BodyAst, BodyInfo} = body_ast(DjangoParseTree,
                 #dtl_context{doc_root = DocRoot, parse_trail = [File]}),
-            Function2 = erl_syntax:application(erl_syntax:atom(Module), erl_syntax:atom(Function ++ "2"),
+            Function2 = erl_syntax:application(none, erl_syntax:atom(Function ++ "2"),
                 [erl_syntax:variable("Variables")]),
             ClauseOk = erl_syntax:clause([erl_syntax:variable("Val")], none,
                 [erl_syntax:tuple([erl_syntax:atom(ok), erl_syntax:variable("Val")])]),     
@@ -73,7 +73,7 @@ compile(File, DocRoot, Module, Function, OutDir) ->
                 [erl_syntax:clause([erl_syntax:variable("Variables")], none, 
                     [erl_syntax:try_expr([Function2], [ClauseOk], [ClauseCatch])])]),
             Render0FunctionAst = erl_syntax:function(erl_syntax:atom(Function),
-                [erl_syntax:clause([], none, [erl_syntax:application(erl_syntax:atom(Module), 
+                [erl_syntax:clause([], none, [erl_syntax:application(none, 
                     erl_syntax:atom(Function), [erl_syntax:list([])])])]),
             RenderInternalFunctionAst = erl_syntax:function(
                 erl_syntax:atom(Function ++ "2"), 
@@ -87,13 +87,16 @@ compile(File, DocRoot, Module, Function, OutDir) ->
                 erl_syntax:atom(source),
                 [erl_syntax:clause([], none, [erl_syntax:string(File)])]),
             ModuleAst  = erl_syntax:attribute(erl_syntax:atom(module), [erl_syntax:atom(Module)]),
-            % TODO: export only render/0, render/1, source/0, dependencies/0
-            CompileAst = erl_syntax:attribute(erl_syntax:atom(compile), [erl_syntax:atom("export_all")]), 
-
-            Forms = [erl_syntax:revert(X) || X <- [ModuleAst, CompileAst, SourceFunctionAst, 
+            ExportAst = erl_syntax:attribute(erl_syntax:atom(export),
+                [erl_syntax:list([erl_syntax:arity_qualifier(erl_syntax:atom(Function), erl_syntax:integer(0)),
+                    erl_syntax:arity_qualifier(erl_syntax:atom(Function), erl_syntax:integer(1)),
+                        erl_syntax:arity_qualifier(erl_syntax:atom(source), erl_syntax:integer(0)),
+                            erl_syntax:arity_qualifier(erl_syntax:atom(dependencies), erl_syntax:integer(0))])]),
+            
+            Forms = [erl_syntax:revert(X) || X <- [ModuleAst, ExportAst, SourceFunctionAst, 
                 Render0FunctionAst, Render1FunctionAst, RenderInternalFunctionAst, DependenciesFunctionAst]],
 
-            case compile:forms(Forms, []) of
+            case compile:forms(Forms, []) of  %% use: compile:forms(Forms) for more debug info
                 {ok, Module1, Bin} ->       
                     Path = filename:join([OutDir, atom_to_list(Module1) ++ ".beam"]),
                     case file:write_file(Path, Bin) of
