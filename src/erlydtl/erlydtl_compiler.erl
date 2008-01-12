@@ -55,27 +55,34 @@ compile(File, DocRoot, Module, Function) ->
 
 compile(File, DocRoot, Module, Function, OutDir) ->
     case parse(File) of
-        {ok, DjangoAst} ->
-            Render1FunctionAst = erl_syntax:function(
-                erl_syntax:atom(Function), 
+        {ok, DjangoAst} ->                        
+            Function2 = erl_syntax:application(erl_syntax:atom(Module), erl_syntax:atom(Function ++ "2"),
+                [erl_syntax:variable("Variables")]),  
+            ClauseOk = erl_syntax:clause([erl_syntax:variable("Val")], none,
+                [erl_syntax:tuple([erl_syntax:atom(ok), erl_syntax:variable("Val")])]),     
+            ClauseCatch = erl_syntax:clause([erl_syntax:tuple([erl_syntax:atom(throw), 
+                erl_syntax:variable("'_'"), erl_syntax:variable("'_'")])], none,
+                    [erl_syntax:tuple([erl_syntax:atom(error), erl_syntax:string("error description")])]),                                              
+            Render1FunctionAst = erl_syntax:function(erl_syntax:atom(Function),
                 [erl_syntax:clause([erl_syntax:variable("Variables")], none, 
+                    [erl_syntax:try_expr([Function2], [ClauseOk], [ClauseCatch])])]),
+            Render0FunctionAst = erl_syntax:function(erl_syntax:atom(Function),
+                [erl_syntax:clause([], none, [erl_syntax:application(erl_syntax:atom(Module), 
+                    erl_syntax:atom(Function), [erl_syntax:list([])])])]),
+            RenderInternalFunctionAst = erl_syntax:function(
+                erl_syntax:atom(Function ++ "2"), 
+                    [erl_syntax:clause([erl_syntax:variable("Variables")], none, 
                         [body_ast(DjangoAst, #dtl_context{doc_root = DocRoot, parse_trail = [File]})])]),
-            Render0FunctionAst = erl_syntax:function(
-                erl_syntax:atom(Function),
-                [erl_syntax:clause([], none, 
-                        [erl_syntax:application(erl_syntax:atom(Module), erl_syntax:atom(Function),
-                                [erl_syntax:list([])])]
-                    )]),
             ExtensionFunctionAst = erl_syntax:function(
                 erl_syntax:atom(file_extension),
                 [erl_syntax:clause([], none, [erl_syntax:string(file_extension(File))])]),
             ModuleAst  = erl_syntax:attribute(erl_syntax:atom(module), [erl_syntax:atom(Module)]),
-            CompileAst = erl_syntax:attribute(erl_syntax:atom(compile), [erl_syntax:atom("export_all")]),
+            CompileAst = erl_syntax:attribute(erl_syntax:atom(compile), [erl_syntax:atom("export_all")]), % TODO: export only render/0, render/1
 
             Forms = [erl_syntax:revert(X) || X <- [ModuleAst, CompileAst, ExtensionFunctionAst, 
-                    Render0FunctionAst, Render1FunctionAst]],
+                Render0FunctionAst, Render1FunctionAst, RenderInternalFunctionAst]],
 
-            case compile:forms(Forms) of
+            case compile:forms(Forms, []) of
                 {ok, Module1, Bin} ->       
                     Path = filename:join([OutDir, atom_to_list(Module1) ++ ".beam"]),
                     case file:write_file(Path, Bin) of
