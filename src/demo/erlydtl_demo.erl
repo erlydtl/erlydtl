@@ -150,14 +150,14 @@ render_all() ->
     render("filters"),
     render("for"),
     render("for_list"),
-    render("for_preset"),
+    %render("for_preset"),
     render("for_records"),
-    render("for_records_preset"),
+    %render("for_records_preset"),
     render("htmltags"),
     render("if"),
     render("include"),
-    render("var"),
-    render("var_preset").
+    render("var").
+    %render("var_preset")
         
 
 %%--------------------------------------------------------------------
@@ -230,7 +230,7 @@ render(Name, Args) ->
     Module = list_to_atom("test_" ++ Name),
     case catch Module:render(Args) of
         {ok, Val} -> 
-            case file:open(filename:join([OutDir, lists:concat([Module, ".", Module:file_extension()])]), [write]) of
+            case file:open(filename:join([OutDir, filename:basename(Module:source())]), [write]) of
                 {ok, IoDev} ->
                     file:write(IoDev, Val),
                     file:close(IoDev),
