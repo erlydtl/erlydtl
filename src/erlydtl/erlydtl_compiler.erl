@@ -85,8 +85,8 @@ compile(File, DocRoot, Module, Function, OutDir) ->
                                 {module, _} -> ok;
                                 _ -> {error, "code reload failed"}
                             end;
-                        _ ->
-                            {error, "beam generation failed"}
+                        {error, Reason} ->
+                            {error, lists:concat(["beam generation failed (", Reason, "): ", Path])}
                     end;
                 _ ->
                     {error, "compilation failed"}
@@ -160,7 +160,7 @@ body_ast(DjangoAst, Context) ->
                 ({'text', _Pos, String}) -> 
                     erl_syntax:string(String);
                 ({'string_literal', _Pos, String}) ->
-                    erl_syntax:string(unescape_string_literal(String));
+                    auto_escape(erl_syntax:string(unescape_string_literal(String)), Context);
                 ({'number_literal', _Pos, Number}) ->
                     erl_syntax:string(Number);
                 ({'variable', Variable}) ->
@@ -235,11 +235,13 @@ search_for_escape_filter(_Variable, _Filter) ->
     off.
 
 resolve_variable_ast({{identifier, _, VarName}}, Context) ->
-    resolve_variable_name_ast(VarName, Context);
+    auto_escape(resolve_variable_name_ast(VarName, Context), Context);
 
 resolve_variable_ast({{identifier, _, VarName}, {identifier, _, AttrName}}, Context) ->
-    erl_syntax:application(erl_syntax:atom(proplists), erl_syntax:atom(get_value),
-        [erl_syntax:atom(AttrName), resolve_variable_name_ast(VarName, Context)]).
+    auto_escape(erl_syntax:application(
+            erl_syntax:atom(proplists), erl_syntax:atom(get_value),
+        [erl_syntax:atom(AttrName), resolve_variable_name_ast(VarName, Context)]), 
+        Context).
 
 resolve_variable_name_ast(VarName, Context) ->
     VarValue = lists:foldl(fun(Scope, Value) ->
@@ -250,19 +252,21 @@ resolve_variable_name_ast(VarName, Context) ->
                         Value
                 end
         end, undefined, Context#dtl_context.local_scopes),
-    VarValue1 = case VarValue of
+    case VarValue of
         undefined ->
             erl_syntax:application(erl_syntax:atom(proplists), erl_syntax:atom(get_value),
                 [erl_syntax:atom(VarName), erl_syntax:variable("Variables")]);
         _ ->
             VarValue
-    end,
+    end.
+
+auto_escape(Value, Context) ->
     case Context#dtl_context.auto_escape of
         on ->
             erl_syntax:application(erl_syntax:atom(erlydtl_filters), erl_syntax:atom(force_escape),
-                [VarValue1]);
+                [Value]);
         _ ->
-            VarValue1
+            Value
     end.
 
 ifelse_ast(Variable, IfContentsAst, ElseContentsAst, Context) ->
