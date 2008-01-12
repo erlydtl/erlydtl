@@ -34,7 +34,7 @@
 -author('rsaccon@gmail.com').
 
 %% API
--export([compile_all/0, compile/1, compile/2, render_all/0, render/1, preset/1]).
+-export([compile_all/0, compile/1, compile/2, render_all/0, render/1, render/2, preset/1]).
 
 %%====================================================================
 %% API
@@ -227,7 +227,20 @@ render(Name) ->
 %%--------------------------------------------------------------------
 render(Name, Args) ->
     OutDir = filename:join([filename:dirname(code:which(?MODULE)),"..", "demo", "out"]),
-    render2(OutDir, list_to_atom("test_" ++ Name), Args).
+    Module = list_to_atom("test_" ++ Name),
+    case catch Module:render(Args) of
+        {ok, Val} -> 
+            case file:open(filename:join([OutDir, lists:concat([Module, ".", Module:file_extension()])]), [write]) of
+                {ok, IoDev} ->
+                    file:write(IoDev, Val),
+                    file:close(IoDev),
+                    io:format("render success: ~p~n",[Module]);    
+                _ ->
+                    io:format("file writing failure: ~p~n",[Module])
+            end;
+        {error, Err} ->
+            io:format("render failure: ~p ~p~n",[Module, Err])
+    end.    
             
 
 %%--------------------------------------------------------------------
@@ -254,32 +267,3 @@ preset(test_for_records_preset) ->
 %%====================================================================
 %% Internal functions
 %%====================================================================
-
-render2(OutDir, Module, Arg) ->
-    case catch Module:render(Arg) of
-        {ok, Val, Warnings} -> 
-            write_file(OutDir, Module, Val, Warnings);
-        {error, Err, Warnings} ->
-            io:format("TRACE ~p:~p Errors: ~p~n",[?MODULE, ?LINE, Err]),
-            io:format("TRACE ~p:~p Warnings: ~p~n",[?MODULE, ?LINE, Warnings]);
-        {'EXIT', Reason} -> 
-            io:format("TRACE ~p:~p ~p: render failure: ~n",[?MODULE, ?LINE, Reason]);
-        Val -> %% only temporarly
-            write_file(OutDir, Module, Val, [])
-    end.
-    
-    
-write_file(OutDir, Module, Val, Warnings) ->
-    case file:open(filename:join([OutDir, lists:concat([Module, ".", Module:file_extension()])]), [write]) of
-        {ok, IoDev} ->
-            file:write(IoDev, Val),
-            file:close(IoDev),
-            case Warnings of
-                [] ->
-                    io:format("render success: ~p~n",[Module]);    
-                _ -> 
-                    io:format("render success: ~p - Warnings: ~p~n",[Module, Warnings])
-            end;
-        _ ->
-            io:format("render failure: ~p~n",[Module])
-    end.
