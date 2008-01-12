@@ -44,6 +44,10 @@
         doc_root = "", 
         parse_trail = []}).
 
+-record(ast_info, {
+        dependencies = []
+    }).
+
 compile(File, Module) ->
     compile(File, "", Module).
 
@@ -55,14 +59,16 @@ compile(File, DocRoot, Module, Function) ->
 
 compile(File, DocRoot, Module, Function, OutDir) ->
     case parse(File) of
-        {ok, DjangoAst} ->                        
+        {ok, DjangoParseTree} ->
+            {BodyAst, BodyInfo} = body_ast(DjangoParseTree,
+                #dtl_context{doc_root = DocRoot, parse_trail = [File]}),
             Function2 = erl_syntax:application(erl_syntax:atom(Module), erl_syntax:atom(Function ++ "2"),
-                [erl_syntax:variable("Variables")]),  
+                [erl_syntax:variable("Variables")]),
             ClauseOk = erl_syntax:clause([erl_syntax:variable("Val")], none,
                 [erl_syntax:tuple([erl_syntax:atom(ok), erl_syntax:variable("Val")])]),     
             ClauseCatch = erl_syntax:clause([erl_syntax:tuple([erl_syntax:atom(throw), 
-                erl_syntax:variable("'_'"), erl_syntax:variable("'_'")])], none,
-                    [erl_syntax:tuple([erl_syntax:atom(error), erl_syntax:string("error description")])]),                                              
+                erl_syntax:underscore(), erl_syntax:underscore()])], none,
+                    [erl_syntax:tuple([erl_syntax:atom(error), erl_syntax:string("error description")])]),
             Render1FunctionAst = erl_syntax:function(erl_syntax:atom(Function),
                 [erl_syntax:clause([erl_syntax:variable("Variables")], none, 
                     [erl_syntax:try_expr([Function2], [ClauseOk], [ClauseCatch])])]),
@@ -72,15 +78,20 @@ compile(File, DocRoot, Module, Function, OutDir) ->
             RenderInternalFunctionAst = erl_syntax:function(
                 erl_syntax:atom(Function ++ "2"), 
                     [erl_syntax:clause([erl_syntax:variable("Variables")], none, 
-                        [body_ast(DjangoAst, #dtl_context{doc_root = DocRoot, parse_trail = [File]})])]),
-            ExtensionFunctionAst = erl_syntax:function(
-                erl_syntax:atom(file_extension),
-                [erl_syntax:clause([], none, [erl_syntax:string(file_extension(File))])]),
+                        [BodyAst])]),
+            DependenciesFunctionAst = erl_syntax:function(
+                erl_syntax:atom(dependencies), [erl_syntax:clause([], none, 
+                        [erl_syntax:list(lists:map(fun(Dep) -> erl_syntax:string(Dep) end, 
+                                    BodyInfo#ast_info.dependencies))])]),
+            SourceFunctionAst = erl_syntax:function(
+                erl_syntax:atom(source),
+                [erl_syntax:clause([], none, [erl_syntax:string(File)])]),
             ModuleAst  = erl_syntax:attribute(erl_syntax:atom(module), [erl_syntax:atom(Module)]),
-            CompileAst = erl_syntax:attribute(erl_syntax:atom(compile), [erl_syntax:atom("export_all")]), % TODO: export only render/0, render/1
+            % TODO: export only render/0, render/1, source/0, dependencies/0
+            CompileAst = erl_syntax:attribute(erl_syntax:atom(compile), [erl_syntax:atom("export_all")]), 
 
-            Forms = [erl_syntax:revert(X) || X <- [ModuleAst, CompileAst, ExtensionFunctionAst, 
-                Render0FunctionAst, Render1FunctionAst, RenderInternalFunctionAst]],
+            Forms = [erl_syntax:revert(X) || X <- [ModuleAst, CompileAst, SourceFunctionAst, 
+                Render0FunctionAst, Render1FunctionAst, RenderInternalFunctionAst, DependenciesFunctionAst]],
 
             case compile:forms(Forms, []) of
                 {ok, Module1, Bin} ->       
@@ -122,110 +133,129 @@ parse(File) ->
 full_path(File, DocRoot) ->
     filename:join([DocRoot, File]).
 
-file_extension(File) ->
-    lists:last(string:tokens(lists:flatten(File), ".")).
-
 % child templates should only consist of blocks at the top level
-body_ast([{extends, {string_literal, _Pos, String}} | ThisAst], Context) ->
+body_ast([{extends, {string_literal, _Pos, String}} | ThisParseTree], Context) ->
     File = full_path(unescape_string_literal(String), Context#dtl_context.doc_root),
     case lists:member(File, Context#dtl_context.parse_trail) of
         true ->
             {error, "Circular file inclusion!"};
         _ ->
-            {ok, ParentAst} = parse(File),
+            {ok, ParentParseTree} = parse(File),
             BlockDict = lists:foldl(
                 fun
                     ({block, {identifier, _, Name}, Contents}, Dict) ->
                         dict:store(Name, Contents, Dict);
                     (_, Dict) ->
                         Dict
-                end, dict:new(), ThisAst),
-            body_ast(ParentAst, Context#dtl_context{
-                    block_dict = 
-                    dict:merge(fun(_Key, _ParentVal, ChildVal) -> ChildVal end,
+                end, dict:new(), ThisParseTree),
+            with_dependency(File, body_ast(ParentParseTree, Context#dtl_context{
+                    block_dict = dict:merge(fun(_Key, _ParentVal, ChildVal) -> ChildVal end,
                         BlockDict, Context#dtl_context.block_dict),
-                    parse_trail = [File | Context#dtl_context.parse_trail]
-                })
+                    parse_trail = [File | Context#dtl_context.parse_trail]}))
     end;
 
-body_ast(DjangoAst, Context) ->
-    erl_syntax:list(
-        lists:map(
-            fun
-                ({'block', {identifier, _, Name}, Contents}) ->
-                    Block = case dict:find(Name, Context#dtl_context.block_dict) of
-                        {ok, ChildBlock} ->
-                            ChildBlock;
-                        _ ->
-                            Contents
-                    end,
-                    body_ast(Block, Context);
-                ({'comment', _Contents}) ->
-                    erl_syntax:list([]);
-                ({'autoescape', {identifier, _, OnOrOff}, Contents}) ->
-                    body_ast(Contents, Context#dtl_context{auto_escape = list_to_atom(OnOrOff)});
-                ({'text', _Pos, String}) -> 
-                    erl_syntax:string(String);
-                ({'string_literal', _Pos, String}) ->
-                    auto_escape(erl_syntax:string(unescape_string_literal(String)), Context);
-                ({'number_literal', _Pos, Number}) ->
-                    erl_syntax:string(Number);
-                ({'variable', Variable}) ->
-                    resolve_variable_ast(Variable, Context);
-                ({'tag', {identifier, _, Name}, Args}) ->
-                    tag_ast(Name, Args, Context);
-                ({'include', {string_literal, _, File}}) ->
-                    FilePath = full_path(unescape_string_literal(File), Context#dtl_context.doc_root),
-                    {ok, IncludeAst} = parse(FilePath),
-                    body_ast(IncludeAst, 
-                        Context#dtl_context{parse_trail = 
-                            [FilePath | Context#dtl_context.parse_trail]});
-                ({'if', {variable, Variable}, Contents}) ->
-                    ifelse_ast(Variable, body_ast(Contents, Context),
-                        erl_syntax:list([]), Context);
-                ({'if', {'not', {variable, Variable}}, Contents}) ->
-                    ifelse_ast(Variable, erl_syntax:list([]),
-                        body_ast(Contents, Context), Context);
-                ({'ifelse', {variable, Variable}, IfContents, ElseContents}) ->
-                    ifelse_ast(Variable, body_ast(IfContents, Context),
+body_ast(DjangoParseTree, Context) ->
+    AstInfoList = lists:map(
+        fun
+            ({'block', {identifier, _, Name}, Contents}) ->
+                Block = case dict:find(Name, Context#dtl_context.block_dict) of
+                    {ok, ChildBlock} ->
+                        ChildBlock;
+                    _ ->
+                        Contents
+                end,
+                body_ast(Block, Context);
+            ({'comment', _Contents}) ->
+                empty_ast();
+            ({'autoescape', {identifier, _, OnOrOff}, Contents}) ->
+                body_ast(Contents, Context#dtl_context{auto_escape = list_to_atom(OnOrOff)});
+            ({'text', _Pos, String}) -> 
+                string_ast(String);
+            ({'string_literal', _Pos, String}) ->
+                {auto_escape(erl_syntax:string(unescape_string_literal(String)), Context), #ast_info{}};
+            ({'number_literal', _Pos, Number}) ->
+                string_ast(Number);
+            ({'variable', Variable}) ->
+                {resolve_variable_ast(Variable, Context), #ast_info{}};
+            ({'tag', {identifier, _, Name}, Args}) ->
+                tag_ast(Name, Args, Context);
+            ({'include', {string_literal, _, File}}) ->
+                include_ast(unescape_string_literal(File), Context);
+            ({'if', {variable, Variable}, Contents}) ->
+                ifelse_ast(Variable, body_ast(Contents, Context), empty_ast(), Context);
+            ({'if', {'not', {variable, Variable}}, Contents}) ->
+                ifelse_ast(Variable, empty_ast(), body_ast(Contents, Context), Context);
+            ({'ifelse', {variable, Variable}, IfContents, ElseContents}) ->
+                ifelse_ast(Variable, body_ast(IfContents, Context), 
                         body_ast(ElseContents, Context), Context);
-                ({'ifelse', {'not', {variable, Variable}}, IfContents, ElseContents}) ->
-                    ifelse_ast(Variable, body_ast(ElseContents, Context), 
+            ({'ifelse', {'not', {variable, Variable}}, IfContents, ElseContents}) ->
+                ifelse_ast(Variable, body_ast(ElseContents, Context), 
                         body_ast(IfContents, Context), Context);
-                ({'apply_filter', Variable, Filter}) ->
-                    filter_ast(Variable, Filter, Context);
-                ({'for', {'in', {identifier, _, Iterator}, {identifier, _, List}}, Contents}) ->
-                    for_loop_ast(Iterator, List, Contents, Context);
-                ({'for', {'in', IteratorList, {identifier, _, List}}, Contents}) when is_list(IteratorList) ->
-                    for_list_loop_ast(IteratorList, List, Contents, Context)
-            end, DjangoAst)
-    ).
+            ({'apply_filter', Variable, Filter}) ->
+                filter_ast(Variable, Filter, Context);
+            ({'for', {'in', {identifier, _, Iterator}, {identifier, _, List}}, Contents}) ->
+                for_loop_ast(Iterator, List, Contents, Context);
+            ({'for', {'in', IteratorList, {identifier, _, List}}, Contents}) when is_list(IteratorList) ->
+                for_list_loop_ast(IteratorList, List, Contents, Context)
+        end, DjangoParseTree),
+    {AstList, Info} = lists:mapfoldl(
+        fun({Ast, Info}, InfoAcc) -> 
+                {Ast, merge_info(Info, InfoAcc)}
+        end, #ast_info{}, AstInfoList),
+    {erl_syntax:list(AstList), Info}.
+
+merge_info(Info1, Info2) ->
+    #ast_info{dependencies = 
+        lists:merge(
+            lists:sort(Info1#ast_info.dependencies), 
+            lists:sort(Info2#ast_info.dependencies))}.
+
+with_dependency(FilePath, {Ast, Info}) ->
+    {Ast, Info#ast_info{dependencies = [FilePath | Info#ast_info.dependencies]}}.
+
+empty_ast() ->
+    {erl_syntax:list([]), #ast_info{}}.
+
+string_ast(String) ->
+    {erl_syntax:string(String), #ast_info{}}.
+
+include_ast(File, Context) ->
+    FilePath = full_path(File, Context#dtl_context.doc_root),
+    {ok, InclusionParseTree} = parse(FilePath),
+    with_dependency(FilePath, body_ast(InclusionParseTree, Context#dtl_context{parse_trail = 
+                [FilePath | Context#dtl_context.parse_trail]})).
 
 filter_ast(Variable, Filter, Context) ->
     % the escape filter is special; it is always applied last, so we have to go digging for it
 
     % AutoEscape = 'did' means we (will have) decided whether to escape the current variable,
     % so don't do any more escaping
+    {UnescapedAst, Info} = filter_ast_noescape(Variable, Filter, 
+        Context#dtl_context{auto_escape = did}),
     case search_for_escape_filter(Variable, Filter, Context) of
         on ->
-            erl_syntax:application(erl_syntax:atom(erlydtl_filters), erl_syntax:atom(force_escape),
-                [filter_ast_noescape(Variable, Filter, Context#dtl_context{auto_escape = did})]);
+            {erl_syntax:application(
+                    erl_syntax:atom(erlydtl_filters), 
+                    erl_syntax:atom(force_escape), 
+                    [UnescapedAst]), 
+                Info};
         _ ->
-            filter_ast_noescape(Variable, Filter, Context#dtl_context{auto_escape = did})
+            {UnescapedAst, Info}
     end.
 
 filter_ast_noescape(Variable, [{identifier, _, "escape"}], Context) ->
     body_ast([Variable], Context);
 filter_ast_noescape(Variable, [{identifier, _, Name} | Arg], Context) ->
-    erl_syntax:application(erl_syntax:atom(erlydtl_filters), erl_syntax:atom(Name), 
-        [body_ast([Variable], Context) | case Arg of 
+    {VariableAst, Info} = body_ast([Variable], Context),
+    {erl_syntax:application(erl_syntax:atom(erlydtl_filters), erl_syntax:atom(Name), 
+        [VariableAst | case Arg of 
                 [{string_literal, _, ArgName}] ->
                     [erl_syntax:string(unescape_string_literal(ArgName))];
                 [{number_literal, _, ArgName}] ->
                     [erl_syntax:integer(list_to_integer(ArgName))];
                 _ ->
                     []
-            end]).
+            end]), Info}.
 
 search_for_escape_filter(_, _, #dtl_context{auto_escape = on}) ->
     on;
@@ -276,8 +306,8 @@ auto_escape(Value, Context) ->
             Value
     end.
 
-ifelse_ast(Variable, IfContentsAst, ElseContentsAst, Context) ->
-    erl_syntax:case_expr(resolve_variable_ast(Variable, Context),
+ifelse_ast(Variable, {IfContentsAst, IfContentsInfo}, {ElseContentsAst, ElseContentsInfo}, Context) ->
+    {erl_syntax:case_expr(resolve_variable_ast(Variable, Context),
         [erl_syntax:clause([erl_syntax:string("")], none, 
                 [ElseContentsAst]),
             erl_syntax:clause([erl_syntax:atom(undefined)], none,
@@ -286,34 +316,33 @@ ifelse_ast(Variable, IfContentsAst, ElseContentsAst, Context) ->
                 [ElseContentsAst]),
             erl_syntax:clause([erl_syntax:underscore()], none,
                 [IfContentsAst])
-        ]).
+        ]), merge_info(IfContentsInfo, ElseContentsInfo)}.
 
 for_loop_ast(Iterator, List, Contents, Context) ->
-    erl_syntax:application(erl_syntax:atom(lists), erl_syntax:atom(map),
+    {InnerAst, Info} = body_ast(Contents, 
+        Context#dtl_context{local_scopes = 
+            [[{list_to_atom(Iterator), erl_syntax:variable("Var_" ++ Iterator)}] 
+                | Context#dtl_context.local_scopes]}),
+    {erl_syntax:application(erl_syntax:atom(lists), erl_syntax:atom(map),
         [erl_syntax:fun_expr([
                     erl_syntax:clause([erl_syntax:variable("Var_" ++ Iterator)], 
-                        none, [body_ast(Contents, 
-                                Context#dtl_context{local_scopes = 
-                                    [[{list_to_atom(Iterator), erl_syntax:variable("Var_" ++ Iterator)}] 
-                                        | Context#dtl_context.local_scopes]
-                                })]
-                    )]),
-            resolve_variable_name_ast(list_to_atom(List), Context)]).
+                        none, [InnerAst])]),
+            resolve_variable_name_ast(list_to_atom(List), Context)]), Info}.
 
 for_list_loop_ast(IteratorList, List, Contents, Context) ->
-    erl_syntax:application(erl_syntax:atom(lists), erl_syntax:atom(map),
-        [erl_syntax:fun_expr([
-                    erl_syntax:clause([erl_syntax:list(
-                                lists:map(fun({identifier, _, Iterator}) -> 
-                                            erl_syntax:variable("Var_" ++ Iterator) 
-                                    end, IteratorList))], 
-                        none, [body_ast(Contents,
-                                Context#dtl_context{local_scopes = [lists:map(fun({identifier, _, Iterator}) ->
-                                                    {list_to_atom(Iterator), erl_syntax:variable("Var_" ++ Iterator)} 
-                                            end, IteratorList)
-                                        | Context#dtl_context.local_scopes]})]
-                    )]),
-            resolve_variable_name_ast(list_to_atom(List), Context)]).
+    Vars = erl_syntax:list(lists:map(
+            fun({identifier, _, Iterator}) -> 
+                    erl_syntax:variable("Var_" ++ Iterator) 
+            end, IteratorList)),
+    {InnerAst, Info} = body_ast(Contents,
+        Context#dtl_context{local_scopes = [lists:map(
+                    fun({identifier, _, Iterator}) ->
+                            {list_to_atom(Iterator), erl_syntax:variable("Var_" ++ Iterator)} 
+                    end, IteratorList) | Context#dtl_context.local_scopes]}),
+    {erl_syntax:application(erl_syntax:atom(lists), erl_syntax:atom(map),
+        [erl_syntax:fun_expr([erl_syntax:clause(
+                        [Vars], none, [InnerAst])]),
+            resolve_variable_name_ast(list_to_atom(List), Context)]), Info}.
 
 tag_ast(Name, Args, Context) ->
     InterpretedArgs = lists:map(fun
@@ -324,9 +353,10 @@ tag_ast(Name, Args, Context) ->
         end, Args),
     Source = filename:join([erlydtl_deps:get_base_dir(), "priv", "tags", Name]),
     case parse(Source) of
-        {ok, TagAst} ->
-            body_ast(TagAst, Context#dtl_context{
-                    local_scopes = [ InterpretedArgs | Context#dtl_context.local_scopes ]});
+        {ok, TagParseTree} ->
+            with_dependency(Source, body_ast(TagParseTree, Context#dtl_context{
+                    local_scopes = [ InterpretedArgs | Context#dtl_context.local_scopes ],
+                    parse_trail = [ Source | Context#dtl_context.parse_trail ]}));
         _ ->
             {error, Name, "Loading tag source failed: " ++ Source}
     end.
