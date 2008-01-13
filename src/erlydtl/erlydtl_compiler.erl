@@ -68,24 +68,34 @@ compile(File, DocRoot, Module, Function, OutDir) ->
                 [erl_syntax:tuple([erl_syntax:atom(ok), erl_syntax:variable("Val")])]),     
             ClauseCatch = erl_syntax:clause([erl_syntax:tuple([erl_syntax:atom(throw), 
                 erl_syntax:underscore(), erl_syntax:underscore()])], none,
-                    [erl_syntax:tuple([erl_syntax:atom(error), erl_syntax:string("error description")])]),
-            Render1FunctionAst = erl_syntax:function(erl_syntax:atom(Function),
-                [erl_syntax:clause([erl_syntax:variable("Variables")], none, 
-                    [erl_syntax:try_expr([Function2], [ClauseOk], [ClauseCatch])])]),
+                    [erl_syntax:tuple([erl_syntax:atom(error), erl_syntax:string("error description")])]),            
             Render0FunctionAst = erl_syntax:function(erl_syntax:atom(Function),
                 [erl_syntax:clause([], none, [erl_syntax:application(none, 
                     erl_syntax:atom(Function), [erl_syntax:list([])])])]),
+            Render1FunctionAst = erl_syntax:function(erl_syntax:atom(Function),
+                [erl_syntax:clause([erl_syntax:variable("Variables")], none, 
+                    [erl_syntax:try_expr([Function2], [ClauseOk], [ClauseCatch])])]),        
+            SourceFunctionAst = erl_syntax:function(
+                erl_syntax:atom(source),
+                    [erl_syntax:clause([], none, [erl_syntax:string(File)])]),
+            DependenciesFunctionAst = erl_syntax:function(
+                erl_syntax:atom(dependencies), [erl_syntax:clause([], none, 
+                    [erl_syntax:list(lists:map(fun(Dep) -> erl_syntax:string(Dep) end, 
+                        BodyInfo#ast_info.dependencies))])]),                                
             RenderInternalFunctionAst = erl_syntax:function(
                 erl_syntax:atom(Function ++ "2"), 
                     [erl_syntax:clause([erl_syntax:variable("Variables")], none, 
-                        [BodyAst])]),
-            DependenciesFunctionAst = erl_syntax:function(
-                erl_syntax:atom(dependencies), [erl_syntax:clause([], none, 
-                        [erl_syntax:list(lists:map(fun(Dep) -> erl_syntax:string(Dep) end, 
-                                    BodyInfo#ast_info.dependencies))])]),
-            SourceFunctionAst = erl_syntax:function(
-                erl_syntax:atom(source),
-                [erl_syntax:clause([], none, [erl_syntax:string(File)])]),
+                        [BodyAst])]),           
+            ProplistsClauseErr = erl_syntax:clause([erl_syntax:atom(undefined)], none, 
+                [erl_syntax:application(none, erl_syntax:atom(throw),
+                    [erl_syntax:tuple([erl_syntax:atom(undefined_variable), erl_syntax:variable("Key")])])]),  
+            ProplistsClauseOk = erl_syntax:clause([erl_syntax:variable("Val")], none, 
+                [erl_syntax:variable("Val")]),       
+            ProplistsFunctionAst = erl_syntax:function(erl_syntax:atom(proplists_get_value), 
+                [erl_syntax:clause([erl_syntax:variable("Key"), erl_syntax:variable("L")], none, 
+                    [erl_syntax:case_expr(erl_syntax:application(erl_syntax:atom(proplists), 
+                        erl_syntax:atom(get_value), [erl_syntax:variable("Key"), erl_syntax:variable("L")]), 
+                            [ProplistsClauseErr, ProplistsClauseOk])])]),
             ModuleAst  = erl_syntax:attribute(erl_syntax:atom(module), [erl_syntax:atom(Module)]),
             ExportAst = erl_syntax:attribute(erl_syntax:atom(export),
                 [erl_syntax:list([erl_syntax:arity_qualifier(erl_syntax:atom(Function), erl_syntax:integer(0)),
@@ -93,8 +103,8 @@ compile(File, DocRoot, Module, Function, OutDir) ->
                         erl_syntax:arity_qualifier(erl_syntax:atom(source), erl_syntax:integer(0)),
                             erl_syntax:arity_qualifier(erl_syntax:atom(dependencies), erl_syntax:integer(0))])]),
             
-            Forms = [erl_syntax:revert(X) || X <- [ModuleAst, ExportAst, SourceFunctionAst, 
-                Render0FunctionAst, Render1FunctionAst, RenderInternalFunctionAst, DependenciesFunctionAst]],
+            Forms = [erl_syntax:revert(X) || X <- [ModuleAst, ExportAst, Render0FunctionAst, Render1FunctionAst,
+                  SourceFunctionAst, DependenciesFunctionAst, RenderInternalFunctionAst, ProplistsFunctionAst]],
 
             case compile:forms(Forms, []) of  %% use: compile:forms(Forms) for more debug info
                 {ok, Module1, Bin} ->       
@@ -279,7 +289,7 @@ resolve_variable_ast({{identifier, _, VarName}}, Context) ->
 
 resolve_variable_ast({{identifier, _, VarName}, {identifier, _, AttrName}}, Context) ->
     auto_escape(erl_syntax:application(
-            erl_syntax:atom(proplists), erl_syntax:atom(get_value),
+            none, erl_syntax:atom(proplists_get_value),
         [erl_syntax:atom(AttrName), resolve_variable_name_ast(VarName, Context)]), 
         Context).
 
@@ -294,7 +304,7 @@ resolve_variable_name_ast(VarName, Context) ->
         end, undefined, Context#dtl_context.local_scopes),
     case VarValue of
         undefined ->
-            erl_syntax:application(erl_syntax:atom(proplists), erl_syntax:atom(get_value),
+            erl_syntax:application(none, erl_syntax:atom(proplists_get_value),
                 [erl_syntax:atom(VarName), erl_syntax:variable("Variables")]);
         _ ->
             VarValue
