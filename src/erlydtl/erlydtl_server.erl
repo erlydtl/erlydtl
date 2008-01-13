@@ -132,7 +132,7 @@ init([]) ->
 %% @doc Handling call messages
 %% @end 
 %%--------------------------------------------------------------------
-handle_call({compile, File, DocRoot, Mod, Func, Vars}, _From, State) ->
+handle_call({compile, _File, _DocRoot, _Mod, _Func, _Vars}, _From, State) ->
     Reply = not_implemented,
     {reply, Reply, State};       
 
