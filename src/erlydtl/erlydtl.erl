@@ -37,7 +37,7 @@
 -author('emmiller@gmail.com').
 
 %% API
--export([start/0, stop/0, create_parser/0, reload/2, write_beam/3]).
+-export([create_parser/0]).
 
 %% --------------------------------------------------------------------
 %% Definitions
@@ -48,50 +48,14 @@
 -define(PRINT_ERR_WARNS, []). 
 -endif.
 
-
-%% @spec start() -> ok
-%% @doc Start the erlydtl server.
-start() ->
-    application:start(erlydtl).
-
-
-%% @spec stop() -> ok
-%% @doc Stop the erlydtl server.
-stop() ->
-    application:stop(erlydtl).
-    
     
 %%--------------------------------------------------------------------
-%% @spec 
-%% @doc
+%% @spec () -> any()
+%% @doc creates the yecc-based ErlyDTL parser
 %% @end 
 %%--------------------------------------------------------------------
 create_parser() ->
     create_parser("src/erlydtl/erlydtl_parser", "ebin").
-
-
-%%--------------------------------------------------------------------
-%% @spec (ModuleName::string(), Bin,::binary()) -> Ok::atom() | Error::atom()
-%% @doc reloads byte code
-%% @end 
-%%--------------------------------------------------------------------
-reload(Module, Bin) ->
-    code:purge(Module),
-    SrcName = atom_to_list(Module) ++ ".erl",
-    case code:load_binary(Module, SrcName, Bin) of
-        {module, _} -> ok;
-        _ -> error
-    end.
-
-
-%%--------------------------------------------------------------------
-%% @spec (ModuleName::string(), Bin,::binary(), Dir::string()) -> any()
-%% @doc writes  byte code to beam file
-%% @end 
-%%--------------------------------------------------------------------    
-write_beam(ModuleName, Bin, Dir) ->
-    File = filename:join([Dir, atom_to_list(ModuleName) ++ ".beam"]),
-    file:write_file(File, Bin).
 
 
 %%====================================================================
@@ -101,19 +65,22 @@ write_beam(ModuleName, Bin, Dir) ->
 create_parser(Path, Outdir) ->
     case yecc:file(Path) of
         {ok, _} ->
-            compile_reload_parser(Path, Outdir);
-        Err ->
-            io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, Path ++ ": yecc failed"]),
-            Err
+            compile_parser(Path, Outdir);
+        _ ->
+            {error, "yecc parser generation failed"}
     end.
 
 
-compile_reload_parser(Path, Outdir) ->
+compile_parser(Path, Outdir) ->
     case compile:file(Path, ?PRINT_ERR_WARNS ++ [{outdir, Outdir}]) of
         {ok, Bin} ->
             code:purge(Bin),
-            code:load_file(Bin);
-        Err ->
-            io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, Path ++ ": compilation failed"]),
-            Err
+            case code:load_file(Bin) of
+                {module, _} ->
+                    ok;
+                _ ->
+                    {error, "yecc parser reload failed"}
+            end;
+        _ ->
+            {error, "yecc parser compilation failed"}
     end.

@@ -1,14 +1,15 @@
 %%%-------------------------------------------------------------------
 %%% File:      erlydtl_demo.erl
 %%% @author    Roberto Saccon <rsaccon@gmail.com> [http://rsaccon.com]
-%%% @copyright 2007 Roberto Saccon
+%%% @author    Evan Miller <emmiller@gmail.com>
+%%% @copyright 2008 Roberto Saccon, Evan Miller
 %%% @doc  
-%%%
+%%% Demo application and tests
 %%% @end  
 %%%
 %%% The MIT License
 %%%
-%%% Copyright (c) 2007 Roberto Saccon
+%%% Copyright (c) 2007 Roberto Saccon, Evan Miller
 %%%
 %%% Permission is hereby granted, free of charge, to any person obtaining a copy
 %%% of this software and associated documentation files (the "Software"), to deal
@@ -28,17 +29,32 @@
 %%% OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 %%% THE SOFTWARE.
 %%%
-%%% @since 2007-11-17 by Roberto Saccon
+%%% @since 2007-11-17 by Roberto Saccon, Evan Miller
 %%%-------------------------------------------------------------------
 -module(erlydtl_demo).
 -author('rsaccon@gmail.com').
+-author('emmiller@gmail.com').
 
 %% API
--export([compile_all/0, compile/1, compile/3, render_all/0, render/1, render/2]).
+-export([create_parser/0, compile_all/0, compile/1, compile/3, render_all/0, render/1, render/2]).
 
 %%====================================================================
 %% API
 %%====================================================================
+%%--------------------------------------------------------------------
+%% @spec () -> ok | {error, Reason::string()}
+%% @doc creates the parser source code and compiles it 
+%% @end 
+%%--------------------------------------------------------------------
+create_parser() ->
+    case erlydtl:create_parser() of
+        ok ->
+            io:format("parser creation success ~n");
+        {error, Reason} ->
+            io:format("parser creation failure: ~p~n",[Reason])
+    end.
+            
+    
 %%--------------------------------------------------------------------
 %% @spec () -> any()
 %% @doc  compiles the templates to beam files
