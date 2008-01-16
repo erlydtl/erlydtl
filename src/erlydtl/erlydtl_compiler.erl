@@ -35,66 +35,81 @@
 -author('rsaccon@gmail.com').
 -author('emmiller@gmail.com').
 
--export([compile/2, compile/3, compile/4, compile/5, parse/1, scan/1]).
+-export([compile/2, compile/3, compile/4, compile/5, compile/6, parse/1, scan/1]).
 
 -record(dtl_context, {
         local_scopes = [], 
         block_dict = dict:new(), 
         auto_escape = off, 
         doc_root = "", 
-        parse_trail = []}).
+        parse_trail = [],
+        preset_vars = []}).
 
 -record(ast_info, {
-        dependencies = []
+        dependencies = [],
+        template_vars = [],
+        pre_render_asts = []
     }).
 
 compile(File, Module) ->
-    compile(File, "", Module).
+    compile(File, Module, "").
 
-compile(File, DocRoot, Module) ->
-    compile(File, DocRoot, Module, "render").
+compile(File, Module, DocRoot) ->
+    compile(File, Module, DocRoot, []).
 
-compile(File, DocRoot, Module, Function) ->
-    compile(File, DocRoot, Module, Function, "ebin").
+compile(File, Module, DocRoot, Vars) ->
+    compile(File, Module, DocRoot, Vars, "render").
+    
+compile(File, Module, DocRoot, Vars, Function) ->
+    compile(File, Module, DocRoot, Vars, Function, "ebin").
 
-compile(File, DocRoot, Module, Function, OutDir) ->
+compile(File, Module, DocRoot, Vars, Function, OutDir) ->   
     case parse(File) of
         {ok, DjangoParseTree} ->
+            OldProcessDictVal = put(erlydtl_counter, 0),
+            
             {BodyAst, BodyInfo} = body_ast(DjangoParseTree,
-                #dtl_context{doc_root = DocRoot, parse_trail = [File]}),
+                #dtl_context{doc_root = DocRoot, parse_trail = [File], preset_vars = Vars}), 
+
+            Render0FunctionAst = erl_syntax:function(erl_syntax:atom(Function),
+                [erl_syntax:clause([], none, [erl_syntax:application(none, 
+                    erl_syntax:atom(Function), [erl_syntax:list([])])])]),
+
             Function2 = erl_syntax:application(none, erl_syntax:atom(Function ++ "2"),
                 [erl_syntax:variable("Variables")]),
             ClauseOk = erl_syntax:clause([erl_syntax:variable("Val")], none,
                 [erl_syntax:tuple([erl_syntax:atom(ok), erl_syntax:variable("Val")])]),     
             ClauseCatch = erl_syntax:clause([erl_syntax:variable("Err")], none,
-                    [erl_syntax:tuple([erl_syntax:atom(error), erl_syntax:variable("Err")])]),                                            
-            Render0FunctionAst = erl_syntax:function(erl_syntax:atom(Function),
-                [erl_syntax:clause([], none, [erl_syntax:application(none, 
-                    erl_syntax:atom(Function), [erl_syntax:list([])])])]),
+                [erl_syntax:tuple([erl_syntax:atom(error), erl_syntax:variable("Err")])]),            
             Render1FunctionAst = erl_syntax:function(erl_syntax:atom(Function),
                 [erl_syntax:clause([erl_syntax:variable("Variables")], none, 
-                    [erl_syntax:try_expr([Function2], [ClauseOk], [ClauseCatch])])]),        
+                    [erl_syntax:try_expr([Function2], [ClauseOk], [ClauseCatch])])]),  
+                          
             SourceFunctionAst = erl_syntax:function(
                 erl_syntax:atom(source),
                     [erl_syntax:clause([], none, [erl_syntax:string(File)])]),
+                    
             DependenciesFunctionAst = erl_syntax:function(
                 erl_syntax:atom(dependencies), [erl_syntax:clause([], none, 
                     [erl_syntax:list(lists:map(fun(Dep) -> erl_syntax:string(Dep) end, 
-                        BodyInfo#ast_info.dependencies))])]),                                
+                        BodyInfo#ast_info.dependencies))])]),     
+                                                   
             RenderInternalFunctionAst = erl_syntax:function(
                 erl_syntax:atom(Function ++ "2"), 
                     [erl_syntax:clause([erl_syntax:variable("Variables")], none, 
-                        [BodyAst])]),           
+                        [BodyAst])]),   
+                                 
             ProplistsClauseErr = erl_syntax:clause([erl_syntax:atom(undefined)], none, 
                 [erl_syntax:application(none, erl_syntax:atom(throw),
                     [erl_syntax:tuple([erl_syntax:atom(undefined_variable), erl_syntax:variable("Key")])])]),  
             ProplistsClauseOk = erl_syntax:clause([erl_syntax:variable("Val")], none, 
                 [erl_syntax:variable("Val")]),       
-            ProplistsFunctionAst = erl_syntax:function(erl_syntax:atom(proplists_get_value), 
+            ProplistsFunctionAst = erl_syntax:function(erl_syntax:atom(get_value), 
                 [erl_syntax:clause([erl_syntax:variable("Key"), erl_syntax:variable("L")], none, 
                     [erl_syntax:case_expr(erl_syntax:application(erl_syntax:atom(proplists), 
                         erl_syntax:atom(get_value), [erl_syntax:variable("Key"), erl_syntax:variable("L")]), 
                             [ProplistsClauseErr, ProplistsClauseOk])])]),
+
             ModuleAst  = erl_syntax:attribute(erl_syntax:atom(module), [erl_syntax:atom(Module)]),
             ExportAst = erl_syntax:attribute(erl_syntax:atom(export),
                 [erl_syntax:list([erl_syntax:arity_qualifier(erl_syntax:atom(Function), erl_syntax:integer(0)),
@@ -102,10 +117,15 @@ compile(File, DocRoot, Module, Function, OutDir) ->
                         erl_syntax:arity_qualifier(erl_syntax:atom(source), erl_syntax:integer(0)),
                             erl_syntax:arity_qualifier(erl_syntax:atom(dependencies), erl_syntax:integer(0))])]),
             
-            Forms = [erl_syntax:revert(X) || X <- [ModuleAst, ExportAst, Render0FunctionAst, Render1FunctionAst,
-                  SourceFunctionAst, DependenciesFunctionAst, RenderInternalFunctionAst, ProplistsFunctionAst]],
-
-            case compile:forms(Forms, []) of  %% use: compile:forms(Forms) for more debug info
+            Forms = [erl_syntax:revert(X) || X <- [ModuleAst, ExportAst, Render0FunctionAst,
+                Render1FunctionAst, SourceFunctionAst, DependenciesFunctionAst, RenderInternalFunctionAst, 
+                    ProplistsFunctionAst | BodyInfo#ast_info.pre_render_asts]],
+                    
+            case OldProcessDictVal of
+                undefined -> erase(erlydtl_counter);
+                _ -> put(erlydtl_counter, OldProcessDictVal)
+            end,
+            case compile:forms(Forms, []) of
                 {ok, Module1, Bin} ->       
                     Path = filename:join([OutDir, atom_to_list(Module1) ++ ".beam"]),
                     case file:write_file(Path, Bin) of
@@ -145,6 +165,7 @@ parse(File) ->
 full_path(File, DocRoot) ->
     filename:join([DocRoot, File]).
 
+        
 % child templates should only consist of blocks at the top level
 body_ast([{extends, {string_literal, _Pos, String}} | ThisParseTree], Context) ->
     File = full_path(unescape_string_literal(String), Context#dtl_context.doc_root),
@@ -165,7 +186,7 @@ body_ast([{extends, {string_literal, _Pos, String}} | ThisParseTree], Context) -
                         BlockDict, Context#dtl_context.block_dict),
                     parse_trail = [File | Context#dtl_context.parse_trail]}))
     end;
-
+    
 body_ast(DjangoParseTree, Context) ->
     AstInfoList = lists:map(
         fun
@@ -188,7 +209,8 @@ body_ast(DjangoParseTree, Context) ->
             ({'number_literal', _Pos, Number}) ->
                 string_ast(Number);
             ({'variable', Variable}) ->
-                {resolve_variable_ast(Variable, Context), #ast_info{}};
+                {Ast, Var} = resolve_variable_ast(Variable, Context),
+                {Ast, #ast_info{template_vars = [Var]}};
             ({'tag', {identifier, _, Name}, Args}) ->
                 tag_ast(Name, Args, Context);
             ({'include', {string_literal, _, File}}) ->
@@ -199,10 +221,10 @@ body_ast(DjangoParseTree, Context) ->
                 ifelse_ast(Variable, empty_ast(), body_ast(Contents, Context), Context);
             ({'ifelse', {variable, Variable}, IfContents, ElseContents}) ->
                 ifelse_ast(Variable, body_ast(IfContents, Context), 
-                        body_ast(ElseContents, Context), Context);
+                    body_ast(ElseContents, Context), Context);
             ({'ifelse', {'not', {variable, Variable}}, IfContents, ElseContents}) ->
                 ifelse_ast(Variable, body_ast(ElseContents, Context), 
-                        body_ast(IfContents, Context), Context);
+                    body_ast(IfContents, Context), Context);
             ({'apply_filter', Variable, Filter}) ->
                 filter_ast(Variable, Filter, Context);
             ({'for', {'in', {identifier, _, Iterator}, {identifier, _, List}}, Contents}) ->
@@ -212,7 +234,30 @@ body_ast(DjangoParseTree, Context) ->
         end, DjangoParseTree),
     {AstList, Info} = lists:mapfoldl(
         fun({Ast, Info}, InfoAcc) -> 
-                {Ast, merge_info(Info, InfoAcc)}
+                PresetVars = lists:foldl(fun
+                        (X, Acc) ->
+                            case proplists:lookup(list_to_atom(X), Context#dtl_context.preset_vars) of
+                                none ->
+                                    Acc;
+                                Val ->
+                                    [erl_syntax:abstract(Val) | Acc]
+                            end
+                    end, [], Info#ast_info.template_vars),
+                case PresetVars of
+                    [] ->
+                        {Ast, merge_info(Info, InfoAcc)};
+                    _ ->
+                        Id = get(erlydtl_counter),
+                        put(erlydtl_counter, Id + 1),
+                        Name = lists:concat([pre_render, Id]),
+                        Ast1 = erl_syntax:application(none, erl_syntax:atom(Name),
+                            [erl_syntax:list(PresetVars)]),
+                        PreRenderAst = erl_syntax:function(erl_syntax:atom(Name),
+                            [erl_syntax:clause([erl_syntax:variable("Variables")], none, [Ast])]),
+                        PreRenderAsts = Info#ast_info.pre_render_asts,
+                        Info1 = Info#ast_info{pre_render_asts = [PreRenderAst | PreRenderAsts]},     
+                        {Ast1, merge_info(Info1, InfoAcc)}
+                end
         end, #ast_info{}, AstInfoList),
     {erl_syntax:list(AstList), Info}.
 
@@ -220,7 +265,15 @@ merge_info(Info1, Info2) ->
     #ast_info{dependencies = 
         lists:merge(
             lists:sort(Info1#ast_info.dependencies), 
-            lists:sort(Info2#ast_info.dependencies))}.
+            lists:sort(Info2#ast_info.dependencies)),
+        template_vars = 
+            lists:merge(
+                lists:sort(Info1#ast_info.template_vars), 
+                lists:sort(Info2#ast_info.template_vars)),
+        pre_render_asts = 
+            lists:merge(
+                Info1#ast_info.pre_render_asts,
+                Info2#ast_info.pre_render_asts)}.
 
 with_dependency(FilePath, {Ast, Info}) ->
     {Ast, Info#ast_info{dependencies = [FilePath | Info#ast_info.dependencies]}}.
@@ -229,7 +282,8 @@ empty_ast() ->
     {erl_syntax:list([]), #ast_info{}}.
 
 string_ast(String) ->
-    {erl_syntax:string(String), #ast_info{}}.
+    {erl_syntax:string(String), #ast_info{}}. %% less verbose AST, good for debugging
+    % {erl_syntax:binary([erl_syntax:binary_field(erl_syntax:integer(X)) || X <- String]), #ast_info{}}.       
 
 include_ast(File, Context) ->
     FilePath = full_path(File, Context#dtl_context.doc_root),
@@ -283,16 +337,25 @@ search_for_escape_filter({apply_filter, Variable, Filter}, _) ->
 search_for_escape_filter(_Variable, _Filter) ->
     off.
 
-resolve_variable_ast({{identifier, _, VarName}}, Context) ->
-    auto_escape(resolve_variable_name_ast(VarName, Context), Context);
+resolve_variable_ast(VarTuple, Context) ->
+    resolve_variable_ast(VarTuple, Context, none).
+ 
+resolve_ifvariable_ast(VarTuple, Context) ->
+    resolve_variable_ast(VarTuple, Context, erl_syntax:atom(proplists)).
+           
+resolve_variable_ast({{identifier, _, VarName}}, Context, ModuleAst) ->
+    {auto_escape(resolve_variable_name_ast(VarName, Context, ModuleAst), Context), VarName};
 
-resolve_variable_ast({{identifier, _, VarName}, {identifier, _, AttrName}}, Context) ->
-    auto_escape(erl_syntax:application(
-            none, erl_syntax:atom(proplists_get_value),
+resolve_variable_ast({{identifier, _, VarName}, {identifier, _, AttrName}}, Context, ModuleAst) ->
+    {auto_escape(erl_syntax:application(
+            ModuleAst, erl_syntax:atom(get_value),
         [erl_syntax:atom(AttrName), resolve_variable_name_ast(VarName, Context)]), 
-        Context).
-
+        Context), []}.
+                
 resolve_variable_name_ast(VarName, Context) ->
+    resolve_variable_name_ast(VarName, Context, none).
+    
+resolve_variable_name_ast(VarName, Context, ModuleAst) ->
     VarValue = lists:foldl(fun(Scope, Value) ->
                 case Value of
                     undefined ->
@@ -303,11 +366,11 @@ resolve_variable_name_ast(VarName, Context) ->
         end, undefined, Context#dtl_context.local_scopes),
     case VarValue of
         undefined ->
-            erl_syntax:application(none, erl_syntax:atom(proplists_get_value),
+            erl_syntax:application(ModuleAst, erl_syntax:atom(get_value),
                 [erl_syntax:atom(VarName), erl_syntax:variable("Variables")]);
         _ ->
             VarValue
-    end.
+    end.    
 
 auto_escape(Value, Context) ->
     case Context#dtl_context.auto_escape of
@@ -319,7 +382,10 @@ auto_escape(Value, Context) ->
     end.
 
 ifelse_ast(Variable, {IfContentsAst, IfContentsInfo}, {ElseContentsAst, ElseContentsInfo}, Context) ->
-    {erl_syntax:case_expr(resolve_variable_ast(Variable, Context),
+    Info2 = merge_info(IfContentsInfo, ElseContentsInfo),
+    TemplateVars = Info2#ast_info.template_vars,
+    {Ast, Var} = resolve_ifvariable_ast(Variable, Context),
+    {erl_syntax:case_expr(Ast,
         [erl_syntax:clause([erl_syntax:string("")], none, 
                 [ElseContentsAst]),
             erl_syntax:clause([erl_syntax:atom(undefined)], none,
@@ -328,7 +394,7 @@ ifelse_ast(Variable, {IfContentsAst, IfContentsInfo}, {ElseContentsAst, ElseCont
                 [ElseContentsAst]),
             erl_syntax:clause([erl_syntax:underscore()], none,
                 [IfContentsAst])
-        ]), merge_info(IfContentsInfo, ElseContentsInfo)}.
+        ]), Info2#ast_info{template_vars = [Var | TemplateVars]}}.
 
 for_loop_ast(Iterator, List, Contents, Context) ->
     {InnerAst, Info} = body_ast(Contents, 
@@ -339,7 +405,7 @@ for_loop_ast(Iterator, List, Contents, Context) ->
         [erl_syntax:fun_expr([
                     erl_syntax:clause([erl_syntax:variable("Var_" ++ Iterator)], 
                         none, [InnerAst])]),
-            resolve_variable_name_ast(list_to_atom(List), Context)]), Info}.
+            resolve_variable_name_ast(list_to_atom(List), Context)]), Info#ast_info{template_vars = [List]}}.
 
 for_list_loop_ast(IteratorList, List, Contents, Context) ->
     Vars = erl_syntax:list(lists:map(
@@ -354,8 +420,9 @@ for_list_loop_ast(IteratorList, List, Contents, Context) ->
     {erl_syntax:application(erl_syntax:atom(lists), erl_syntax:atom(map),
         [erl_syntax:fun_expr([erl_syntax:clause(
                         [Vars], none, [InnerAst])]),
-            resolve_variable_name_ast(list_to_atom(List), Context)]), Info}.
+            resolve_variable_name_ast(list_to_atom(List), Context)]), Info#ast_info{template_vars = [List]}}.
 
+%% TODO: implement "laod" tag to make custom tags work like in original django
 tag_ast(Name, Args, Context) ->
     InterpretedArgs = lists:map(fun
             ({{identifier, _, Key}, {string_literal, _, Value}}) ->
@@ -390,3 +457,4 @@ unescape_string_literal("t" ++ Rest, Acc, slash) ->
     unescape_string_literal(Rest, ["\t" | Acc], noslash);
 unescape_string_literal([C | Rest], Acc, slash) ->
     unescape_string_literal(Rest, [C | Acc], noslash).
+    
