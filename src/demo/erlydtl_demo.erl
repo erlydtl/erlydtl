@@ -36,7 +36,13 @@
 -author('emmiller@gmail.com').
 
 %% API
--export([create_parser/0, compile_all/0, compile/1, compile/3, render_all/0, render/1, render/2]).
+-export([create_parser/0, 
+    compile_all/0, 
+    compile/1, 
+    compile/3, 
+    render_all/0, 
+    render/1, 
+    render/2]).
 
 %%====================================================================
 %% API
@@ -54,28 +60,29 @@ create_parser() ->
             io:format("parser creation failure: ~p~n",[Reason])
     end.
             
-    
+
 %%--------------------------------------------------------------------
 %% @spec () -> any()
-%% @doc  compiles the templates to beam files
+%% @doc  compiles all templates to beam files
 %% @end 
 %%--------------------------------------------------------------------
 compile_all() ->
-    DocRoot = filename:join([filename:dirname(code:which(?MODULE)),"..", "demo", "templates"]),
-    io:format("Compiling folder: ~p~n", [DocRoot]),
-    filelib:fold_files(DocRoot,
-        "\.html$|\.css$",
-        true,
-        fun(File, _Acc) ->
-            Module = filename:rootname(filename:basename(File)),
-            case erlydtl_compiler:compile(File, Module, DocRoot) of
-                ok ->
-                    io:format("compile success: ~p~n",[Module]);
-                _ ->
-                    io:format("compile failure: ~p~n",[Module])
-            end
-        end,
-        []).
+    compile("autoescape"),
+    compile("comment"),
+    compile("extends"),
+    compile("filters"),
+    compile("for"),
+    compile("for_preset"),    
+    compile("for_list"),
+    compile("for_list_preset"),
+    compile("for_records"),
+    compile("for_records_preset"),
+    compile("htmltags"),
+    compile("if"),
+    compile("if_preset"),        
+    compile("include"),
+    compile("var"),
+    compile("var_preset").
 
 
 %%--------------------------------------------------------------------

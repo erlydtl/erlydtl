@@ -1,14 +1,11 @@
-ERL=/Users/rsaccon/R11B/start.sh
-#ERL=/usr/local/erlware/bin/erl
-#ERL=erl
-APP_NAME=erlydtl
-
+ERL=/Users/rsaccon/R11B/start.sh  # temporary
+# ERL=erl
 
 all:
 	$(ERL) -make 
 
 run:
-	$(ERL) -pa `pwd`/ebin -s $(APP_NAME)
+	$(ERL) -pa `pwd`/ebin
 	
 clean:
 	rm -fv ebin/*.beam
