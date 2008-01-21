@@ -224,14 +224,17 @@ body_ast(DjangoParseTree, Context) ->
                     body_ast(ElseContents, Context), Context);
             ({'ifelse', {'not', {variable, Variable}}, IfContents, ElseContents}) ->
                 ifelse_ast(Variable, body_ast(ElseContents, Context), 
-                    body_ast(IfContents, Context), Context);
-                    
+                    body_ast(IfContents, Context), Context);                  
             ({'ifequal', Args, Contents}) ->
                 ifequalelse_ast(Args, body_ast(Contents, Context), empty_ast(), Context);
             ({'ifequalelse', Args, IfContents, ElseContents}) ->
                 ifequalelse_ast(Args,body_ast(IfContents, Context), 
                     body_ast(ElseContents, Context), Context);                
-                    
+            ({'ifnotequal', Args, Contents}) ->
+                ifequalelse_ast(Args,  empty_ast(), body_ast(Contents, Context), Context);
+            ({'ifnotequalelse', Args, IfContents, ElseContents}) ->
+                ifequalelse_ast(Args,body_ast(ElseContents, Context), 
+                    body_ast(IfContents, Context), Context);                    
             ({'apply_filter', Variable, Filter}) ->
                 filter_ast(Variable, Filter, Context);
             ({'for', {'in', {identifier, _, Iterator}, {identifier, _, List}}, Contents}) ->
