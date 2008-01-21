@@ -81,7 +81,9 @@ compile_all() ->
     compile("if"),
     compile("if_preset"),         
     compile("ifequal"),  
-    compile("ifequal_preset"),         
+    compile("ifequal_preset"), 
+    compile("ifnotequal"),  
+    compile("ifnotequal_preset"),            
     compile("include"),
     compile("var"),
     compile("var_preset").
@@ -122,7 +124,14 @@ compile("ifequal" = Name) ->
 compile("ifequal_preset" = Name) ->
     Vars = [{var1, "foo"}, {var2, "foo"}],
     compile(Name, ".html", Vars);
-              
+ 
+compile("ifnotequal" = Name) ->
+    compile(Name, ".html", []);        
+
+compile("ifnotequal_preset" = Name) ->
+    Vars = [{var1, "foo"}, {var2, "foo"}],
+    compile(Name, ".html", Vars);
+                      
 compile("filters" = Name) ->
     compile(Name, ".html", []);
 
@@ -144,8 +153,7 @@ compile("for_list_preset" = Name) ->
                                       
 compile("htmltags" = Name) ->
     compile(Name, ".html", []);
-
-     
+   
 compile("for_preset" = Name) ->
     Vars = [{fruit_list, ["preset-apple", "preset-banana", "preset-coconut"]}],
     compile(Name, ".html", Vars);     
@@ -199,7 +207,9 @@ render_all() ->
     render("if"),
     render("if_preset"),
     render("ifequal"),
-    render("ifequal_preset"),        
+    render("ifequal_preset"),
+    render("ifnotequal"),
+    render("ifnotequal_preset"),        
     render("include"),
     render("var"),
     render("var_preset").
@@ -237,6 +247,12 @@ render("ifequal" = Name) ->
 render("ifequal_preset" = Name) ->
     render(Name, [{var3, "bar"}]);
             
+render("ifnotequal" = Name) ->
+    render(Name, [{var1, "foo"}, {var2, "foo"}, {var3, "bar"}]);    
+
+render("ifnotequal_preset" = Name) ->
+    render(Name, [{var3, "bar"}]);
+                    
 render("for" = Name) ->
     render(Name, [{fruit_list, ["apple", "banana", "coconut"]}]);
     
