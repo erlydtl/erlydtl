@@ -47,7 +47,7 @@
 
 -record(ast_info, {
         dependencies = [],
-        template_vars = [],
+        var_names = [],
         pre_render_asts = []
     }).
 
@@ -209,8 +209,8 @@ body_ast(DjangoParseTree, Context) ->
             ({'number_literal', _Pos, Number}) ->
                 string_ast(Number);
             ({'variable', Variable}) ->
-                {Ast, Var} = resolve_variable_ast(Variable, Context),
-                {Ast, #ast_info{template_vars = [Var]}};
+                {Ast, VarName} = resolve_variable_ast(Variable, Context),
+                {Ast, #ast_info{var_names = [VarName]}};
             ({'tag', {identifier, _, Name}, Args}) ->
                 tag_ast(Name, Args, Context);
             ({'include', {string_literal, _, File}}) ->
@@ -225,6 +225,13 @@ body_ast(DjangoParseTree, Context) ->
             ({'ifelse', {'not', {variable, Variable}}, IfContents, ElseContents}) ->
                 ifelse_ast(Variable, body_ast(ElseContents, Context), 
                     body_ast(IfContents, Context), Context);
+                    
+            ({'ifequal', Args, Contents}) ->
+                ifequalelse_ast(Args, body_ast(Contents, Context), empty_ast(), Context);
+            ({'ifequalelse', Args, IfContents, ElseContents}) ->
+                ifequalelse_ast(Args,body_ast(IfContents, Context), 
+                    body_ast(ElseContents, Context), Context);                
+                    
             ({'apply_filter', Variable, Filter}) ->
                 filter_ast(Variable, Filter, Context);
             ({'for', {'in', {identifier, _, Iterator}, {identifier, _, List}}, Contents}) ->
@@ -242,7 +249,7 @@ body_ast(DjangoParseTree, Context) ->
                                 Val ->
                                     [erl_syntax:abstract(Val) | Acc]
                             end
-                    end, [], Info#ast_info.template_vars),
+                    end, [], Info#ast_info.var_names),
                 case PresetVars of
                     [] ->
                         {Ast, merge_info(Info, InfoAcc)};
@@ -266,10 +273,10 @@ merge_info(Info1, Info2) ->
         lists:merge(
             lists:sort(Info1#ast_info.dependencies), 
             lists:sort(Info2#ast_info.dependencies)),
-        template_vars = 
+        var_names = 
             lists:merge(
-                lists:sort(Info1#ast_info.template_vars), 
-                lists:sort(Info2#ast_info.template_vars)),
+                lists:sort(Info1#ast_info.var_names), 
+                lists:sort(Info2#ast_info.var_names)),
         pre_render_asts = 
             lists:merge(
                 Info1#ast_info.pre_render_asts,
@@ -382,9 +389,9 @@ auto_escape(Value, Context) ->
     end.
 
 ifelse_ast(Variable, {IfContentsAst, IfContentsInfo}, {ElseContentsAst, ElseContentsInfo}, Context) ->
-    Info2 = merge_info(IfContentsInfo, ElseContentsInfo),
-    TemplateVars = Info2#ast_info.template_vars,
-    {Ast, Var} = resolve_ifvariable_ast(Variable, Context),
+    Info = merge_info(IfContentsInfo, ElseContentsInfo),
+    VarNames = Info#ast_info.var_names,
+    {Ast, VarName} = resolve_ifvariable_ast(Variable, Context),
     {erl_syntax:case_expr(Ast,
         [erl_syntax:clause([erl_syntax:string("")], none, 
                 [ElseContentsAst]),
@@ -394,7 +401,29 @@ ifelse_ast(Variable, {IfContentsAst, IfContentsInfo}, {ElseContentsAst, ElseCont
                 [ElseContentsAst]),
             erl_syntax:clause([erl_syntax:underscore()], none,
                 [IfContentsAst])
-        ]), Info2#ast_info{template_vars = [Var | TemplateVars]}}.
+        ]), Info#ast_info{var_names = [VarName | VarNames]}}.
+        
+ifequalelse_ast(Args, {IfContentsAst, IfContentsInfo}, {ElseContentsAst, ElseContentsInfo}, Context) ->
+    Info = merge_info(IfContentsInfo, ElseContentsInfo),
+    {[Arg1Ast, Arg2Ast], VarNames} = lists:foldl(fun
+            (X, {Asts, AccVarNames}) ->
+                case X of
+                    {variable, Var} ->
+                        {Ast, VarName} = resolve_ifvariable_ast(Var, Context),
+                        {[Ast | Asts], [VarName | AccVarNames]};
+                    {_, _, Literal} ->
+                        {[erl_syntax:string(Literal) | Asts], AccVarNames}                        
+                end                
+        end,
+        {[], Info#ast_info.var_names},
+        Args),
+    Ast = erl_syntax:application(none, erl_syntax:atom(apply), [erl_syntax:fun_expr(
+        [erl_syntax:clause([erl_syntax:variable("Arg1"), erl_syntax:variable("Arg2")], none, 
+            [erl_syntax:case_expr(erl_syntax:variable("Arg1"),
+                [erl_syntax:clause([erl_syntax:variable("Arg2")], none, [IfContentsAst]),
+                    erl_syntax:clause([erl_syntax:underscore()], none, [ElseContentsAst])])])]), 
+                        erl_syntax:list([Arg1Ast, Arg2Ast])]),    
+    {Ast, Info#ast_info{var_names = VarNames}}.         
 
 for_loop_ast(Iterator, List, Contents, Context) ->
     {InnerAst, Info} = body_ast(Contents, 
@@ -405,7 +434,7 @@ for_loop_ast(Iterator, List, Contents, Context) ->
         [erl_syntax:fun_expr([
                     erl_syntax:clause([erl_syntax:variable("Var_" ++ Iterator)], 
                         none, [InnerAst])]),
-            resolve_variable_name_ast(list_to_atom(List), Context)]), Info#ast_info{template_vars = [List]}}.
+            resolve_variable_name_ast(list_to_atom(List), Context)]), Info#ast_info{var_names = [List]}}.
 
 for_list_loop_ast(IteratorList, List, Contents, Context) ->
     Vars = erl_syntax:list(lists:map(
@@ -420,7 +449,7 @@ for_list_loop_ast(IteratorList, List, Contents, Context) ->
     {erl_syntax:application(erl_syntax:atom(lists), erl_syntax:atom(map),
         [erl_syntax:fun_expr([erl_syntax:clause(
                         [Vars], none, [InnerAst])]),
-            resolve_variable_name_ast(list_to_atom(List), Context)]), Info#ast_info{template_vars = [List]}}.
+            resolve_variable_name_ast(list_to_atom(List), Context)]), Info#ast_info{var_names = [List]}}.
 
 %% TODO: implement "laod" tag to make custom tags work like in original django
 tag_ast(Name, Args, Context) ->

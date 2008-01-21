@@ -63,6 +63,11 @@ Nonterminals
     IfExpression
     ElseBraced
     EndIfBraced
+    
+    IfEqualBlock
+    IfEqualBraced
+    IfEqualExpression
+    EndIfEqualBraced    
 
     AutoEscapeBlock
     AutoEscapeBraced
@@ -86,11 +91,13 @@ Terminals
     endcomment_keyword
     endfor_keyword
     endif_keyword
+    endifequal_keyword
     equal
     extends_keyword
     for_keyword
     identifier
     if_keyword
+    ifequal_keyword
     in_keyword
     include_keyword
     not_keyword
@@ -113,6 +120,7 @@ Elements -> Elements CustomTag : '$1' ++ ['$2'].
 Elements -> Elements BlockBlock : '$1' ++ ['$2'].
 Elements -> Elements ForBlock : '$1' ++ ['$2'].
 Elements -> Elements IfBlock : '$1' ++ ['$2'].
+Elements -> Elements IfEqualBlock : '$1' ++ ['$2'].
 Elements -> Elements AutoEscapeBlock : '$1' ++ ['$2'].
 Elements -> Elements CommentBlock : '$1' ++ ['$2'].
 
@@ -156,6 +164,12 @@ IfExpression -> Variable : '$1'.
 
 ElseBraced -> open_tag else_keyword close_tag.
 EndIfBraced -> open_tag endif_keyword close_tag.
+
+IfEqualBlock -> IfEqualBraced Elements ElseBraced Elements EndIfEqualBraced : {ifequalelse, '$1', '$2', '$4'}.
+IfEqualBlock -> IfEqualBraced Elements EndIfEqualBraced : {ifequal, '$1', '$2'}.
+IfEqualBraced -> open_tag ifequal_keyword IfEqualExpression Variable close_tag : ['$3', '$4'].
+IfEqualExpression -> Variable : '$1'.
+EndIfEqualBraced -> open_tag endifequal_keyword close_tag.
 
 AutoEscapeBlock -> AutoEscapeBraced Elements EndAutoEscapeBraced : {autoescape, '$1', '$2'}.
 AutoEscapeBraced -> open_tag autoescape_keyword identifier close_tag : '$3'.
