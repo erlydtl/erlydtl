@@ -79,7 +79,9 @@ compile_all() ->
     compile("for_records_preset"),
     compile("htmltags"),
     compile("if"),
-    compile("if_preset"),        
+    compile("if_preset"),         
+    compile("ifequal"),  
+    compile("ifequal_preset"),         
     compile("include"),
     compile("var"),
     compile("var_preset").
@@ -108,12 +110,19 @@ compile("autoescape" = Name) ->
     compile(Name, ".html", []);
 
 compile("if" = Name) ->
-    compile(Name, ".html", []);
+    compile(Name, ".html", []);   
     
 compile("if_preset" = Name) ->
     Vars = [{var1, "something"}],
     compile(Name, ".html", Vars);    
           
+compile("ifequal" = Name) ->
+    compile(Name, ".html", []);        
+          
+compile("ifequal_preset" = Name) ->
+    Vars = [{var1, "foo"}, {var2, "foo"}],
+    compile(Name, ".html", Vars);
+              
 compile("filters" = Name) ->
     compile(Name, ".html", []);
 
@@ -188,7 +197,9 @@ render_all() ->
     render("for_records_preset"),
     render("htmltags"),
     render("if"),
-    render("if_preset"),        
+    render("if_preset"),
+    render("ifequal"),
+    render("ifequal_preset"),        
     render("include"),
     render("var"),
     render("var_preset").
@@ -215,11 +226,17 @@ render("include" = Name) ->
     render(Name, [{var1, "foostring1"}, {var2, "foostring2"}]);
  
 render("if" = Name) ->
-    render(Name, [{var1, "something"}]);
+    render(Name, [{var1, "something"}]);   
     
 render("if_preset" = Name) ->
     render(Name, []);
+    
+render("ifequal" = Name) ->
+    render(Name, [{var1, "foo"}, {var2, "foo"}, {var3, "bar"}]);    
 
+render("ifequal_preset" = Name) ->
+    render(Name, [{var3, "bar"}]);
+            
 render("for" = Name) ->
     render(Name, [{fruit_list, ["apple", "banana", "coconut"]}]);
     
@@ -283,3 +300,4 @@ render(Name, Args) ->
 %%====================================================================
 %% Internal functions
 %%====================================================================
+   
