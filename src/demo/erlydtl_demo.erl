@@ -77,6 +77,7 @@ compile_all() ->
     compile("for_list_preset"),
     compile("for_records"),
     compile("for_records_preset"),
+    compile("for_tuple"),
     compile("htmltags"),
     compile("if"),
     compile("if_preset"),         
@@ -146,6 +147,9 @@ compile("for_records" = Name) ->
     
 compile("for_list" = Name) ->
     compile(Name, ".html", []);
+
+compile("for_tuple" = Name) ->
+    compile(Name, ".html", []);
  
 compile("for_list_preset" = Name) ->
     Vars = [{fruit_list, [["apple", "apples"], ["banana", "bananas"], ["coconut", "coconuts"]]}],
@@ -200,6 +204,7 @@ render_all() ->
     render("for"),
     render("for_preset"),    
     render("for_list"),
+    render("for_tuple"),
     render("for_list_preset"),
     render("for_records"),
     render("for_records_preset"),
@@ -260,7 +265,12 @@ render("for_preset" = Name) ->
     render(Name, []);
             
 render("for_list" = Name) ->
-    render(Name, [{fruit_list, [["apple", "apples"], ["banana", "bananas"], ["coconut", "coconuts"]]}]);
+    %render(Name, [{fruit_list, [["apple", "apples"], ["banana", "bananas"], ["coconut", "coconuts"]]}]);
+    render(Name, [{fruit_list, [["apple", "apples", "$1"], ["banana", "bananas", "$2"], ["coconut", "coconuts", "$500"]]}]);
+
+render("for_tuple" = Name) ->
+    %render(Name, [{fruit_list, [{"apple", "apples", "$1"}, {"banana", "bananas", "$2"}, {"coconut", "coconuts", "$500"}]}]);
+    render(Name, [{fruit_list, [{"apple", "apples"}, {"banana", "bananas"}, {"coconut", "coconuts"}]}]);
 
 render("for_list_preset" = Name) ->
     render(Name, []);

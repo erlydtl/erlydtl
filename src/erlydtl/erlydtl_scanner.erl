@@ -199,7 +199,7 @@ scan([H | T], Scanned, {Row, Column}, {in_identifier, Closer}) ->
 
 append_char(Scanned, Char) ->
     [String | Scanned1] = Scanned,
-    [{element(1, String), element(2, String), [Char | element(3, String)]} | Scanned1].
+    [setelement(3, String, [Char | element(3, String)]) | Scanned1].
 
 append_text_char(Scanned, {Row, Column}, Char) ->
     case length(Scanned) of

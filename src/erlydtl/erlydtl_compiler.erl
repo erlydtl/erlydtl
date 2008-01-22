@@ -35,7 +35,7 @@
 -author('rsaccon@gmail.com').
 -author('emmiller@gmail.com').
 
--export([compile/2, compile/3, compile/4, compile/5, compile/6, parse/1, scan/1]).
+-export([compile/2, compile/3, compile/4, compile/5, compile/6, parse/1, scan/1, body_ast/2]).
 
 -record(dtl_context, {
         local_scopes = [], 
@@ -68,12 +68,12 @@ compile(File, Module, DocRoot, Vars, Function, OutDir) ->
         {ok, DjangoParseTree} ->
             OldProcessDictVal = put(erlydtl_counter, 0),
             
-            {BodyAst, BodyInfo} = body_ast(DjangoParseTree,
-                #dtl_context{doc_root = DocRoot, parse_trail = [File], preset_vars = Vars}), 
+            {BodyAst, BodyInfo} = body_ast(DjangoParseTree, #dtl_context{
+                    doc_root = DocRoot, parse_trail = [File], preset_vars = Vars}),
 
             Render0FunctionAst = erl_syntax:function(erl_syntax:atom(Function),
                 [erl_syntax:clause([], none, [erl_syntax:application(none, 
-                    erl_syntax:atom(Function), [erl_syntax:list([])])])]),
+                                erl_syntax:atom(Function), [erl_syntax:list([])])])]),
 
             Function2 = erl_syntax:application(none, erl_syntax:atom(Function ++ "2"),
                 [erl_syntax:variable("Variables")]),
@@ -83,44 +83,45 @@ compile(File, Module, DocRoot, Vars, Function, OutDir) ->
                 [erl_syntax:tuple([erl_syntax:atom(error), erl_syntax:variable("Err")])]),            
             Render1FunctionAst = erl_syntax:function(erl_syntax:atom(Function),
                 [erl_syntax:clause([erl_syntax:variable("Variables")], none, 
-                    [erl_syntax:try_expr([Function2], [ClauseOk], [ClauseCatch])])]),  
-                          
+                        [erl_syntax:try_expr([Function2], [ClauseOk], [ClauseCatch])])]),  
+
             SourceFunctionAst = erl_syntax:function(
                 erl_syntax:atom(source),
-                    [erl_syntax:clause([], none, [erl_syntax:string(File)])]),
-                    
+                [erl_syntax:clause([], none, [erl_syntax:string(File)])]),
+
             DependenciesFunctionAst = erl_syntax:function(
                 erl_syntax:atom(dependencies), [erl_syntax:clause([], none, 
-                    [erl_syntax:list(lists:map(fun(Dep) -> erl_syntax:string(Dep) end, 
-                        BodyInfo#ast_info.dependencies))])]),     
-                                                   
+                        [erl_syntax:list(lists:map(fun(Dep) -> erl_syntax:string(Dep) end, 
+                                    BodyInfo#ast_info.dependencies))])]),     
+
             RenderInternalFunctionAst = erl_syntax:function(
                 erl_syntax:atom(Function ++ "2"), 
-                    [erl_syntax:clause([erl_syntax:variable("Variables")], none, 
+                [erl_syntax:clause([erl_syntax:variable("Variables")], none, 
                         [BodyAst])]),   
-                                 
+
             ProplistsClauseErr = erl_syntax:clause([erl_syntax:atom(undefined)], none, 
-                [erl_syntax:application(none, erl_syntax:atom(throw),
-                    [erl_syntax:tuple([erl_syntax:atom(undefined_variable), erl_syntax:variable("Key")])])]),  
+                [erl_syntax:string("")]),
+            %[erl_syntax:application(none, erl_syntax:atom(throw),
+            %    [erl_syntax:tuple([erl_syntax:atom(undefined_variable), erl_syntax:variable("Key")])])]),  
             ProplistsClauseOk = erl_syntax:clause([erl_syntax:variable("Val")], none, 
                 [erl_syntax:variable("Val")]),       
             ProplistsFunctionAst = erl_syntax:function(erl_syntax:atom(get_value), 
                 [erl_syntax:clause([erl_syntax:variable("Key"), erl_syntax:variable("L")], none, 
-                    [erl_syntax:case_expr(erl_syntax:application(erl_syntax:atom(proplists), 
-                        erl_syntax:atom(get_value), [erl_syntax:variable("Key"), erl_syntax:variable("L")]), 
-                            [ProplistsClauseErr, ProplistsClauseOk])])]),
+                        [erl_syntax:case_expr(erl_syntax:application(erl_syntax:atom(proplists), 
+                                    erl_syntax:atom(get_value), [erl_syntax:variable("Key"), erl_syntax:variable("L")]), 
+                                [ProplistsClauseErr, ProplistsClauseOk])])]),
 
             ModuleAst  = erl_syntax:attribute(erl_syntax:atom(module), [erl_syntax:atom(Module)]),
             ExportAst = erl_syntax:attribute(erl_syntax:atom(export),
                 [erl_syntax:list([erl_syntax:arity_qualifier(erl_syntax:atom(Function), erl_syntax:integer(0)),
-                    erl_syntax:arity_qualifier(erl_syntax:atom(Function), erl_syntax:integer(1)),
-                        erl_syntax:arity_qualifier(erl_syntax:atom(source), erl_syntax:integer(0)),
+                            erl_syntax:arity_qualifier(erl_syntax:atom(Function), erl_syntax:integer(1)),
+                            erl_syntax:arity_qualifier(erl_syntax:atom(source), erl_syntax:integer(0)),
                             erl_syntax:arity_qualifier(erl_syntax:atom(dependencies), erl_syntax:integer(0))])]),
-            
+
             Forms = [erl_syntax:revert(X) || X <- [ModuleAst, ExportAst, Render0FunctionAst,
-                Render1FunctionAst, SourceFunctionAst, DependenciesFunctionAst, RenderInternalFunctionAst, 
+                    Render1FunctionAst, SourceFunctionAst, DependenciesFunctionAst, RenderInternalFunctionAst, 
                     ProplistsFunctionAst | BodyInfo#ast_info.pre_render_asts]],
-                    
+
             case OldProcessDictVal of
                 undefined -> erase(erlydtl_counter);
                 _ -> put(erlydtl_counter, OldProcessDictVal)
@@ -138,13 +139,14 @@ compile(File, Module, DocRoot, Vars, Function, OutDir) ->
                         {error, Reason} ->
                             {error, lists:concat(["beam generation failed (", Reason, "): ", Path])}
                     end;
-                _ ->
-                    {error, "compilation failed"}
+                error ->
+                    {error, "compilation failed"};
+                Other ->
+                    Other
             end;
         Error ->
             Error
     end.
-
 
 scan(File) ->
     case file:read_file(File) of
@@ -237,10 +239,8 @@ body_ast(DjangoParseTree, Context) ->
                     body_ast(IfContents, Context), Context);                    
             ({'apply_filter', Variable, Filter}) ->
                 filter_ast(Variable, Filter, Context);
-            ({'for', {'in', {identifier, _, Iterator}, {identifier, _, List}}, Contents}) ->
-                for_loop_ast(Iterator, List, Contents, Context);
-            ({'for', {'in', IteratorList, {identifier, _, List}}, Contents}) when is_list(IteratorList) ->
-                for_list_loop_ast(IteratorList, List, Contents, Context)
+            ({'for', {'in', IteratorList, {identifier, _, List}}, Contents}) ->
+                for_loop_ast(IteratorList, List, Contents, Context)
         end, DjangoParseTree),
     {AstList, Info} = lists:mapfoldl(
         fun({Ast, Info}, InfoAcc) -> 
@@ -354,13 +354,13 @@ resolve_ifvariable_ast(VarTuple, Context) ->
     resolve_variable_ast(VarTuple, Context, erl_syntax:atom(proplists)).
            
 resolve_variable_ast({{identifier, _, VarName}}, Context, ModuleAst) ->
-    {auto_escape(resolve_variable_name_ast(VarName, Context, ModuleAst), Context), VarName};
+    {auto_escape(format_integer_ast(resolve_variable_name_ast(VarName, Context, ModuleAst)), Context), VarName};
 
 resolve_variable_ast({{identifier, _, VarName}, {identifier, _, AttrName}}, Context, ModuleAst) ->
-    {auto_escape(erl_syntax:application(
-            ModuleAst, erl_syntax:atom(get_value),
-        [erl_syntax:atom(AttrName), resolve_variable_name_ast(VarName, Context)]), 
-        Context), []}.
+    {auto_escape(format_integer_ast(erl_syntax:application(
+                    ModuleAst, erl_syntax:atom(get_value),
+                    [erl_syntax:atom(AttrName), resolve_variable_name_ast(VarName, Context)])), 
+                Context), []}.
                 
 resolve_variable_name_ast(VarName, Context) ->
     resolve_variable_name_ast(VarName, Context, none).
@@ -376,11 +376,15 @@ resolve_variable_name_ast(VarName, Context, ModuleAst) ->
         end, undefined, Context#dtl_context.local_scopes),
     case VarValue of
         undefined ->
-            erl_syntax:application(ModuleAst, erl_syntax:atom(get_value),
+            erl_syntax:application(ModuleAst, erl_syntax:atom('get_value'),
                 [erl_syntax:atom(VarName), erl_syntax:variable("Variables")]);
         _ ->
             VarValue
-    end.    
+    end.
+
+format_integer_ast(Ast) ->
+    erl_syntax:application(erl_syntax:atom(erlydtl_filters), erl_syntax:atom(format_integer),
+        [Ast]).
 
 auto_escape(Value, Context) ->
     case Context#dtl_context.auto_escape of
@@ -400,7 +404,9 @@ ifelse_ast(Variable, {IfContentsAst, IfContentsInfo}, {ElseContentsAst, ElseCont
                 [ElseContentsAst]),
             erl_syntax:clause([erl_syntax:atom(undefined)], none,
                 [ElseContentsAst]),
-            erl_syntax:clause([erl_syntax:integer(0)], none,
+            erl_syntax:clause([erl_syntax:atom(false)], none,
+                [ElseContentsAst]),
+            erl_syntax:clause([erl_syntax:string("0")], none,
                 [ElseContentsAst]),
             erl_syntax:clause([erl_syntax:underscore()], none,
                 [IfContentsAst])
@@ -428,33 +434,46 @@ ifequalelse_ast(Args, {IfContentsAst, IfContentsInfo}, {ElseContentsAst, ElseCon
                         erl_syntax:list([Arg1Ast, Arg2Ast])]),    
     {Ast, Info#ast_info{var_names = VarNames}}.         
 
-for_loop_ast(Iterator, List, Contents, Context) ->
-    {InnerAst, Info} = body_ast(Contents, 
-        Context#dtl_context{local_scopes = 
-            [[{list_to_atom(Iterator), erl_syntax:variable("Var_" ++ Iterator)}] 
-                | Context#dtl_context.local_scopes]}),
-    {erl_syntax:application(erl_syntax:atom(lists), erl_syntax:atom(map),
-        [erl_syntax:fun_expr([
-                    erl_syntax:clause([erl_syntax:variable("Var_" ++ Iterator)], 
-                        none, [InnerAst])]),
-            resolve_variable_name_ast(list_to_atom(List), Context)]), Info#ast_info{var_names = [List]}}.
-
-for_list_loop_ast(IteratorList, List, Contents, Context) ->
-    Vars = erl_syntax:list(lists:map(
-            fun({identifier, _, Iterator}) -> 
+for_loop_ast(IteratorList, List, Contents, Context) ->
+    Vars = lists:map(fun({identifier, _, Iterator}) -> 
                     erl_syntax:variable("Var_" ++ Iterator) 
-            end, IteratorList)),
+            end, IteratorList),
+    CounterVars = erl_syntax:list([
+            erl_syntax:tuple([erl_syntax:atom('counter'), erl_syntax:variable("Counter")]),
+            erl_syntax:tuple([erl_syntax:atom('counter0'), erl_syntax:variable("Counter0")])
+        ]),
     {InnerAst, Info} = body_ast(Contents,
-        Context#dtl_context{local_scopes = [lists:map(
+        Context#dtl_context{local_scopes = [
+                [{'forloop', CounterVars} | lists:map(
                     fun({identifier, _, Iterator}) ->
                             {list_to_atom(Iterator), erl_syntax:variable("Var_" ++ Iterator)} 
-                    end, IteratorList) | Context#dtl_context.local_scopes]}),
-    {erl_syntax:application(erl_syntax:atom(lists), erl_syntax:atom(map),
-        [erl_syntax:fun_expr([erl_syntax:clause(
-                        [Vars], none, [InnerAst])]),
-            resolve_variable_name_ast(list_to_atom(List), Context)]), Info#ast_info{var_names = [List]}}.
+                    end, IteratorList)] | Context#dtl_context.local_scopes]}),
+    CounterAst = erl_syntax:list([
+            erl_syntax:tuple([erl_syntax:atom('counter'), 
+                    erl_syntax:infix_expr(erl_syntax:variable("Counter"), erl_syntax:operator("+"), erl_syntax:integer(1))]),
+            erl_syntax:tuple([erl_syntax:atom('counter0'),
+                    erl_syntax:infix_expr(erl_syntax:variable("Counter0"), erl_syntax:operator("+"), erl_syntax:integer(1))])
+        ]),
+    ListAst = resolve_variable_name_ast(List, Context),
+    CounterVars0 = erl_syntax:list([
+            erl_syntax:tuple([erl_syntax:atom('counter'), erl_syntax:integer(1)]),
+            erl_syntax:tuple([erl_syntax:atom('counter0'), erl_syntax:integer(0)])
+        ]),
+    {erl_syntax:application(
+            erl_syntax:atom('erlang'), erl_syntax:atom('element'),
+            [erl_syntax:integer(1), erl_syntax:application(
+                    erl_syntax:atom('lists'), erl_syntax:atom('mapfoldl'),
+                    [erl_syntax:fun_expr([
+                                erl_syntax:clause([erl_syntax:tuple(Vars), CounterVars], none, 
+                                    [erl_syntax:tuple([InnerAst, CounterAst])]),
+                                erl_syntax:clause(case Vars of [H] -> [H, CounterVars];
+                                        _ -> [erl_syntax:list(Vars), CounterVars] end, none, 
+                                    [erl_syntax:tuple([InnerAst, CounterAst])])
+                            ]),
+                        CounterVars0, ListAst])]),
+                Info#ast_info{var_names = [List]}}.
 
-%% TODO: implement "laod" tag to make custom tags work like in original django
+%% TODO: implement "load" tag to make custom tags work like in original django
 tag_ast(Name, Args, Context) ->
     InterpretedArgs = lists:map(fun
             ({{identifier, _, Key}, {string_literal, _, Value}}) ->

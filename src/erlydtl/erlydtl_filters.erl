@@ -50,20 +50,37 @@ first([[First|_Rest]]) ->
 fix_ampersands(Input) ->
     fix_ampersands(lists:flatten(Input), []).
 
+force_escape(Input) when is_list(Input) ->
+    escape(lists:flatten(Input), []);
+force_escape(Input) when is_binary(Input) ->
+    escape(binary_to_list(Input), []);
 force_escape(Input) ->
-    escape(lists:flatten(Input), []).
+    Input.
 
-join([Input], Separator) ->
+format_integer(Input) ->
+    case Input of
+        N when is_integer(N) ->
+            integer_to_list(N);
+        Other ->
+            Other
+    end.
+
+join([Input], Separator) when is_list(Input) ->
     string:join(Input, Separator).
 
-last([Input]) ->
+last([Input]) when is_list(Input) ->
     [lists:last(Input)].
 
-length([Input]) ->
+length([Input]) when is_list(Input) ->
+    integer_to_list(erlang:length(Input));
+length(Input) when is_list(Input) ->
     integer_to_list(erlang:length(Input)).
 
-length_is([Input], Number) ->
+length_is(Input, Number) when is_list(Input) ->
     lists:concat([erlang:length(Input) =:= Number]).
+
+linebreaksbr(Input) ->
+    linebreaksbr(lists:flatten(Input), []).
 
 ljust(Input, Number) ->
     string:left(lists:flatten(Input), Number).
@@ -74,10 +91,18 @@ lower(Input) ->
 rjust(Input, Number) ->
     string:right(lists:flatten(Input), Number).
 
+plus([Input], Number) when is_list(Input) ->
+    integer_to_list(list_to_integer(Input) + Number);
+plus(Input, Number) when is_list(Input) ->
+    integer_to_list(list_to_integer(Input) + Number);
+plus(Input, Number) when is_integer(Input) ->
+    Input + Number.
+
 upper(Input) ->
     string:to_upper(lists:flatten(Input)).
 
 % internal
+
 escape([], Acc) ->
     lists:reverse(Acc);
 escape("<" ++ Rest, Acc) ->
@@ -100,3 +125,11 @@ fix_ampersands("&" ++ Rest, Acc) ->
 fix_ampersands([C | Rest], Acc) ->
     fix_ampersands(Rest, [C | Acc]).
 
+linebreaksbr([], Acc) ->
+    lists:reverse(Acc);
+linebreaksbr("\r\n" ++ Rest, Acc) ->
+    linebreaksbr(Rest, lists:reverse("<br />", Acc));
+linebreaksbr("\n" ++ Rest, Acc) ->
+    linebreaksbr(Rest, lists:reverse("<br />", Acc));
+linebreaksbr([C | Rest], Acc) ->
+    linebreaksbr(Rest, [C | Acc]).
