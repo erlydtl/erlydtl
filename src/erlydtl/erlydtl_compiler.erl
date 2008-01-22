@@ -421,7 +421,7 @@ ifequalelse_ast(Args, {IfContentsAst, IfContentsInfo}, {ElseContentsAst, ElseCon
                         {Ast, VarName} = resolve_ifvariable_ast(Var, Context),
                         {[Ast | Asts], [VarName | AccVarNames]};
                     {_, _, Literal} ->
-                        {[erl_syntax:string(Literal) | Asts], AccVarNames}                        
+                        {[erl_syntax:string(unescape_string_literal(Literal)) | Asts], AccVarNames}                        
                 end                
         end,
         {[], Info#ast_info.var_names},
