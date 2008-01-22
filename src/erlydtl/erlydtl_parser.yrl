@@ -161,8 +161,8 @@ ForBraced -> open_tag for_keyword ForExpression close_tag : '$3'.
 EndForBraced -> open_tag endfor_keyword close_tag.
 ForExpression -> identifier : '$1'.
 ForExpression -> ForGroup in_keyword identifier : {'in', '$1', '$3'}.
-ForGroup -> identifier : '$1'.
-ForGroup -> ForGroup comma identifier : ['$1', '$3'].
+ForGroup -> identifier : ['$1'].
+ForGroup -> ForGroup comma identifier : '$1' ++ ['$3'].
 
 IfBlock -> IfBraced Elements ElseBraced Elements EndIfBraced : {ifelse, '$1', '$2', '$4'}.
 IfBlock -> IfBraced Elements EndIfBraced : {'if', '$1', '$2'}.

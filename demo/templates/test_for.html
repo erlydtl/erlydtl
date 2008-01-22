@@ -2,7 +2,7 @@ before
 
 <ul>
 {% for iterator in fruit_list %}
-	<li>{{ iterator }}</li>
+<li>{{ forloop.counter }}. {{ iterator }}</li>
 {% endfor %}
 </ul>
 
