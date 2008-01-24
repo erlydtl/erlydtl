@@ -159,8 +159,8 @@ EndCommentBraced -> open_tag endcomment_keyword close_tag.
 ForBlock -> ForBraced Elements EndForBraced : {for, '$1', '$2'}.
 ForBraced -> open_tag for_keyword ForExpression close_tag : '$3'.
 EndForBraced -> open_tag endfor_keyword close_tag.
-ForExpression -> identifier : '$1'.
-ForExpression -> ForGroup in_keyword identifier : {'in', '$1', '$3'}.
+ForExpression -> Variable : '$1'.
+ForExpression -> ForGroup in_keyword Variable : {'in', '$1', '$3'}.
 ForGroup -> identifier : ['$1'].
 ForGroup -> ForGroup comma identifier : '$1' ++ ['$3'].
 

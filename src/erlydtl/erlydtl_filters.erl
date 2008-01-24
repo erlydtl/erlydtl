@@ -101,6 +101,9 @@ plus(Input, Number) when is_integer(Input) ->
 upper(Input) ->
     string:to_upper(lists:flatten(Input)).
 
+urlencode(Input) ->
+    urlencode(lists:flatten(Input), []).
+
 % internal
 
 escape([], Acc) ->
@@ -133,3 +136,21 @@ linebreaksbr("\n" ++ Rest, Acc) ->
     linebreaksbr(Rest, lists:reverse("<br />", Acc));
 linebreaksbr([C | Rest], Acc) ->
     linebreaksbr(Rest, [C | Acc]).
+
+% Taken from quote_plus of mochiweb_util
+urlencode([], Acc) ->
+    lists:reverse(Acc);
+urlencode([C | Rest], Acc) when ((C >= $a andalso C =< $z) orelse
+                                  (C >= $A andalso C =< $Z) orelse
+                                  (C >= $0 andalso C =< $9) orelse
+                                  (C =:= $\. orelse C =:= $- 
+                                      orelse C =:= $~ orelse C =:= $_)) ->
+    urlencode(Rest, [C | Acc]);
+urlencode([$\s | Rest], Acc) ->
+    urlencode(Rest, [$+ | Acc]);
+urlencode([C | Rest], Acc) ->
+    <<Hi:4, Lo:4>> = <<C>>,
+    urlencode(Rest, [hexdigit(Lo), hexdigit(Hi), $\% | Acc]).
+
+hexdigit(C) when C < 10 -> $0 + C;
+hexdigit(C) when C < 16 -> $A + (C - 10).
