@@ -215,7 +215,7 @@ body_ast(DjangoParseTree, Context) ->
                 string_ast(Number);
             ({'variable', Variable}) ->
                 {Ast, VarName} = resolve_variable_ast(Variable, Context),
-                {Ast, #ast_info{var_names = [VarName]}};
+                {format(Ast, Context), #ast_info{var_names = [VarName]}};
             ({'tag', {identifier, _, Name}, Args}) ->
                 tag_ast(Name, Args, Context);
             ({'include', {string_literal, _, File}}) ->
@@ -242,8 +242,8 @@ body_ast(DjangoParseTree, Context) ->
                     body_ast(IfContents, Context), Context);                    
             ({'apply_filter', Variable, Filter}) ->
                 filter_ast(Variable, Filter, Context);
-            ({'for', {'in', IteratorList, {identifier, _, List}}, Contents}) ->
-                for_loop_ast(IteratorList, List, Contents, Context)
+            ({'for', {'in', IteratorList, Variable}, Contents}) ->
+                for_loop_ast(IteratorList, Variable, Contents, Context)
         end, DjangoParseTree),
     {AstList, Info} = lists:mapfoldl(
         fun({Ast, Info}, InfoAcc) -> 
@@ -357,14 +357,12 @@ resolve_ifvariable_ast(VarTuple, Context) ->
     resolve_variable_ast(VarTuple, Context, erl_syntax:atom(proplists)).
            
 resolve_variable_ast({{identifier, _, VarName}}, Context, ModuleAst) ->
-    {auto_escape(format_integer_ast(resolve_variable_name_ast(VarName, Context, ModuleAst)), Context), VarName};
+    {resolve_variable_name_ast(VarName, Context, ModuleAst), VarName};
 
 resolve_variable_ast({{identifier, _, VarName}, {identifier, _, AttrName}}, Context, ModuleAst) ->
-    {auto_escape(format_integer_ast(erl_syntax:application(
-                    ModuleAst, erl_syntax:atom(get_value),
-                    [erl_syntax:atom(AttrName), resolve_variable_name_ast(VarName, Context)])), 
-                Context), []}.
-                
+    {erl_syntax:application(ModuleAst, erl_syntax:atom(get_value),
+                    [erl_syntax:atom(AttrName), resolve_variable_name_ast(VarName, Context)]), VarName}.
+
 resolve_variable_name_ast(VarName, Context) ->
     resolve_variable_name_ast(VarName, Context, none).
     
@@ -384,6 +382,9 @@ resolve_variable_name_ast(VarName, Context, ModuleAst) ->
         _ ->
             VarValue
     end.
+
+format(Ast, Context) ->
+    auto_escape(format_integer_ast(Ast), Context).
 
 format_integer_ast(Ast) ->
     erl_syntax:application(erl_syntax:atom(erlydtl_filters), erl_syntax:atom(format_integer),
@@ -423,8 +424,10 @@ ifequalelse_ast(Args, {IfContentsAst, IfContentsInfo}, {ElseContentsAst, ElseCon
                     {variable, Var} ->
                         {Ast, VarName} = resolve_ifvariable_ast(Var, Context),
                         {[Ast | Asts], [VarName | AccVarNames]};
-                    {_, _, Literal} ->
-                        {[erl_syntax:string(unescape_string_literal(Literal)) | Asts], AccVarNames}                        
+                    {string_literal, _, Literal} ->
+                        {[erl_syntax:string(unescape_string_literal(Literal)) | Asts], AccVarNames};
+                    {number_literal, _, Literal} ->
+                        {[erl_syntax:integer(list_to_integer(Literal)) | Asts], AccVarNames}
                 end                
         end,
         {[], Info#ast_info.var_names},
@@ -437,7 +440,7 @@ ifequalelse_ast(Args, {IfContentsAst, IfContentsInfo}, {ElseContentsAst, ElseCon
                         erl_syntax:list([Arg1Ast, Arg2Ast])]),    
     {Ast, Info#ast_info{var_names = VarNames}}.         
 
-for_loop_ast(IteratorList, List, Contents, Context) ->
+for_loop_ast(IteratorList, {variable, Variable}, Contents, Context) ->
     Vars = lists:map(fun({identifier, _, Iterator}) -> 
                     erl_syntax:variable("Var_" ++ Iterator) 
             end, IteratorList),
@@ -457,7 +460,7 @@ for_loop_ast(IteratorList, List, Contents, Context) ->
             erl_syntax:tuple([erl_syntax:atom('counter0'),
                     erl_syntax:infix_expr(erl_syntax:variable("Counter0"), erl_syntax:operator("+"), erl_syntax:integer(1))])
         ]),
-    ListAst = resolve_variable_name_ast(List, Context),
+    {ListAst, VarName} = resolve_ifvariable_ast(Variable, Context),
     CounterVars0 = erl_syntax:list([
             erl_syntax:tuple([erl_syntax:atom('counter'), erl_syntax:integer(1)]),
             erl_syntax:tuple([erl_syntax:atom('counter0'), erl_syntax:integer(0)])
@@ -474,7 +477,7 @@ for_loop_ast(IteratorList, List, Contents, Context) ->
                                     [erl_syntax:tuple([InnerAst, CounterAst])])
                             ]),
                         CounterVars0, ListAst])]),
-                Info#ast_info{var_names = [List]}}.
+                Info#ast_info{var_names = [VarName]}}.
 
 %% TODO: implement "load" tag to make custom tags work like in original django
 tag_ast(Name, Args, Context) ->
@@ -482,7 +485,7 @@ tag_ast(Name, Args, Context) ->
             ({{identifier, _, Key}, {string_literal, _, Value}}) ->
                 {list_to_atom(Key), erl_syntax:string(unescape_string_literal(Value))};
             ({{identifier, _, Key}, {variable, Value}}) ->
-                {list_to_atom(Key), resolve_variable_ast(Value, Context)}
+                {list_to_atom(Key), format(resolve_variable_ast(Value, Context), Context)}
         end, Args),
     Source = filename:join([erlydtl_deps:get_base_dir(), "priv", "tags", Name]),
     case parse(Source, Context#dtl_context.reader) of
