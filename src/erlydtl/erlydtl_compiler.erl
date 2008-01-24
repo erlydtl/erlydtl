@@ -104,9 +104,8 @@ compile(File, Module, DocRoot, Vars, Reader, Function, OutDir) ->
                         [BodyAst])]),   
 
             ProplistsClauseErr = erl_syntax:clause([erl_syntax:atom(undefined)], none, 
-                [erl_syntax:string("")]),
-            %[erl_syntax:application(none, erl_syntax:atom(throw),
-            %    [erl_syntax:tuple([erl_syntax:atom(undefined_variable), erl_syntax:variable("Key")])])]),  
+            [erl_syntax:application(none, erl_syntax:atom(throw),
+                [erl_syntax:tuple([erl_syntax:atom(undefined_variable), erl_syntax:variable("Key")])])]),  
             ProplistsClauseOk = erl_syntax:clause([erl_syntax:variable("Val")], none, 
                 [erl_syntax:variable("Val")]),       
             ProplistsFunctionAst = erl_syntax:function(erl_syntax:atom(get_value), 
