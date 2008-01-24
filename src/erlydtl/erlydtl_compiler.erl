@@ -35,7 +35,7 @@
 -author('rsaccon@gmail.com').
 -author('emmiller@gmail.com').
 
--export([compile/2, compile/3, compile/4, compile/5, compile/6, parse/1, scan/1, body_ast/2]).
+-export([compile/2, compile/3, compile/4, compile/5, compile/6, compile/7, parse/2, scan/2, body_ast/2]).
 
 -record(dtl_context, {
         local_scopes = [], 
@@ -43,7 +43,8 @@
         auto_escape = off, 
         doc_root = "", 
         parse_trail = [],
-        preset_vars = []}).
+        preset_vars = [],
+        reader = {file, read_file}}).
 
 -record(ast_info, {
         dependencies = [],
@@ -58,18 +59,21 @@ compile(File, Module, DocRoot) ->
     compile(File, Module, DocRoot, []).
 
 compile(File, Module, DocRoot, Vars) ->
-    compile(File, Module, DocRoot, Vars, "render").
+    compile(File, Module, DocRoot, Vars, {file, read_file}).
     
-compile(File, Module, DocRoot, Vars, Function) ->
-    compile(File, Module, DocRoot, Vars, Function, "ebin").
+compile(File, Module, DocRoot, Vars, Reader) ->
+    compile(File, Module, DocRoot, Vars, Reader, "render").
+    
+compile(File, Module, DocRoot, Vars, Reader, Function) ->
+    compile(File, Module, DocRoot, Vars, Reader, Function, "ebin").
 
-compile(File, Module, DocRoot, Vars, Function, OutDir) ->   
-    case parse(File) of
+compile(File, Module, DocRoot, Vars, Reader, Function, OutDir) ->   
+    case parse(File, Reader) of
         {ok, DjangoParseTree} ->
             OldProcessDictVal = put(erlydtl_counter, 0),
             
             {BodyAst, BodyInfo} = body_ast(DjangoParseTree, #dtl_context{
-                    doc_root = DocRoot, parse_trail = [File], preset_vars = Vars}),
+                    doc_root = DocRoot, parse_trail = [File], preset_vars = Vars, reader = Reader}),
 
             Render0FunctionAst = erl_syntax:function(erl_syntax:atom(Function),
                 [erl_syntax:clause([], none, [erl_syntax:application(none, 
@@ -148,16 +152,16 @@ compile(File, Module, DocRoot, Vars, Function, OutDir) ->
             Error
     end.
 
-scan(File) ->
-    case file:read_file(File) of
+scan(File, {Module, Function}) ->
+    case catch Module:Function(File) of
         {ok, B} ->
             erlydtl_scanner:scan(binary_to_list(B));
         _ ->
             {error, "reading " ++ File ++ " failed "}
     end.
 
-parse(File) ->
-    case scan(File) of
+parse(File, Reader) ->
+    case scan(File, Reader) of
         {ok, Tokens} ->
             erlydtl_parser:parse(Tokens);
         Err ->
@@ -175,7 +179,7 @@ body_ast([{extends, {string_literal, _Pos, String}} | ThisParseTree], Context) -
         true ->
             {error, "Circular file inclusion!"};
         _ ->
-            {ok, ParentParseTree} = parse(File),
+            {ok, ParentParseTree} = parse(File, Context#dtl_context.reader),
             BlockDict = lists:foldl(
                 fun
                     ({block, {identifier, _, Name}, Contents}, Dict) ->
@@ -297,7 +301,7 @@ string_ast(String) ->
 
 include_ast(File, Context) ->
     FilePath = full_path(File, Context#dtl_context.doc_root),
-    {ok, InclusionParseTree} = parse(FilePath),
+    {ok, InclusionParseTree} = parse(FilePath, Context#dtl_context.reader),
     with_dependency(FilePath, body_ast(InclusionParseTree, Context#dtl_context{parse_trail = 
                 [FilePath | Context#dtl_context.parse_trail]})).
 
@@ -482,7 +486,7 @@ tag_ast(Name, Args, Context) ->
                 {list_to_atom(Key), resolve_variable_ast(Value, Context)}
         end, Args),
     Source = filename:join([erlydtl_deps:get_base_dir(), "priv", "tags", Name]),
-    case parse(Source) of
+    case parse(Source, Context#dtl_context.reader) of
         {ok, TagParseTree} ->
             with_dependency(Source, body_ast(TagParseTree, Context#dtl_context{
                     local_scopes = [ InterpretedArgs | Context#dtl_context.local_scopes ],

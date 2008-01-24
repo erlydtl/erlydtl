@@ -318,7 +318,7 @@ render(Name, Args) ->
                 _ ->
                     io:format("file writing failure: ~p~n",[Module])
             end;
-        {error, Err} ->
+        {_, Err} ->
             io:format("render failure: ~p ~p~n",[Module, Err])
     end.    
             
