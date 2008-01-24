@@ -131,19 +131,19 @@ compile(File, Module, DocRoot, Vars, Reader, Function, OutDir) ->
             end,
             case compile:forms(Forms, []) of
                 {ok, Module1, Bin} ->       
-                    Path = filename:join([OutDir, atom_to_list(Module1) ++ ".beam"]),
-                    case file:write_file(Path, Bin) of
+                    BeamFile = filename:join([OutDir, atom_to_list(Module1) ++ ".beam"]),
+                    case file:write_file(BeamFile, Bin) of
                         ok ->
                             code:purge(Module1),
                             case code:load_binary(Module1, atom_to_list(Module1) ++ ".erl", Bin) of
                                 {module, _} -> ok;
-                                _ -> {error, "code reload failed"}
+                                _ -> {error, lists:concat(["code reload failed: ", BeamFile])}
                             end;
                         {error, Reason} ->
-                            {error, lists:concat(["beam generation failed (", Reason, "): ", Path])}
+                            {error, lists:concat(["beam generation failed (", Reason, "): ", BeamFile])}
                     end;
                 error ->
-                    {error, "compilation failed"};
+                    {error, lists:concat(["compilation failed: ", File])};
                 Other ->
                     Other
             end;
