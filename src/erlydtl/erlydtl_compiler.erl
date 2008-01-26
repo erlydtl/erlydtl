@@ -35,7 +35,7 @@
 -author('rsaccon@gmail.com').
 -author('emmiller@gmail.com').
 
--export([compile/2, compile/3, compile/4, compile/5, compile/6, compile/7, parse/2, scan/2, body_ast/2]).
+-export([compile/2, compile/3, compile/4, compile/5, compile/6, parse/2, scan/2, body_ast/2]).
 
 -record(dtl_context, {
         local_scopes = [], 
@@ -60,14 +60,11 @@ compile(File, Module, DocRoot) ->
 
 compile(File, Module, DocRoot, Vars) ->
     compile(File, Module, DocRoot, Vars, {file, read_file}).
-    
+        
 compile(File, Module, DocRoot, Vars, Reader) ->
-    compile(File, Module, DocRoot, Vars, Reader, "render").
-    
-compile(File, Module, DocRoot, Vars, Reader, Function) ->
-    compile(File, Module, DocRoot, Vars, Reader, Function, "ebin").
+    compile(File, Module, DocRoot, Vars, Reader, "ebin").
 
-compile(File, Module, DocRoot, Vars, Reader, Function, OutDir) ->   
+compile(File, Module, DocRoot, Vars, Reader, OutDir) ->   
     case parse(File, Reader) of
         {ok, DjangoParseTree} ->
             OldProcessDictVal = put(erlydtl_counter, 0),
@@ -75,17 +72,17 @@ compile(File, Module, DocRoot, Vars, Reader, Function, OutDir) ->
             {BodyAst, BodyInfo} = body_ast(DjangoParseTree, #dtl_context{
                     doc_root = DocRoot, parse_trail = [File], preset_vars = Vars, reader = Reader}),
 
-            Render0FunctionAst = erl_syntax:function(erl_syntax:atom(Function),
+            Render0FunctionAst = erl_syntax:function(erl_syntax:atom(render),
                 [erl_syntax:clause([], none, [erl_syntax:application(none, 
-                                erl_syntax:atom(Function), [erl_syntax:list([])])])]),
+                                erl_syntax:atom(render), [erl_syntax:list([])])])]),
 
-            Function2 = erl_syntax:application(none, erl_syntax:atom(Function ++ "2"),
+            Function2 = erl_syntax:application(none, erl_syntax:atom(render2),
                 [erl_syntax:variable("Variables")]),
             ClauseOk = erl_syntax:clause([erl_syntax:variable("Val")], none,
                 [erl_syntax:tuple([erl_syntax:atom(ok), erl_syntax:variable("Val")])]),     
             ClauseCatch = erl_syntax:clause([erl_syntax:variable("Err")], none,
                 [erl_syntax:tuple([erl_syntax:atom(error), erl_syntax:variable("Err")])]),            
-            Render1FunctionAst = erl_syntax:function(erl_syntax:atom(Function),
+            Render1FunctionAst = erl_syntax:function(erl_syntax:atom(render),
                 [erl_syntax:clause([erl_syntax:variable("Variables")], none, 
                         [erl_syntax:try_expr([Function2], [ClauseOk], [ClauseCatch])])]),  
 
@@ -99,7 +96,7 @@ compile(File, Module, DocRoot, Vars, Reader, Function, OutDir) ->
                                     BodyInfo#ast_info.dependencies))])]),     
 
             RenderInternalFunctionAst = erl_syntax:function(
-                erl_syntax:atom(Function ++ "2"), 
+                erl_syntax:atom(render2), 
                 [erl_syntax:clause([erl_syntax:variable("Variables")], none, 
                         [BodyAst])]),   
 
@@ -116,8 +113,8 @@ compile(File, Module, DocRoot, Vars, Reader, Function, OutDir) ->
 
             ModuleAst  = erl_syntax:attribute(erl_syntax:atom(module), [erl_syntax:atom(Module)]),
             ExportAst = erl_syntax:attribute(erl_syntax:atom(export),
-                [erl_syntax:list([erl_syntax:arity_qualifier(erl_syntax:atom(Function), erl_syntax:integer(0)),
-                            erl_syntax:arity_qualifier(erl_syntax:atom(Function), erl_syntax:integer(1)),
+                [erl_syntax:list([erl_syntax:arity_qualifier(erl_syntax:atom(render), erl_syntax:integer(0)),
+                            erl_syntax:arity_qualifier(erl_syntax:atom(render), erl_syntax:integer(1)),
                             erl_syntax:arity_qualifier(erl_syntax:atom(source), erl_syntax:integer(0)),
                             erl_syntax:arity_qualifier(erl_syntax:atom(dependencies), erl_syntax:integer(0))])]),
 
