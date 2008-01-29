@@ -212,9 +212,7 @@ body_ast(DjangoParseTree, Context) ->
                 string_ast(Number);
             ({'variable', Variable}) ->
                 {Ast, VarName} = resolve_variable_ast(Variable, Context),
-                {format(Ast, Context), #ast_info{var_names = [VarName]}};
-            ({'tag', {identifier, _, Name}, Args}) ->
-                tag_ast(Name, Args, Context);
+                {format(Ast, Context), #ast_info{var_names = [VarName]}};              
             ({'include', {string_literal, _, File}}) ->
                 include_ast(unescape_string_literal(File), Context);
             ({'if', {variable, Variable}, Contents}) ->
@@ -240,7 +238,11 @@ body_ast(DjangoParseTree, Context) ->
             ({'apply_filter', Variable, Filter}) ->
                 filter_ast(Variable, Filter, Context);
             ({'for', {'in', IteratorList, Variable}, Contents}) ->
-                for_loop_ast(IteratorList, Variable, Contents, Context)
+                for_loop_ast(IteratorList, Variable, Contents, Context);
+            ({'load', Names}) ->
+                load_ast(Names, Context);
+            ({'tag', {identifier, _, Name}, Args}) ->
+                tag_ast(Name, Args, Context)
         end, DjangoParseTree),
     {AstList, Info} = lists:mapfoldl(
         fun({Ast, Info}, InfoAcc) -> 
@@ -476,23 +478,9 @@ for_loop_ast(IteratorList, {variable, Variable}, Contents, Context) ->
                         CounterVars0, ListAst])]),
                 Info#ast_info{var_names = [VarName]}}.
 
-%% TODO: implement "load" tag to make custom tags work like in original django
-tag_ast(Name, Args, Context) ->
-    InterpretedArgs = lists:map(fun
-            ({{identifier, _, Key}, {string_literal, _, Value}}) ->
-                {list_to_atom(Key), erl_syntax:string(unescape_string_literal(Value))};
-            ({{identifier, _, Key}, {variable, Value}}) ->
-                {list_to_atom(Key), format(resolve_variable_ast(Value, Context), Context)}
-        end, Args),
-    Source = filename:join([erlydtl_deps:get_base_dir(), "priv", "tags", Name]),
-    case parse(Source, Context#dtl_context.reader) of
-        {ok, TagParseTree} ->
-            with_dependency(Source, body_ast(TagParseTree, Context#dtl_context{
-                    local_scopes = [ InterpretedArgs | Context#dtl_context.local_scopes ],
-                    parse_trail = [ Source | Context#dtl_context.parse_trail ]}));
-        _ ->
-            {error, Name, "Loading tag source failed: " ++ Source}
-    end.
+load_ast(Names, Context) ->
+    io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, Names]),
+    {erl_syntax:list([]), #ast_info{}}.  
 
 unescape_string_literal(String) ->
     unescape_string_literal(string:strip(String, both, 34), [], noslash).
@@ -511,4 +499,25 @@ unescape_string_literal("t" ++ Rest, Acc, slash) ->
     unescape_string_literal(Rest, ["\t" | Acc], noslash);
 unescape_string_literal([C | Rest], Acc, slash) ->
     unescape_string_literal(Rest, [C | Acc], noslash).
-    
+
+
+%%-------------------------------------------------------------------
+%% Custom tags
+%%-------------------------------------------------------------------
+
+tag_ast(Name, Args, Context) ->
+    InterpretedArgs = lists:map(fun
+            ({{identifier, _, Key}, {string_literal, _, Value}}) ->
+                {list_to_atom(Key), erl_syntax:string(unescape_string_literal(Value))};
+            ({{identifier, _, Key}, {variable, Value}}) ->
+                {list_to_atom(Key), format(resolve_variable_ast(Value, Context), Context)}
+        end, Args),
+    Source = filename:join([erlydtl_deps:get_base_dir(), "priv", "customtags", Name]),
+    case parse(Source, Context#dtl_context.reader) of
+        {ok, TagParseTree} ->
+            with_dependency(Source, body_ast(TagParseTree, Context#dtl_context{
+                    local_scopes = [ InterpretedArgs | Context#dtl_context.local_scopes ],
+                    parse_trail = [ Source | Context#dtl_context.parse_trail ]}));
+        _ ->
+            {error, Name, "Loading tag source failed: " ++ Source}
+    end.

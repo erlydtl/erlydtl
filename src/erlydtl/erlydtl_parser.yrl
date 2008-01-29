@@ -41,9 +41,6 @@ Nonterminals
     ExtendsTag
     IncludeTag
 
-    CustomTag
-    Args
-
     BlockBlock
     BlockBraced
     EndBlockBraced
@@ -79,7 +76,13 @@ Nonterminals
     EndAutoEscapeBraced
 
     Variable
-    Filter.
+    Filter
+    
+    LoadTag
+    LoadNames
+    
+    CustomTag
+    Args.
 
 Terminals
     autoescape_keyword
@@ -107,6 +110,7 @@ Terminals
     ifnotequal_keyword
     in_keyword
     include_keyword
+    load_keyword
     not_keyword
     number_literal
     open_tag
@@ -123,6 +127,7 @@ Elements -> Elements text : '$1' ++ ['$2'].
 Elements -> Elements VariableBraced : '$1' ++ ['$2'].
 Elements -> Elements ExtendsTag : '$1' ++ ['$2'].
 Elements -> Elements IncludeTag : '$1' ++ ['$2'].
+Elements -> Elements LoadTag : '$1' ++ ['$2'].
 Elements -> Elements CustomTag : '$1' ++ ['$2'].
 Elements -> Elements BlockBlock : '$1' ++ ['$2'].
 Elements -> Elements ForBlock : '$1' ++ ['$2'].
@@ -142,6 +147,10 @@ Variable -> number_literal : '$1'.
 
 ExtendsTag -> open_tag extends_keyword string_literal close_tag : {extends, '$3'}.
 IncludeTag -> open_tag include_keyword string_literal close_tag : {include, '$3'}.
+
+LoadTag -> open_tag load_keyword LoadNames close_tag : {load, '$3'}.
+LoadNames -> identifier : ['$1'].
+LoadNames -> LoadNames identifier : '$1' ++ ['$2'].
 
 CustomTag -> open_tag identifier Args close_tag : {tag, '$2', '$3'}.
 
