@@ -70,6 +70,7 @@ compile_all() ->
     compile("autoescape"),
     compile("comment"),
     compile("customtags"),
+    compile("customtags_error"),
     compile("extends"),
     compile("filters"),
     compile("for"),
@@ -172,7 +173,10 @@ compile("for_records_preset" = Name) ->
     
 compile("customtags" = Name) ->
     compile(Name, ".html", []);
-          
+
+compile("customtags_error" = Name) ->
+    compile(Name, ".html", []);
+                  
 compile(Name) ->
     io:format("No such template: ~p~n",[Name]).
                
@@ -190,10 +194,15 @@ compile(Name, Ext, Vars) ->
     case erlydtl_compiler:compile(File, Module, DocRoot, Vars) of
         ok ->
             io:format("compile success: ~p~n",[Module]);
-        _ ->
-            io:format("compile failure: ~p~n",[Module])
+        {error, Reason} ->
+            case string:str(File, "error") of
+                0 ->
+                    io:format("compile failure: ~p ~p~n", [Module, Reason]);
+                _ ->
+                    Explanation = "==>> this is ok, we are testing an error !",
+                    io:format("compile failure: ~p ~p  ~s~n",[Module, Reason, Explanation])
+            end
     end.
-
 
 %%--------------------------------------------------------------------
 %% @spec () -> any()
@@ -326,13 +335,13 @@ render(Name, Args) ->
                 _ ->
                     io:format("file writing failure: ~p~n",[Module])
             end;
-        {_, Err} ->
+        {error, Reason} ->
             case string:str(Name, "error") of
                 0 ->
-                    io:format("render failure: ~p ~p~n",[Module, Err]);
+                    io:format("render failure: ~p ~p~n",[Module, Reason]);
                 _ ->
                     Explanation = "==>> this is ok, we are testing an error !",
-                    io:format("render failure: ~p ~p  ~s~n",[Module, Err, Explanation])
+                    io:format("render failure: ~p ~p  ~s~n",[Module, Reason, Explanation])
             end
     end.    
             
