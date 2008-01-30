@@ -145,6 +145,7 @@ compile(File, Module, DocRoot, Vars, Reader, OutDir) ->
                     Other
             end;
         Error ->
+            io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, Error]),
             Error
     end.
 
@@ -489,8 +490,9 @@ for_loop_ast(IteratorList, {variable, Variable}, Contents, Context, TreeWalker) 
                         CounterVars0, ListAst])]),
                 Info#ast_info{var_names = [VarName]}}, TreeWalker2}.
 
-load_ast(_Names, _Context, TreeWalker) ->
-    {{erl_syntax:list([]), #ast_info{}}, TreeWalker}.  
+load_ast(Names, _Context, TreeWalker) ->
+    CustomTags = lists:merge([X || {identifier, _ , X} <- Names], TreeWalker#treewalker.custom_tags),
+    {{erl_syntax:list([]), #ast_info{}}, TreeWalker#treewalker{custom_tags = CustomTags}}.  
 
 unescape_string_literal(String) ->
     unescape_string_literal(string:strip(String, both, 34), [], noslash).
@@ -516,18 +518,23 @@ unescape_string_literal([C | Rest], Acc, slash) ->
 %%-------------------------------------------------------------------
 
 tag_ast(Name, Args, Context, TreeWalker) ->
-    InterpretedArgs = lists:map(fun
-            ({{identifier, _, Key}, {string_literal, _, Value}}) ->
-                {list_to_atom(Key), erl_syntax:string(unescape_string_literal(Value))};
-            ({{identifier, _, Key}, {variable, Value}}) ->
-                {list_to_atom(Key), format(resolve_variable_ast(Value, Context), Context)}
-        end, Args),
-    Source = filename:join([erlydtl_deps:get_base_dir(), "priv", "customtags", Name]),
-    case parse(Source, Context#dtl_context.reader) of
-        {ok, TagParseTree} ->
-            with_dependency(Source, body_ast(TagParseTree, Context#dtl_context{
-                    local_scopes = [ InterpretedArgs | Context#dtl_context.local_scopes ],
-                    parse_trail = [ Source | Context#dtl_context.parse_trail ]}, TreeWalker));
+    case lists:member(Name, TreeWalker#treewalker.custom_tags) of
+        true ->
+            InterpretedArgs = lists:map(fun
+                    ({{identifier, _, Key}, {string_literal, _, Value}}) ->
+                        {list_to_atom(Key), erl_syntax:string(unescape_string_literal(Value))};
+                    ({{identifier, _, Key}, {variable, Value}}) ->
+                        {list_to_atom(Key), format(resolve_variable_ast(Value, Context), Context)}
+                end, Args),
+            Source = filename:join([erlydtl_deps:get_base_dir(), "priv", "customtags", Name]),
+            case parse(Source, Context#dtl_context.reader) of
+                {ok, TagParseTree} ->
+                    with_dependency(Source, body_ast(TagParseTree, Context#dtl_context{
+                            local_scopes = [ InterpretedArgs | Context#dtl_context.local_scopes ],
+                            parse_trail = [ Source | Context#dtl_context.parse_trail ]}, TreeWalker));
+                _ ->
+                    {error, Name, "Loading tag source failed: " ++ Source}
+            end;
         _ ->
-            {error, Name, "Loading tag source failed: " ++ Source}
+            {error, Name, "Custom tag not loaded"}
     end.
