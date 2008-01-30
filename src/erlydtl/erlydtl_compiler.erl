@@ -38,25 +38,23 @@
 -export([compile/2, compile/3, compile/4, compile/5, compile/6, parse/2, scan/2, body_ast/3]).
 
 -record(dtl_context, {
-        local_scopes = [], 
-        block_dict = dict:new(), 
-        auto_escape = off, 
-        doc_root = "", 
-        parse_trail = [],
-        preset_vars = [],
-        custom_tags_dir = [],
-        reader = {file, read_file}}).
+    local_scopes = [], 
+    block_dict = dict:new(), 
+    auto_escape = off, 
+    doc_root = "", 
+    parse_trail = [],
+    preset_vars = [],
+    custom_tags_dir = [],
+    reader = {file, read_file}}).
 
 -record(ast_info, {
-        dependencies = [],
-        var_names = [],
-        pre_render_asts = []
-    }).
+    dependencies = [],
+    var_names = [],
+    pre_render_asts = []}).
     
 -record(treewalker, {
-        counter = 0,
-        custom_tags = []
-    }).    
+    counter = 0,
+    custom_tags = []}).    
 
 
 compile(File, Module) ->
@@ -73,9 +71,7 @@ compile(File, Module, DocRoot, Vars, Reader) ->
 
 compile(File, Module, DocRoot, Vars, Reader, OutDir) ->   
     case parse(File, Reader) of
-        {ok, DjangoParseTree} ->
-            OldProcessDictVal = put(erlydtl_counter, 0),
-            
+        {ok, DjangoParseTree} ->        
             {{BodyAst, BodyInfo}, _} = body_ast(DjangoParseTree, #dtl_context{
                     doc_root = DocRoot, parse_trail = [File], preset_vars = Vars, reader = Reader},
                     #treewalker{}),
@@ -130,10 +126,6 @@ compile(File, Module, DocRoot, Vars, Reader, OutDir) ->
                     Render1FunctionAst, SourceFunctionAst, DependenciesFunctionAst, RenderInternalFunctionAst, 
                     ProplistsFunctionAst | BodyInfo#ast_info.pre_render_asts]],
 
-            case OldProcessDictVal of
-                undefined -> erase(erlydtl_counter);
-                _ -> put(erlydtl_counter, OldProcessDictVal)
-            end,
             case compile:forms(Forms, []) of
                 {ok, Module1, Bin} ->       
                     BeamFile = filename:join([OutDir, atom_to_list(Module1) ++ ".beam"]),
@@ -279,16 +271,15 @@ body_ast(DjangoParseTree, Context, TreeWalker) ->
                     [] ->
                         {Ast, {merge_info(Info, InfoAcc), TreeWalkerAcc}};
                     _ ->
-                        Id = get(erlydtl_counter),
-                        put(erlydtl_counter, Id + 1),
-                        Name = lists:concat([pre_render, Id]),
+                        Counter = TreeWalkerAcc#treewalker.counter,
+                        Name = lists:concat([pre_render, Counter]),
                         Ast1 = erl_syntax:application(none, erl_syntax:atom(Name),
                             [erl_syntax:list(PresetVars)]),
                         PreRenderAst = erl_syntax:function(erl_syntax:atom(Name),
                             [erl_syntax:clause([erl_syntax:variable("Variables")], none, [Ast])]),
                         PreRenderAsts = Info#ast_info.pre_render_asts,
                         Info1 = Info#ast_info{pre_render_asts = [PreRenderAst | PreRenderAsts]},     
-                        {Ast1, {merge_info(Info1, InfoAcc), TreeWalkerAcc}}
+                        {Ast1, {merge_info(Info1, InfoAcc), TreeWalkerAcc#treewalker{counter = Counter + 1}}}
                 end
         end, {#ast_info{}, TreeWalker2}, AstInfoList),
     {{erl_syntax:list(AstList), Info}, TreeWalker3}.
