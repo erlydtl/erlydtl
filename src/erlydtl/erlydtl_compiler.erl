@@ -72,82 +72,35 @@ compile(File, Module, DocRoot, Vars, Reader) ->
 compile(File, Module, DocRoot, Vars, Reader, OutDir) ->   
     case parse(File, Reader) of
         {ok, DjangoParseTree} ->        
-            {{BodyAst, BodyInfo}, _} = body_ast(DjangoParseTree, #dtl_context{
-                    doc_root = DocRoot, parse_trail = [File], preset_vars = Vars, reader = Reader},
-                    #treewalker{}),
-
-            Render0FunctionAst = erl_syntax:function(erl_syntax:atom(render),
-                [erl_syntax:clause([], none, [erl_syntax:application(none, 
-                                erl_syntax:atom(render), [erl_syntax:list([])])])]),
-
-            Function2 = erl_syntax:application(none, erl_syntax:atom(render2),
-                [erl_syntax:variable("Variables")]),
-            ClauseOk = erl_syntax:clause([erl_syntax:variable("Val")], none,
-                [erl_syntax:tuple([erl_syntax:atom(ok), erl_syntax:variable("Val")])]),     
-            ClauseCatch = erl_syntax:clause([erl_syntax:variable("Err")], none,
-                [erl_syntax:tuple([erl_syntax:atom(error), erl_syntax:variable("Err")])]),            
-            Render1FunctionAst = erl_syntax:function(erl_syntax:atom(render),
-                [erl_syntax:clause([erl_syntax:variable("Variables")], none, 
-                        [erl_syntax:try_expr([Function2], [ClauseOk], [ClauseCatch])])]),  
-
-            SourceFunctionAst = erl_syntax:function(
-                erl_syntax:atom(source),
-                [erl_syntax:clause([], none, [erl_syntax:string(File)])]),
-
-            DependenciesFunctionAst = erl_syntax:function(
-                erl_syntax:atom(dependencies), [erl_syntax:clause([], none, 
-                        [erl_syntax:list(lists:map(fun(Dep) -> erl_syntax:string(Dep) end, 
-                                    BodyInfo#ast_info.dependencies))])]),     
-
-            RenderInternalFunctionAst = erl_syntax:function(
-                erl_syntax:atom(render2), 
-                [erl_syntax:clause([erl_syntax:variable("Variables")], none, 
-                        [BodyAst])]),   
-
-            ProplistsClauseErr = erl_syntax:clause([erl_syntax:atom(undefined)], none, 
-            [erl_syntax:application(none, erl_syntax:atom(throw),
-                [erl_syntax:tuple([erl_syntax:atom(undefined_variable), erl_syntax:variable("Key")])])]),  
-            ProplistsClauseOk = erl_syntax:clause([erl_syntax:variable("Val")], none, 
-                [erl_syntax:variable("Val")]),       
-            ProplistsFunctionAst = erl_syntax:function(erl_syntax:atom(get_value), 
-                [erl_syntax:clause([erl_syntax:variable("Key"), erl_syntax:variable("L")], none, 
-                        [erl_syntax:case_expr(erl_syntax:application(erl_syntax:atom(proplists), 
-                                    erl_syntax:atom(get_value), [erl_syntax:variable("Key"), erl_syntax:variable("L")]), 
-                                [ProplistsClauseErr, ProplistsClauseOk])])]),
-
-            ModuleAst  = erl_syntax:attribute(erl_syntax:atom(module), [erl_syntax:atom(Module)]),
-            ExportAst = erl_syntax:attribute(erl_syntax:atom(export),
-                [erl_syntax:list([erl_syntax:arity_qualifier(erl_syntax:atom(render), erl_syntax:integer(0)),
-                            erl_syntax:arity_qualifier(erl_syntax:atom(render), erl_syntax:integer(1)),
-                            erl_syntax:arity_qualifier(erl_syntax:atom(source), erl_syntax:integer(0)),
-                            erl_syntax:arity_qualifier(erl_syntax:atom(dependencies), erl_syntax:integer(0))])]),
-
-            Forms = [erl_syntax:revert(X) || X <- [ModuleAst, ExportAst, Render0FunctionAst,
-                    Render1FunctionAst, SourceFunctionAst, DependenciesFunctionAst, RenderInternalFunctionAst, 
-                    ProplistsFunctionAst | BodyInfo#ast_info.pre_render_asts]],
-
-            case compile:forms(Forms, []) of
-                {ok, Module1, Bin} ->       
-                    BeamFile = filename:join([OutDir, atom_to_list(Module1) ++ ".beam"]),
-                    case file:write_file(BeamFile, Bin) of
-                        ok ->
-                            code:purge(Module1),
-                            case code:load_binary(Module1, atom_to_list(Module1) ++ ".erl", Bin) of
-                                {module, _} -> ok;
-                                _ -> {error, lists:concat(["code reload failed: ", BeamFile])}
+            try body_ast(DjangoParseTree, #dtl_context{
+                    doc_root = DocRoot,
+                    parse_trail = [File], preset_vars = Vars, reader = Reader}, #treewalker{}) of
+                {{Ast, Info}, _} ->
+                    case compile:forms(forms(File, Module, Ast, Info), []) of
+                        {ok, Module1, Bin} ->       
+                            BeamFile = filename:join([OutDir, atom_to_list(Module1) ++ ".beam"]),
+                            case file:write_file(BeamFile, Bin) of
+                                ok ->
+                                    code:purge(Module1),
+                                    case code:load_binary(Module1, atom_to_list(Module1) ++ ".erl", Bin) of
+                                        {module, _} -> ok;
+                                        _ -> {error, lists:concat(["code reload failed: ", BeamFile])}
+                                    end;
+                                {error, Reason} ->
+                                    {error, lists:concat(["beam generation failed (", Reason, "): ", BeamFile])}
                             end;
-                        {error, Reason} ->
-                            {error, lists:concat(["beam generation failed (", Reason, "): ", BeamFile])}
-                    end;
-                error ->
-                    {error, lists:concat(["compilation failed: ", File])};
-                Other ->
-                    Other
-            end;
+                        error ->
+                            {error, lists:concat(["compilation failed: ", File])};
+                        OtherError ->
+                            OtherError
+                    end
+            catch 
+                throw:Error -> Error
+            end; 
         Error ->
-            io:format("TRACE ~p:~p ~p~n",[?MODULE, ?LINE, Error]),
             Error
     end.
+
 
 scan(File, {Module, Function}) ->
     case catch Module:Function(File) of
@@ -157,6 +110,7 @@ scan(File, {Module, Function}) ->
             {error, "reading " ++ File ++ " failed "}
     end.
 
+
 parse(File, Reader) ->
     case scan(File, Reader) of
         {ok, Tokens} ->
@@ -164,6 +118,52 @@ parse(File, Reader) ->
         Err ->
             Err
     end.
+  
+  
+forms(File, Module, BodyAst, BodyInfo) ->    
+    Render0FunctionAst = erl_syntax:function(erl_syntax:atom(render),
+        [erl_syntax:clause([], none, [erl_syntax:application(none, 
+                        erl_syntax:atom(render), [erl_syntax:list([])])])]),
+    Function2 = erl_syntax:application(none, erl_syntax:atom(render2),
+        [erl_syntax:variable("Variables")]),
+    ClauseOk = erl_syntax:clause([erl_syntax:variable("Val")], none,
+        [erl_syntax:tuple([erl_syntax:atom(ok), erl_syntax:variable("Val")])]),     
+    ClauseCatch = erl_syntax:clause([erl_syntax:variable("Err")], none,
+        [erl_syntax:tuple([erl_syntax:atom(error), erl_syntax:variable("Err")])]),            
+    Render1FunctionAst = erl_syntax:function(erl_syntax:atom(render),
+        [erl_syntax:clause([erl_syntax:variable("Variables")], none, 
+                [erl_syntax:try_expr([Function2], [ClauseOk], [ClauseCatch])])]),  
+    SourceFunctionAst = erl_syntax:function(
+        erl_syntax:atom(source),
+        [erl_syntax:clause([], none, [erl_syntax:string(File)])]),
+    DependenciesFunctionAst = erl_syntax:function(
+        erl_syntax:atom(dependencies), [erl_syntax:clause([], none, 
+                [erl_syntax:list(lists:map(fun(Dep) -> erl_syntax:string(Dep) end, 
+                            BodyInfo#ast_info.dependencies))])]),     
+    RenderInternalFunctionAst = erl_syntax:function(
+        erl_syntax:atom(render2), 
+        [erl_syntax:clause([erl_syntax:variable("Variables")], none, 
+                [BodyAst])]),   
+    ProplistsClauseErr = erl_syntax:clause([erl_syntax:atom(undefined)], none, 
+    [erl_syntax:application(none, erl_syntax:atom(throw),
+        [erl_syntax:tuple([erl_syntax:atom(undefined_variable), erl_syntax:variable("Key")])])]),  
+    ProplistsClauseOk = erl_syntax:clause([erl_syntax:variable("Val")], none, 
+        [erl_syntax:variable("Val")]),       
+    ProplistsFunctionAst = erl_syntax:function(erl_syntax:atom(get_value), 
+        [erl_syntax:clause([erl_syntax:variable("Key"), erl_syntax:variable("L")], none, 
+                [erl_syntax:case_expr(erl_syntax:application(erl_syntax:atom(proplists), 
+                            erl_syntax:atom(get_value), [erl_syntax:variable("Key"), erl_syntax:variable("L")]), 
+                        [ProplistsClauseErr, ProplistsClauseOk])])]),
+    ModuleAst  = erl_syntax:attribute(erl_syntax:atom(module), [erl_syntax:atom(Module)]),
+    ExportAst = erl_syntax:attribute(erl_syntax:atom(export),
+        [erl_syntax:list([erl_syntax:arity_qualifier(erl_syntax:atom(render), erl_syntax:integer(0)),
+                    erl_syntax:arity_qualifier(erl_syntax:atom(render), erl_syntax:integer(1)),
+                    erl_syntax:arity_qualifier(erl_syntax:atom(source), erl_syntax:integer(0)),
+                    erl_syntax:arity_qualifier(erl_syntax:atom(dependencies), erl_syntax:integer(0))])]),
+    [erl_syntax:revert(X) || X <- [ModuleAst, ExportAst, Render0FunctionAst,
+            Render1FunctionAst, SourceFunctionAst, DependenciesFunctionAst, RenderInternalFunctionAst, 
+            ProplistsFunctionAst | BodyInfo#ast_info.pre_render_asts]].    
+
 
 full_path(File, DocRoot) ->
     filename:join([DocRoot, File]).
@@ -174,7 +174,7 @@ body_ast([{extends, {string_literal, _Pos, String}} | ThisParseTree], Context, T
     File = full_path(unescape_string_literal(String), Context#dtl_context.doc_root),
     case lists:member(File, Context#dtl_context.parse_trail) of
         true ->
-            {error, "Circular file inclusion!"};
+            throw({error, "Circular file inclusion!"});
         _ ->
             {ok, ParentParseTree} = parse(File, Context#dtl_context.reader),
             BlockDict = lists:foldl(
@@ -306,7 +306,7 @@ empty_ast(TreeWalker) ->
     {{erl_syntax:list([]), #ast_info{}}, TreeWalker}.
 
 string_ast(String, TreeWalker) ->
-    {{erl_syntax:string(String), #ast_info{}}, TreeWalker}. %% less verbose AST, good for debugging
+    {{erl_syntax:string(String), #ast_info{}}, TreeWalker}. %% less verbose AST, better for development and debugging
     % {{erl_syntax:binary([erl_syntax:binary_field(erl_syntax:integer(X)) || X <- String]), #ast_info{}}, TreeWalker}.       
 
 include_ast(File, Context, TreeWalker) ->
@@ -533,8 +533,8 @@ tag_ast(Name, Args, Context, TreeWalker) ->
                             local_scopes = [ InterpretedArgs | Context#dtl_context.local_scopes ],
                             parse_trail = [ Source | Context#dtl_context.parse_trail ]}, TreeWalker));
                 _ ->
-                    {error, Name, "Loading tag source failed: " ++ Source}
+                    throw({error, Name, "Loading tag source failed: " ++ Source})
             end;
         _ ->
-            {error, Name, "Custom tag not loaded"}
+            throw({error, lists:concat(["Custom tag not loaded: ", Name])})
     end.
