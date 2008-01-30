@@ -69,6 +69,7 @@ create_parser() ->
 compile_all() ->
     compile("autoescape"),
     compile("comment"),
+    compile("customtags"),
     compile("extends"),
     compile("filters"),
     compile("for"),
@@ -78,7 +79,6 @@ compile_all() ->
     compile("for_records"),
     compile("for_records_preset"),
     compile("for_tuple"),
-    compile("htmltags"),
     compile("if"),
     compile("if_preset"),         
     compile("ifequal"),  
@@ -87,7 +87,8 @@ compile_all() ->
     compile("ifnotequal_preset"),            
     compile("include"),
     compile("var"),
-    compile("var_preset").
+    compile("var_preset"),
+    compile("var_error").
 
 
 %%--------------------------------------------------------------------
@@ -103,6 +104,9 @@ compile("var_preset" = Name) ->
     Vars = [{preset_var1, "preset-var1"}, {preset_var2, "preset-var2"}],
     compile(Name, ".html", Vars);
 
+compile("var_error" = Name) ->
+    compile(Name, ".html", []);
+        
 compile("extends" = Name) ->
     compile(Name, ".html", []);
 
@@ -154,9 +158,6 @@ compile("for_tuple" = Name) ->
 compile("for_list_preset" = Name) ->
     Vars = [{fruit_list, [["apple", "apples"], ["banana", "bananas"], ["coconut", "coconuts"]]}],
     compile(Name, ".html", Vars);
-                                      
-compile("htmltags" = Name) ->
-    compile(Name, ".html", []);
    
 compile("for_preset" = Name) ->
     Vars = [{fruit_list, ["preset-apple", "preset-banana", "preset-coconut"]}],
@@ -168,6 +169,9 @@ compile("for_records_preset" = Name) ->
     Link3 = [{name, "Microsoft (preset)"}, {url, "http://microsoft.com"}],
     Var = [{software_links, [Link1, Link2, Link3]}],
     compile(Name, ".html", Var);
+    
+compile("customtags" = Name) ->
+    compile(Name, ".html", []);
           
 compile(Name) ->
     io:format("No such template: ~p~n",[Name]).
@@ -199,6 +203,7 @@ compile(Name, Ext, Vars) ->
 render_all() ->
     render("autoescape"),
     render("comment"),
+    render("customtags"),
     render("extends"),
     render("filters"),
     render("for"),
@@ -208,7 +213,6 @@ render_all() ->
     render("for_list_preset"),
     render("for_records"),
     render("for_records_preset"),
-    render("htmltags"),
     render("if"),
     render("if_preset"),
     render("ifequal"),
@@ -217,7 +221,8 @@ render_all() ->
     render("ifnotequal_preset"),        
     render("include"),
     render("var"),
-    render("var_preset").
+    render("var_preset"),
+    render("var_error").
         
 
 %%--------------------------------------------------------------------
@@ -280,9 +285,6 @@ render("for_records" = Name) ->
     Link2 = [{name, "Google"}, {url, "http://google.com"}],
     Link3 = [{name, "Microsoft"}, {url, "http://microsoft.com"}],
     render(Name, [{link_list, [Link1, Link2, Link3]}]);
-                
-render("htmltags" = Name) ->
-    render(Name, []);
              
 render("for_records_preset" = Name) ->
     Link1 = [{name, "Canon"}, {url, "http://canon.com"}],
@@ -295,7 +297,13 @@ render("var" = Name) ->
 
 render("var_preset" = Name) ->
     render(Name, [{var1, "foostring1"}, {var2, "foostring2"}]);
+
+render("var_error" = Name) ->
+    render(Name, [{var1, "foostring1"}]);
         
+render("customtags" = Name) ->
+    render(Name, []);
+                
 render(Name) ->
     io:format("No such template: ~p~n",[Name]).  
                 
@@ -319,7 +327,13 @@ render(Name, Args) ->
                     io:format("file writing failure: ~p~n",[Module])
             end;
         {_, Err} ->
-            io:format("render failure: ~p ~p~n",[Module, Err])
+            case string:str(Name, "error") of
+                0 ->
+                    io:format("render failure: ~p ~p~n",[Module, Err]);
+                _ ->
+                    Explanation = "==>> this is ok, we are testing an error !",
+                    io:format("render failure: ~p ~p  ~s~n",[Module, Err, Explanation])
+            end
     end.    
             
           
