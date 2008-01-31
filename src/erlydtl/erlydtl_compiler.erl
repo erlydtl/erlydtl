@@ -246,7 +246,7 @@ body_ast(DjangoParseTree, Context, TreeWalker) ->
                 ifequalelse_ast(Args, IfAstInfo, ElseAstInfo, Context, TreeWalker2);                
             ({'ifnotequal', Args, Contents}, TreeWalkerAcc) ->
                 {IfAstInfo, TreeWalker1} = empty_ast(TreeWalkerAcc),
-                {ElseAstInfo, TreeWalker2} = body_ast(Contents, Context,TreeWalker1),
+                {ElseAstInfo, TreeWalker2} = body_ast(Contents, Context, TreeWalker1),
                 ifequalelse_ast(Args, IfAstInfo, ElseAstInfo, Context, TreeWalker2);
             ({'ifnotequalelse', Args, IfContents, ElseContents}, TreeWalkerAcc) ->
                 {IfAstInfo, TreeWalker1} = body_ast(ElseContents, Context, TreeWalkerAcc),
@@ -259,7 +259,11 @@ body_ast(DjangoParseTree, Context, TreeWalker) ->
             ({'load', Names}, TreeWalkerAcc) ->
                 load_ast(Names, Context, TreeWalkerAcc);
             ({'tag', {identifier, _, Name}, Args}, TreeWalkerAcc) ->
-                tag_ast(Name, Args, Context, TreeWalkerAcc)
+                tag_ast(Name, Args, Context, TreeWalkerAcc);            
+            ({'call', {'identifier', _, Name}}, TreeWalkerAcc) ->
+            	call_ast(Name, TreeWalkerAcc);
+            ({'call', {'identifier', _, Name}, {variable, With}}, TreeWalkerAcc) ->
+            	call_with_ast(Name, With, Context, TreeWalkerAcc)                
         end, TreeWalker, DjangoParseTree),   
     {AstList, {Info, TreeWalker3}} = lists:mapfoldl(
         fun({Ast, Info}, {InfoAcc, TreeWalkerAcc}) -> 
@@ -565,3 +569,33 @@ tag_ast(Name, Args, Context, TreeWalker) ->
     with_dependency(Source, body_ast(TagParseTree, Context#dtl_context{
         local_scopes = [ InterpretedArgs | Context#dtl_context.local_scopes ],
         parse_trail = [ Source | Context#dtl_context.parse_trail ]}, TreeWalker)).
+
+
+call_ast(Module, TreeWalkerAcc) ->
+    call_ast(Module, erl_syntax:variable("Variables"), #ast_info{}, TreeWalkerAcc).
+
+call_with_ast(Module, Variable, Context, TreeWalker) ->
+    {VarAst, VarName} = resolve_variable_ast(Variable, Context),
+    call_ast(Module, VarAst, #ast_info{var_names=[VarName]}, TreeWalker).
+        
+call_ast(Module, Variable, AstInfo, TreeWalker) ->
+     AppAst = erl_syntax:application(
+		erl_syntax:atom(Module),
+		erl_syntax:atom(render),
+		[Variable]),
+    RenderedAst = erl_syntax:variable("Rendered"),
+    OkAst = erl_syntax:clause(
+	      [erl_syntax:tuple([erl_syntax:atom(ok), RenderedAst])], 
+	      none,
+	      [RenderedAst]),
+    ReasonAst = erl_syntax:variable("Reason"),
+    ErrStrAst = erl_syntax:application(
+		  erl_syntax:atom(io_lib),
+		  erl_syntax:atom(format),
+		  [erl_syntax:string("error: ~p"), erl_syntax:list([ReasonAst])]),
+    ErrorAst = erl_syntax:clause(
+		 [erl_syntax:tuple([erl_syntax:atom(error), ReasonAst])], 
+		 none,
+		 [ErrStrAst]),
+    CallAst = erl_syntax:case_expr(AppAst, [OkAst, ErrorAst]),
+    {{CallAst, AstInfo}, TreeWalker}.
