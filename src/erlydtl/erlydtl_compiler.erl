@@ -35,7 +35,7 @@
 -author('rsaccon@gmail.com').
 -author('emmiller@gmail.com').
 
--export([compile/2, compile/3, compile/4, compile/5, compile/6, parse/2, scan/2, body_ast/3]).
+-export([compile/2, compile/3, compile/4, compile/5, compile/6,compile/7, parse/2, scan/2, body_ast/3]).
 
 -record(dtl_context, {
     local_scopes = [], 
@@ -64,16 +64,20 @@ compile(File, Module, DocRoot) ->
     compile(File, Module, DocRoot, []).
 
 compile(File, Module, DocRoot, Vars) ->
-    compile(File, Module, DocRoot, Vars, {file, read_file}).
+    compile(File, Module, DocRoot, Vars, []).
         
-compile(File, Module, DocRoot, Vars, Reader) ->
-    compile(File, Module, DocRoot, Vars, Reader, "ebin").
+compile(File, Module, DocRoot, Vars, CustomTagsDir) ->
+    compile(File, Module, DocRoot, Vars, CustomTagsDir, {file, read_file}).
+        
+compile(File, Module, DocRoot, Vars, CustomTagsDir, Reader) ->
+    compile(File, Module, DocRoot, Vars, CustomTagsDir, Reader, "ebin").
 
-compile(File, Module, DocRoot, Vars, Reader, OutDir) ->   
+compile(File, Module, DocRoot, Vars, CustomTagsDir, Reader, OutDir) ->   
     case parse(File, Reader) of
         {ok, DjangoParseTree} ->        
             try body_ast(DjangoParseTree, #dtl_context{
                     doc_root = DocRoot,
+                    custom_tags_dir = CustomTagsDir,
                     parse_trail = [File], preset_vars = Vars, reader = Reader}, #treewalker{}) of
                 {{Ast, Info}, _} ->
                     case compile:forms(forms(File, Module, Ast, Info), []) of
@@ -526,15 +530,38 @@ tag_ast(Name, Args, Context, TreeWalker) ->
                     ({{identifier, _, Key}, {variable, Value}}) ->
                         {list_to_atom(Key), format(resolve_variable_ast(Value, Context), Context)}
                 end, Args),
-            Source = filename:join([erlydtl_deps:get_base_dir(), "priv", "customtags", Name]),
-            case parse(Source, Context#dtl_context.reader) of
-                {ok, TagParseTree} ->
-                    with_dependency(Source, body_ast(TagParseTree, Context#dtl_context{
-                            local_scopes = [ InterpretedArgs | Context#dtl_context.local_scopes ],
-                            parse_trail = [ Source | Context#dtl_context.parse_trail ]}, TreeWalker));
+            DefaultFilePath = filename:join([erlydtl_deps:get_base_dir(), "priv", "custom_tags", Name]),
+            case Context#dtl_context.custom_tags_dir of
+                [] ->
+                    case parse(DefaultFilePath, Context#dtl_context.reader) of
+                        {ok, TagParseTree} ->
+                            tag_ast2(DefaultFilePath, TagParseTree, InterpretedArgs, Context, TreeWalker);
+                        _ ->
+                            Reason = lists:concat(["Loading tag source for '", Name, "' failed: ", 
+                                DefaultFilePath]),
+                            throw({error, Reason})
+                    end;
                 _ ->
-                    throw({error, Name, "Loading tag source failed: " ++ Source})
+                    CustomFilePath = filename:join([Context#dtl_context.custom_tags_dir, Name]),
+                    case parse(CustomFilePath, Context#dtl_context.reader) of
+                        {ok, TagParseTree} ->
+                            tag_ast2(CustomFilePath, TagParseTree, InterpretedArgs, Context, TreeWalker);
+                        _ ->
+                            case parse(DefaultFilePath, Context#dtl_context.reader) of
+                                {ok, TagParseTree} ->
+                                    tag_ast2(DefaultFilePath, TagParseTree, InterpretedArgs, Context, TreeWalker);
+                                _ ->
+                                    Reason = lists:concat(["Loading tag source for '", Name, "' failed: ", 
+                                        CustomFilePath, ", ", DefaultFilePath]),
+                                    throw({error, Reason})
+                            end
+                    end
             end;
         _ ->
-            throw({error, lists:concat(["Custom tag not loaded: ", Name])})
+            throw({error, lists:concat(["Custom tag '", Name, "' not loaded"])})
     end.
+ 
+ tag_ast2(Source, TagParseTree, InterpretedArgs, Context, TreeWalker) ->
+    with_dependency(Source, body_ast(TagParseTree, Context#dtl_context{
+        local_scopes = [ InterpretedArgs | Context#dtl_context.local_scopes ],
+        parse_trail = [ Source | Context#dtl_context.parse_trail ]}, TreeWalker)).
