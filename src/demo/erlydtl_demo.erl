@@ -69,8 +69,6 @@ create_parser() ->
 compile_all() ->
     compile("autoescape"),
     compile("comment"),
-    compile("custom_tags"),
-    compile("custom_tags_error"),
     compile("extends"),
     compile("filters"),
     compile("for"),
@@ -89,7 +87,10 @@ compile_all() ->
     compile("include"),
     compile("var"),
     compile("var_preset"),
-    compile("var_error").
+    compile("var_error"),
+    compile("custom_tag"),
+    compile("custom_tag_error"),
+    compile("custom_call").
 
 
 %%--------------------------------------------------------------------
@@ -171,12 +172,15 @@ compile("for_records_preset" = Name) ->
     Var = [{software_links, [Link1, Link2, Link3]}],
     compile(Name, ".html", Var);
     
-compile("custom_tags" = Name) ->
+compile("custom_tag" = Name) ->
     compile(Name, ".html", []);
 
-compile("custom_tags_error" = Name) ->
+compile("custom_tag_error" = Name) ->
     compile(Name, ".html", []);
                   
+compile("custom_call" = Name) ->
+    compile(Name, ".html", []);
+        
 compile(Name) ->
     io:format("No such template: ~p~n",[Name]).
                
@@ -212,7 +216,6 @@ compile(Name, Ext, Vars) ->
 render_all() ->
     render("autoescape"),
     render("comment"),
-    render("custom_tags"),
     render("extends"),
     render("filters"),
     render("for"),
@@ -231,7 +234,9 @@ render_all() ->
     render("include"),
     render("var"),
     render("var_preset"),
-    render("var_error").
+    render("var_error"),
+    render("custom_tag"),
+    render("custom_call").
         
 
 %%--------------------------------------------------------------------
@@ -310,9 +315,12 @@ render("var_preset" = Name) ->
 render("var_error" = Name) ->
     render(Name, [{var1, "foostring1"}]);
         
-render("custom_tags" = Name) ->
+render("custom_tag" = Name) ->
     render(Name, []);
                 
+render("custom_call" = Name) ->
+    render(Name, []);
+                    
 render(Name) ->
     io:format("No such template: ~p~n",[Name]).  
                 
