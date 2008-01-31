@@ -62,7 +62,7 @@ scan([], Scanned, _, in_text) ->
                             "not", "or", "and", "comment", "endcomment", "cycle", "firstof",
                             "ifchanged", "ifequal", "endifequal", "ifnotequal", "endifnotequal",
                             "now", "regroup", "spaceless", "endspaceless", "ssi", "templatetag",
-                            "load"], 
+                            "load", "call", "with"], 
                         Type = case lists:member(RevString, Keywords) of
                             true ->
                                 list_to_atom(RevString ++ "_keyword");

@@ -82,11 +82,15 @@ Nonterminals
     LoadNames
     
     CustomTag
-    Args.
+    Args
+    
+    CallTag
+    CallWithTag.
 
 Terminals
     autoescape_keyword
     block_keyword
+    call_keyword
     close_tag
     close_var
     comment_keyword
@@ -117,7 +121,8 @@ Terminals
     open_var
     pipe
     string_literal
-    text.
+    text
+    with_keyword.
 
 Rootsymbol
     Elements.
@@ -128,7 +133,6 @@ Elements -> Elements VariableBraced : '$1' ++ ['$2'].
 Elements -> Elements ExtendsTag : '$1' ++ ['$2'].
 Elements -> Elements IncludeTag : '$1' ++ ['$2'].
 Elements -> Elements LoadTag : '$1' ++ ['$2'].
-Elements -> Elements CustomTag : '$1' ++ ['$2'].
 Elements -> Elements BlockBlock : '$1' ++ ['$2'].
 Elements -> Elements ForBlock : '$1' ++ ['$2'].
 Elements -> Elements IfBlock : '$1' ++ ['$2'].
@@ -136,6 +140,9 @@ Elements -> Elements IfEqualBlock : '$1' ++ ['$2'].
 Elements -> Elements IfNotEqualBlock : '$1' ++ ['$2'].
 Elements -> Elements AutoEscapeBlock : '$1' ++ ['$2'].
 Elements -> Elements CommentBlock : '$1' ++ ['$2'].
+Elements -> Elements CustomTag : '$1' ++ ['$2'].
+Elements -> Elements CallTag : '$1' ++ ['$2'].
+Elements -> Elements CallWithTag : '$1' ++ ['$2'].
 
 VariableBraced -> open_var Variable close_var : '$2'.
 
@@ -151,11 +158,6 @@ IncludeTag -> open_tag include_keyword string_literal close_tag : {include, '$3'
 LoadTag -> open_tag load_keyword LoadNames close_tag : {load, '$3'}.
 LoadNames -> identifier : ['$1'].
 LoadNames -> LoadNames identifier : '$1' ++ ['$2'].
-
-CustomTag -> open_tag identifier Args close_tag : {tag, '$2', '$3'}.
-
-Args -> '$empty' : [].
-Args -> Args identifier equal Variable : '$1' ++ [{'$2', '$4'}].
 
 BlockBlock -> BlockBraced Elements EndBlockBraced : {block, '$1', '$2'}.
 BlockBraced -> open_tag block_keyword identifier close_tag : '$3'.
@@ -203,3 +205,11 @@ Filter -> identifier colon Literal : ['$1', '$3'].
 
 Literal -> string_literal : '$1'.
 Literal -> number_literal : '$1'.
+
+CustomTag -> open_tag identifier Args close_tag : {tag, '$2', '$3'}.
+
+Args -> '$empty' : [].
+Args -> Args identifier equal Variable : '$1' ++ [{'$2', '$4'}].
+
+CallTag -> open_tag call_keyword identifier close_tag : {call, '$3'}.
+CallWithTag -> open_tag call_keyword identifier with_keyword Variable close_tag: {call, '$3', '$5'}.
