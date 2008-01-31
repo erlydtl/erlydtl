@@ -69,8 +69,8 @@ create_parser() ->
 compile_all() ->
     compile("autoescape"),
     compile("comment"),
-    compile("customtags"),
-    compile("customtags_error"),
+    compile("custom_tags"),
+    compile("custom_tags_error"),
     compile("extends"),
     compile("filters"),
     compile("for"),
@@ -171,10 +171,10 @@ compile("for_records_preset" = Name) ->
     Var = [{software_links, [Link1, Link2, Link3]}],
     compile(Name, ".html", Var);
     
-compile("customtags" = Name) ->
+compile("custom_tags" = Name) ->
     compile(Name, ".html", []);
 
-compile("customtags_error" = Name) ->
+compile("custom_tags_error" = Name) ->
     compile(Name, ".html", []);
                   
 compile(Name) ->
@@ -212,7 +212,7 @@ compile(Name, Ext, Vars) ->
 render_all() ->
     render("autoescape"),
     render("comment"),
-    render("customtags"),
+    render("custom_tags"),
     render("extends"),
     render("filters"),
     render("for"),
@@ -310,7 +310,7 @@ render("var_preset" = Name) ->
 render("var_error" = Name) ->
     render(Name, [{var1, "foostring1"}]);
         
-render("customtags" = Name) ->
+render("custom_tags" = Name) ->
     render(Name, []);
                 
 render(Name) ->
