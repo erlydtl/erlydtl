@@ -168,10 +168,6 @@ forms(File, Module, BodyAst, BodyInfo) ->
             Render1FunctionAst, SourceFunctionAst, DependenciesFunctionAst, RenderInternalFunctionAst, 
             ProplistsFunctionAst | BodyInfo#ast_info.pre_render_asts]].    
 
-
-full_path(File, DocRoot) ->
-    filename:join([DocRoot, File]).
-
         
 % child templates should only consist of blocks at the top level
 body_ast([{extends, {string_literal, _Pos, String}} | ThisParseTree], Context, TreeWalker) ->
@@ -193,6 +189,7 @@ body_ast([{extends, {string_literal, _Pos, String}} | ThisParseTree], Context, T
                         BlockDict, Context#dtl_context.block_dict),
                     parse_trail = [File | Context#dtl_context.parse_trail]}, TreeWalker))
     end;
+ 
     
 body_ast(DjangoParseTree, Context, TreeWalker) ->
     {AstInfoList, TreeWalker2} = lists:mapfoldl(
@@ -293,6 +290,7 @@ body_ast(DjangoParseTree, Context, TreeWalker) ->
         end, {#ast_info{}, TreeWalker2}, AstInfoList),
     {{erl_syntax:list(AstList), Info}, TreeWalker3}.
 
+
 merge_info(Info1, Info2) ->
     #ast_info{dependencies = 
         lists:merge(
@@ -307,21 +305,31 @@ merge_info(Info1, Info2) ->
                 Info1#ast_info.pre_render_asts,
                 Info2#ast_info.pre_render_asts)}.
 
+
+with_dependencies([], Args) ->
+    Args;
+with_dependencies([H, T], Args) ->
+     with_dependencies(T, with_dependency(H, Args)).
+        
 with_dependency(FilePath, {{Ast, Info}, TreeWalker}) ->
     {{Ast, Info#ast_info{dependencies = [FilePath | Info#ast_info.dependencies]}}, TreeWalker}.
+
 
 empty_ast(TreeWalker) ->
     {{erl_syntax:list([]), #ast_info{}}, TreeWalker}.
 
+
 string_ast(String, TreeWalker) ->
     {{erl_syntax:string(String), #ast_info{}}, TreeWalker}. %% less verbose AST, better for development and debugging
     % {{erl_syntax:binary([erl_syntax:binary_field(erl_syntax:integer(X)) || X <- String]), #ast_info{}}, TreeWalker}.       
+
 
 include_ast(File, Context, TreeWalker) ->
     FilePath = full_path(File, Context#dtl_context.doc_root),
     {ok, InclusionParseTree} = parse(FilePath, Context#dtl_context.reader),
     with_dependency(FilePath, body_ast(InclusionParseTree, Context#dtl_context{
         parse_trail = [FilePath | Context#dtl_context.parse_trail]}, TreeWalker)).
+
 
 filter_ast(Variable, Filter, Context, TreeWalker) ->
     % the escape filter is special; it is always applied last, so we have to go digging for it
@@ -382,8 +390,10 @@ resolve_variable_ast({{identifier, _, VarName}, {identifier, _, AttrName}}, Cont
     {erl_syntax:application(ModuleAst, erl_syntax:atom(get_value),
                     [erl_syntax:atom(AttrName), resolve_variable_name_ast(VarName, Context)]), VarName}.
 
+
 resolve_variable_name_ast(VarName, Context) ->
     resolve_variable_name_ast(VarName, Context, none).
+  
     
 resolve_variable_name_ast(VarName, Context, ModuleAst) ->
     VarValue = lists:foldl(fun(Scope, Value) ->
@@ -402,12 +412,15 @@ resolve_variable_name_ast(VarName, Context, ModuleAst) ->
             VarValue
     end.
 
+
 format(Ast, Context) ->
     auto_escape(format_integer_ast(Ast), Context).
+
 
 format_integer_ast(Ast) ->
     erl_syntax:application(erl_syntax:atom(erlydtl_filters), erl_syntax:atom(format_integer),
         [Ast]).
+
 
 auto_escape(Value, Context) ->
     case Context#dtl_context.auto_escape of
@@ -417,6 +430,7 @@ auto_escape(Value, Context) ->
         _ ->
             Value
     end.
+
 
 ifelse_ast(Variable, {IfContentsAst, IfContentsInfo}, {ElseContentsAst, ElseContentsInfo}, Context, TreeWalker) ->
     Info = merge_info(IfContentsInfo, ElseContentsInfo),
@@ -434,6 +448,7 @@ ifelse_ast(Variable, {IfContentsAst, IfContentsInfo}, {ElseContentsAst, ElseCont
             erl_syntax:clause([erl_syntax:underscore()], none,
                 [IfContentsAst])
         ]), Info#ast_info{var_names = [VarName | VarNames]}}, TreeWalker}.
+
         
 ifequalelse_ast(Args, {IfContentsAst, IfContentsInfo}, {ElseContentsAst, ElseContentsInfo}, Context, TreeWalker) ->
     Info = merge_info(IfContentsInfo, ElseContentsInfo),
@@ -458,6 +473,7 @@ ifequalelse_ast(Args, {IfContentsAst, IfContentsInfo}, {ElseContentsAst, ElseCon
                     erl_syntax:clause([erl_syntax:underscore()], none, [ElseContentsAst])])])]), 
                         erl_syntax:list([Arg1Ast, Arg2Ast])]),    
     {{Ast, Info#ast_info{var_names = VarNames}}, TreeWalker}.         
+
 
 for_loop_ast(IteratorList, {variable, Variable}, Contents, Context, TreeWalker) ->
     Vars = lists:map(fun({identifier, _, Iterator}) -> 
@@ -502,6 +518,7 @@ load_ast(Names, _Context, TreeWalker) ->
     CustomTags = lists:merge([X || {identifier, _ , X} <- Names], TreeWalker#treewalker.custom_tags),
     {{erl_syntax:list([]), #ast_info{}}, TreeWalker#treewalker{custom_tags = CustomTags}}.  
 
+
 unescape_string_literal(String) ->
     unescape_string_literal(string:strip(String, both, 34), [], noslash).
 
@@ -521,6 +538,9 @@ unescape_string_literal([C | Rest], Acc, slash) ->
     unescape_string_literal(Rest, [C | Acc], noslash).
 
 
+full_path(File, DocRoot) ->
+    filename:join([DocRoot, File]).
+        
 %%-------------------------------------------------------------------
 %% Custom tags
 %%-------------------------------------------------------------------
@@ -597,5 +617,6 @@ call_ast(Module, Variable, AstInfo, TreeWalker) ->
 		 [erl_syntax:tuple([erl_syntax:atom(error), ReasonAst])], 
 		 none,
 		 [ErrStrAst]),
-    CallAst = erl_syntax:case_expr(AppAst, [OkAst, ErrorAst]),
-    {{CallAst, AstInfo}, TreeWalker}.
+    CallAst = erl_syntax:case_expr(AppAst, [OkAst, ErrorAst]),   
+    Module2 = list_to_atom(Module),
+    with_dependencies(Module2:dependencies(), {{CallAst, AstInfo}, TreeWalker}).

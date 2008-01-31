@@ -319,7 +319,7 @@ render("custom_tag" = Name) ->
     render(Name, []);
                 
 render("custom_call" = Name) ->
-    render(Name, []);
+    render(Name, [{var1, "something"}]);
                     
 render(Name) ->
     io:format("No such template: ~p~n",[Name]).  
