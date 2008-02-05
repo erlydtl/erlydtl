@@ -35,6 +35,12 @@
 -author('rsaccon@gmail.com').
 -author('emmiller@gmail.com').
 
+-ifdef(debug). 
+-define(RECOMPILE_ALWAYS, true). 
+-else. 
+-define(RECOMPILE_ALWAYS, false). 
+-endif.
+
 -export([compile/2, compile/3, compile/4, compile/5, compile/6,compile/7]).
 
 -record(dtl_context, {
@@ -114,7 +120,9 @@ compile(File, Module, DocRoot, Vars, CustomTagsDir, Reader, OutDir) ->
     end.
     
 
-is_up_to_date(CheckSum, Module, {M, F}) ->
+is_up_to_date(_, _, _, true) ->
+    false;
+is_up_to_date(CheckSum, Module, {M, F}, _) ->
     case catch Module:source() of
         {_, CheckSum} -> 
             case catch Module:dependencies() of
@@ -155,8 +163,8 @@ parse(Data) ->
   
         
 parse(CheckSum, Module, Data, Reader) ->
-    case is_up_to_date(CheckSum, Module, Reader) of
-        true_ignoring_for_now ->  %% it works, but is disabled, to enable change to 'true' 
+    case is_up_to_date(CheckSum, Module, Reader, ?RECOMPILE_ALWAYS) of
+        true ->
             ok;
         _ ->
             case parse(Data) of
