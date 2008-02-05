@@ -35,13 +35,7 @@
 -author('rsaccon@gmail.com').
 -author('emmiller@gmail.com').
 
--ifdef(debug). 
--define(RECOMPILE_ALWAYS, true). 
--else. 
--define(RECOMPILE_ALWAYS, false). 
--endif.
-
--export([compile/2, compile/3, compile/4, compile/5, compile/6,compile/7]).
+-export([compile/2, compile/3]).
 
 -record(dtl_context, {
     local_scopes = [], 
@@ -49,10 +43,11 @@
     auto_escape = off, 
     doc_root = "", 
     parse_trail = [],
-    preset_vars = [],
+    vars = [],
     custom_tags_dir = [],
     reader = {file, read_file},
-    module = []}).
+    module = [],
+    force_recompile = false}).
 
 -record(ast_info, {
     dependencies = [],
@@ -64,38 +59,21 @@
     custom_tags = []}).    
 
 
-compile(File, Module) ->
-    compile(File, Module, "").
-
-compile(File, Module, DocRoot) ->
-    compile(File, Module, DocRoot, []).
-
-compile(File, Module, DocRoot, Vars) ->
-    compile(File, Module, DocRoot, Vars, []).
-        
-compile(File, Module, DocRoot, Vars, CustomTagsDir) ->
-    compile(File, Module, DocRoot, Vars, CustomTagsDir, {file, read_file}).
-        
-compile(File, Module, DocRoot, Vars, CustomTagsDir, Reader) ->
-    compile(File, Module, DocRoot, Vars, CustomTagsDir, Reader, "ebin").
-
-
-compile(File, Module, DocRoot, Vars, CustomTagsDir, Reader, OutDir) ->  
+compile(File, Module) -> 
+    compile(File, Module, []).
+    
+compile(File, Module, Options) ->  
     crypto:start(),
-    case parse(File, list_to_atom(Module), Reader) of  
+    Context = init_dtl_context(File, Module, Options),
+    case parse(File, Context) of  
         ok ->
             ok;
         {ok, DjangoParseTree, CheckSum} ->
-            try body_ast(DjangoParseTree, #dtl_context{
-                    doc_root = DocRoot,
-                    custom_tags_dir = CustomTagsDir,
-                    parse_trail = [File], 
-                    preset_vars = Vars, 
-                    reader = Reader,
-                    module = list_to_atom(Module)}, #treewalker{}) of
+            try body_ast(DjangoParseTree, Context, #treewalker{}) of
                 {{Ast, Info}, _} ->
                     case compile:forms(forms(File, Module, Ast, Info, CheckSum), []) of
-                        {ok, Module1, Bin} ->       
+                        {ok, Module1, Bin} -> 
+                            OutDir = proplists:get_value(out_dir, Options, "ebin"),       
                             BeamFile = filename:join([OutDir, atom_to_list(Module1) ++ ".beam"]),
                             case file:write_file(BeamFile, Bin) of
                                 ok ->
@@ -118,11 +96,25 @@ compile(File, Module, DocRoot, Vars, CustomTagsDir, Reader, OutDir) ->
         Err ->
             Err
     end.
+
+
+init_dtl_context(File, Module, Options) ->
+    Ctx = #dtl_context{},
+    #dtl_context{
+        parse_trail = [File], 
+        module = list_to_atom(Module),        
+        doc_root = proplists:get_value(doc_root, Options, filename:dirname(File)),
+        custom_tags_dir = proplists:get_value(custom_tags_dir, Options, Ctx#dtl_context.custom_tags_dir),
+        vars = proplists:get_value(vars, Options, Ctx#dtl_context.vars), 
+        reader = proplists:get_value(reader, Options, Ctx#dtl_context.reader),
+        force_recompile = proplists:get_value(force_recompile, Options, Ctx#dtl_context.force_recompile)}.
     
 
-is_up_to_date(_, _, _, true) ->
+is_up_to_date(_, #dtl_context{force_recompile = true}) ->
     false;
-is_up_to_date(CheckSum, Module, {M, F}, _) ->
+is_up_to_date(CheckSum, Context) ->
+    Module = Context#dtl_context.module,
+    {M, F} = Context#dtl_context.reader,
     case catch Module:source() of
         {_, CheckSum} -> 
             case catch Module:dependencies() of
@@ -162,8 +154,8 @@ parse(Data) ->
     end.        
   
         
-parse(CheckSum, Module, Data, Reader) ->
-    case is_up_to_date(CheckSum, Module, Reader, ?RECOMPILE_ALWAYS) of
+parse(CheckSum, Data, Context) ->
+    case is_up_to_date(CheckSum, Context) of
         true ->
             ok;
         _ ->
@@ -174,13 +166,14 @@ parse(CheckSum, Module, Data, Reader) ->
                     Err
             end
     end.
-    
 
-parse(File, Module, {M, F} = Reader) ->  
+
+parse(File, Context) ->  
+    {M, F} = Context#dtl_context.reader,
     case catch M:F(File) of
         {ok, Data} ->
             CheckSum = binary_to_list(crypto:sha(Data)),
-            parse(CheckSum, Module, Data, Reader);
+            parse(CheckSum, Data, Context);
         _ ->
             {error, "reading " ++ File ++ " failed "}
     end.
@@ -249,19 +242,22 @@ body_ast([{extends, {string_literal, _Pos, String}} | ThisParseTree], Context, T
         true ->
             throw({error, "Circular file inclusion!"});
         _ ->
-            %% TODO: check for errors
-            {ok, ParentParseTree, CheckSum} = parse(File, Context#dtl_context.module, Context#dtl_context.reader),
-            BlockDict = lists:foldl(
-                fun
-                    ({block, {identifier, _, Name}, Contents}, Dict) ->
-                        dict:store(Name, Contents, Dict);
-                    (_, Dict) ->
-                        Dict
-                end, dict:new(), ThisParseTree),
-            with_dependency({File, CheckSum}, body_ast(ParentParseTree, Context#dtl_context{
-                    block_dict = dict:merge(fun(_Key, _ParentVal, ChildVal) -> ChildVal end,
-                        BlockDict, Context#dtl_context.block_dict),
-                    parse_trail = [File | Context#dtl_context.parse_trail]}, TreeWalker))
+            case parse(File, Context) of
+                {ok, ParentParseTree, CheckSum} ->
+                    BlockDict = lists:foldl(
+                        fun
+                            ({block, {identifier, _, Name}, Contents}, Dict) ->
+                                dict:store(Name, Contents, Dict);
+                            (_, Dict) ->
+                                Dict
+                        end, dict:new(), ThisParseTree),
+                    with_dependency({File, CheckSum}, body_ast(ParentParseTree, Context#dtl_context{
+                        block_dict = dict:merge(fun(_Key, _ParentVal, ChildVal) -> ChildVal end,
+                            BlockDict, Context#dtl_context.block_dict),
+                                parse_trail = [File | Context#dtl_context.parse_trail]}, TreeWalker));
+                Err ->
+                    throw(Err)
+            end        
     end;
  
     
@@ -340,7 +336,7 @@ body_ast(DjangoParseTree, Context, TreeWalker) ->
         fun({Ast, Info}, {InfoAcc, TreeWalkerAcc}) -> 
                 PresetVars = lists:foldl(fun
                         (X, Acc) ->
-                            case proplists:lookup(list_to_atom(X), Context#dtl_context.preset_vars) of
+                            case proplists:lookup(list_to_atom(X), Context#dtl_context.vars) of
                                 none ->
                                     Acc;
                                 Val ->
@@ -400,11 +396,14 @@ string_ast(String, TreeWalker) ->
 
 include_ast(File, Context, TreeWalker) ->
     FilePath = full_path(File, Context#dtl_context.doc_root),
-    %% TODO: check for errors (and throw error report)
-    {ok, InclusionParseTree, CheckSum} = parse(FilePath, Context#dtl_context.module, Context#dtl_context.reader),
-    with_dependency({FilePath, CheckSum}, body_ast(InclusionParseTree, Context#dtl_context{
-        parse_trail = [FilePath | Context#dtl_context.parse_trail]}, TreeWalker)).
-
+    case parse(FilePath, Context) of
+        {ok, InclusionParseTree, CheckSum} ->
+            with_dependency({FilePath, CheckSum}, body_ast(InclusionParseTree, Context#dtl_context{
+                parse_trail = [FilePath | Context#dtl_context.parse_trail]}, TreeWalker));
+        Err ->
+            throw(Err)
+    end.
+    
 
 filter_ast(Variable, Filter, Context, TreeWalker) ->
     % the escape filter is special; it is always applied last, so we have to go digging for it
@@ -632,7 +631,7 @@ tag_ast(Name, Args, Context, TreeWalker) ->
             DefaultFilePath = filename:join([erlydtl_deps:get_base_dir(), "priv", "custom_tags", Name]),
             case Context#dtl_context.custom_tags_dir of
                 [] ->
-                    case parse(DefaultFilePath, Context#dtl_context.module, Context#dtl_context.reader) of
+                    case parse(DefaultFilePath, Context) of
                         {ok, TagParseTree, CheckSum} ->
                             tag_ast2({DefaultFilePath, CheckSum}, TagParseTree, InterpretedArgs, Context, TreeWalker);
                         _ ->
@@ -642,11 +641,11 @@ tag_ast(Name, Args, Context, TreeWalker) ->
                     end;
                 _ ->
                     CustomFilePath = filename:join([Context#dtl_context.custom_tags_dir, Name]),
-                    case parse(CustomFilePath, Context#dtl_context.module, Context#dtl_context.reader) of
+                    case parse(CustomFilePath, Context) of
                         {ok, TagParseTree, CheckSum} ->
                             tag_ast2({CustomFilePath, CheckSum},TagParseTree, InterpretedArgs, Context, TreeWalker);
                         _ ->
-                            case parse(DefaultFilePath, Context#dtl_context.module, Context#dtl_context.reader) of
+                            case parse(DefaultFilePath, Context) of
                                 {ok, TagParseTree, CheckSum} ->
                                     tag_ast2({DefaultFilePath, CheckSum}, TagParseTree, InterpretedArgs, Context, TreeWalker);
                                 _ ->

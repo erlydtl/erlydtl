@@ -195,7 +195,7 @@ compile(Name, Ext, Vars) ->
     DocRoot = filename:join([filename:dirname(code:which(?MODULE)),"..", "demo", "templates"]),
     Module = "test_" ++ Name,
     File = filename:join([DocRoot, Module ++ Ext]),
-    case erlydtl_compiler:compile(File, Module, DocRoot, Vars) of
+    case erlydtl_compiler:compile(File, Module, [{vars, Vars}, {force_recompile, true}]) of
         ok ->
             io:format("compile success: ~p~n",[Module]);
         {error, Reason} ->
