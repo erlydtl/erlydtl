@@ -335,7 +335,8 @@ render(Name, Args) ->
     Module = list_to_atom("test_" ++ Name),
     case catch Module:render(Args) of
         {ok, Val} -> 
-            case file:open(filename:join([OutDir, filename:basename(Module:source())]), [write]) of
+            {File, _} = Module:source(),
+            case file:open(filename:join([OutDir, filename:basename(File)]), [write]) of
                 {ok, IoDev} ->
                     file:write(IoDev, Val),
                     file:close(IoDev),
