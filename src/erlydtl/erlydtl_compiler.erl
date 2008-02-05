@@ -35,7 +35,7 @@
 -author('rsaccon@gmail.com').
 -author('emmiller@gmail.com').
 
--export([compile/2, compile/3, compile/4, compile/5, compile/6,compile/7, parse/2, scan/2, body_ast/3]).
+-export([compile/2, compile/3, compile/4, compile/5, compile/6,compile/7]).
 
 -record(dtl_context, {
     local_scopes = [], 
@@ -45,7 +45,8 @@
     parse_trail = [],
     preset_vars = [],
     custom_tags_dir = [],
-    reader = {file, read_file}}).
+    reader = {file, read_file},
+    module = []}).
 
 -record(ast_info, {
     dependencies = [],
@@ -72,15 +73,22 @@ compile(File, Module, DocRoot, Vars, CustomTagsDir) ->
 compile(File, Module, DocRoot, Vars, CustomTagsDir, Reader) ->
     compile(File, Module, DocRoot, Vars, CustomTagsDir, Reader, "ebin").
 
-compile(File, Module, DocRoot, Vars, CustomTagsDir, Reader, OutDir) ->   
-    case parse(File, Reader) of
-        {ok, DjangoParseTree} ->        
+
+compile(File, Module, DocRoot, Vars, CustomTagsDir, Reader, OutDir) ->  
+    crypto:start(),
+    case parse(File, list_to_atom(Module), Reader) of  
+        ok ->
+            ok;
+        {ok, DjangoParseTree, CheckSum} ->
             try body_ast(DjangoParseTree, #dtl_context{
                     doc_root = DocRoot,
                     custom_tags_dir = CustomTagsDir,
-                    parse_trail = [File], preset_vars = Vars, reader = Reader}, #treewalker{}) of
+                    parse_trail = [File], 
+                    preset_vars = Vars, 
+                    reader = Reader,
+                    module = list_to_atom(Module)}, #treewalker{}) of
                 {{Ast, Info}, _} ->
-                    case compile:forms(forms(File, Module, Ast, Info), []) of
+                    case compile:forms(forms(File, Module, Ast, Info, CheckSum), []) of
                         {ok, Module1, Bin} ->       
                             BeamFile = filename:join([OutDir, atom_to_list(Module1) ++ ".beam"]),
                             case file:write_file(BeamFile, Bin) of
@@ -100,31 +108,77 @@ compile(File, Module, DocRoot, Vars, CustomTagsDir, Reader, OutDir) ->
                     end
             catch 
                 throw:Error -> Error
-            end; 
-        Error ->
-            Error
+            end;
+        Err ->
+            Err
     end.
+    
 
-
-scan(File, {Module, Function}) ->
-    case catch Module:Function(File) of
-        {ok, B} ->
-            erlydtl_scanner:scan(binary_to_list(B));
+is_up_to_date(CheckSum, Module, {M, F}) ->
+    case catch Module:source() of
+        {_, CheckSum} -> 
+            case catch Module:dependencies() of
+                L when is_list(L) ->
+                    RecompileList = lists:foldl(fun
+                            ({XFile, XCheckSum}, Acc) ->
+                                case catch M:F(XFile) of
+                                    {ok, Data} ->
+                                        case binary_to_list(crypto:sha(Data)) of
+                                            XCheckSum ->
+                                                Acc;
+                                            _ ->
+                                                [recompile | Acc]
+                                        end;
+                                    _ ->
+                                        [recompile | Acc]
+                                end                                        
+                        end, [], L),
+                    case RecompileList of
+                        [] -> true; 
+                        _ -> false
+                    end;
+                _ ->
+                    false
+            end;
         _ ->
-            {error, "reading " ++ File ++ " failed "}
+            false
     end.
-
-
-parse(File, Reader) ->
-    case scan(File, Reader) of
+    
+    
+parse(Data) ->
+    case erlydtl_scanner:scan(binary_to_list(Data)) of
         {ok, Tokens} ->
             erlydtl_parser:parse(Tokens);
         Err ->
             Err
+    end.        
+  
+        
+parse(CheckSum, Module, Data, Reader) ->
+    case is_up_to_date(CheckSum, Module, Reader) of
+        true_ignoring_for_now ->  %% it works, but is disabled, to enable change to 'true' 
+            ok;
+        _ ->
+            case parse(Data) of
+                {ok, Val} ->
+                    {ok, Val, CheckSum};
+                Err ->
+                    Err
+            end
     end.
+    
+
+parse(File, Module, {M, F} = Reader) ->  
+    case catch M:F(File) of
+        {ok, Data} ->
+            CheckSum = binary_to_list(crypto:sha(Data)),
+            parse(CheckSum, Module, Data, Reader);
+        _ ->
+            {error, "reading " ++ File ++ " failed "}
+    end.
+
   
-  
-forms(File, Module, BodyAst, BodyInfo) ->    
+forms(File, Module, BodyAst, BodyInfo, CheckSum) ->    
     Render0FunctionAst = erl_syntax:function(erl_syntax:atom(render),
         [erl_syntax:clause([], none, [erl_syntax:application(none, 
                         erl_syntax:atom(render), [erl_syntax:list([])])])]),
@@ -136,21 +190,29 @@ forms(File, Module, BodyAst, BodyInfo) ->
         [erl_syntax:tuple([erl_syntax:atom(error), erl_syntax:variable("Err")])]),            
     Render1FunctionAst = erl_syntax:function(erl_syntax:atom(render),
         [erl_syntax:clause([erl_syntax:variable("Variables")], none, 
-                [erl_syntax:try_expr([Function2], [ClauseOk], [ClauseCatch])])]),  
+            [erl_syntax:try_expr([Function2], [ClauseOk], [ClauseCatch])])]),  
+     
+    SourceFunctionTuple = erl_syntax:tuple(
+        [erl_syntax:string(File), erl_syntax:string(CheckSum)]),
     SourceFunctionAst = erl_syntax:function(
         erl_syntax:atom(source),
-        [erl_syntax:clause([], none, [erl_syntax:string(File)])]),
+            [erl_syntax:clause([], none, [SourceFunctionTuple])]),
+    
     DependenciesFunctionAst = erl_syntax:function(
         erl_syntax:atom(dependencies), [erl_syntax:clause([], none, 
-                [erl_syntax:list(lists:map(fun(Dep) -> erl_syntax:string(Dep) end, 
-                            BodyInfo#ast_info.dependencies))])]),     
+            [erl_syntax:list(lists:map(fun 
+                    ({XFile, XCheckSum}) -> 
+                        erl_syntax:tuple([erl_syntax:string(XFile), erl_syntax:string(XCheckSum)])
+                end, BodyInfo#ast_info.dependencies))])]),     
+    
     RenderInternalFunctionAst = erl_syntax:function(
         erl_syntax:atom(render2), 
-        [erl_syntax:clause([erl_syntax:variable("Variables")], none, 
+            [erl_syntax:clause([erl_syntax:variable("Variables")], none, 
                 [BodyAst])]),   
+    
     ProplistsClauseErr = erl_syntax:clause([erl_syntax:atom(undefined)], none, 
-    [erl_syntax:application(none, erl_syntax:atom(throw),
-        [erl_syntax:tuple([erl_syntax:atom(undefined_variable), erl_syntax:variable("Key")])])]),  
+        [erl_syntax:application(none, erl_syntax:atom(throw),
+            [erl_syntax:tuple([erl_syntax:atom(undefined_variable), erl_syntax:variable("Key")])])]),  
     ProplistsClauseOk = erl_syntax:clause([erl_syntax:variable("Val")], none, 
         [erl_syntax:variable("Val")]),       
     ProplistsFunctionAst = erl_syntax:function(erl_syntax:atom(get_value), 
@@ -158,12 +220,15 @@ forms(File, Module, BodyAst, BodyInfo) ->
                 [erl_syntax:case_expr(erl_syntax:application(erl_syntax:atom(proplists), 
                             erl_syntax:atom(get_value), [erl_syntax:variable("Key"), erl_syntax:variable("L")]), 
                         [ProplistsClauseErr, ProplistsClauseOk])])]),
+    
     ModuleAst  = erl_syntax:attribute(erl_syntax:atom(module), [erl_syntax:atom(Module)]),
+    
     ExportAst = erl_syntax:attribute(erl_syntax:atom(export),
         [erl_syntax:list([erl_syntax:arity_qualifier(erl_syntax:atom(render), erl_syntax:integer(0)),
                     erl_syntax:arity_qualifier(erl_syntax:atom(render), erl_syntax:integer(1)),
                     erl_syntax:arity_qualifier(erl_syntax:atom(source), erl_syntax:integer(0)),
                     erl_syntax:arity_qualifier(erl_syntax:atom(dependencies), erl_syntax:integer(0))])]),
+    
     [erl_syntax:revert(X) || X <- [ModuleAst, ExportAst, Render0FunctionAst,
             Render1FunctionAst, SourceFunctionAst, DependenciesFunctionAst, RenderInternalFunctionAst, 
             ProplistsFunctionAst | BodyInfo#ast_info.pre_render_asts]].    
@@ -176,7 +241,8 @@ body_ast([{extends, {string_literal, _Pos, String}} | ThisParseTree], Context, T
         true ->
             throw({error, "Circular file inclusion!"});
         _ ->
-            {ok, ParentParseTree} = parse(File, Context#dtl_context.reader),
+            %% TODO: check for errors
+            {ok, ParentParseTree, CheckSum} = parse(File, Context#dtl_context.module, Context#dtl_context.reader),
             BlockDict = lists:foldl(
                 fun
                     ({block, {identifier, _, Name}, Contents}, Dict) ->
@@ -184,7 +250,7 @@ body_ast([{extends, {string_literal, _Pos, String}} | ThisParseTree], Context, T
                     (_, Dict) ->
                         Dict
                 end, dict:new(), ThisParseTree),
-            with_dependency(File, body_ast(ParentParseTree, Context#dtl_context{
+            with_dependency({File, CheckSum}, body_ast(ParentParseTree, Context#dtl_context{
                     block_dict = dict:merge(fun(_Key, _ParentVal, ChildVal) -> ChildVal end,
                         BlockDict, Context#dtl_context.block_dict),
                     parse_trail = [File | Context#dtl_context.parse_trail]}, TreeWalker))
@@ -326,8 +392,9 @@ string_ast(String, TreeWalker) ->
 
 include_ast(File, Context, TreeWalker) ->
     FilePath = full_path(File, Context#dtl_context.doc_root),
-    {ok, InclusionParseTree} = parse(FilePath, Context#dtl_context.reader),
-    with_dependency(FilePath, body_ast(InclusionParseTree, Context#dtl_context{
+    %% TODO: check for errors (and throw error report)
+    {ok, InclusionParseTree, CheckSum} = parse(FilePath, Context#dtl_context.module, Context#dtl_context.reader),
+    with_dependency({FilePath, CheckSum}, body_ast(InclusionParseTree, Context#dtl_context{
         parse_trail = [FilePath | Context#dtl_context.parse_trail]}, TreeWalker)).
 
 
@@ -557,9 +624,9 @@ tag_ast(Name, Args, Context, TreeWalker) ->
             DefaultFilePath = filename:join([erlydtl_deps:get_base_dir(), "priv", "custom_tags", Name]),
             case Context#dtl_context.custom_tags_dir of
                 [] ->
-                    case parse(DefaultFilePath, Context#dtl_context.reader) of
-                        {ok, TagParseTree} ->
-                            tag_ast2(DefaultFilePath, TagParseTree, InterpretedArgs, Context, TreeWalker);
+                    case parse(DefaultFilePath, Context#dtl_context.module, Context#dtl_context.reader) of
+                        {ok, TagParseTree, CheckSum} ->
+                            tag_ast2({DefaultFilePath, CheckSum}, TagParseTree, InterpretedArgs, Context, TreeWalker);
                         _ ->
                             Reason = lists:concat(["Loading tag source for '", Name, "' failed: ", 
                                 DefaultFilePath]),
@@ -567,13 +634,13 @@ tag_ast(Name, Args, Context, TreeWalker) ->
                     end;
                 _ ->
                     CustomFilePath = filename:join([Context#dtl_context.custom_tags_dir, Name]),
-                    case parse(CustomFilePath, Context#dtl_context.reader) of
-                        {ok, TagParseTree} ->
-                            tag_ast2(CustomFilePath, TagParseTree, InterpretedArgs, Context, TreeWalker);
+                    case parse(CustomFilePath, Context#dtl_context.module, Context#dtl_context.reader) of
+                        {ok, TagParseTree, CheckSum} ->
+                            tag_ast2({CustomFilePath, CheckSum},TagParseTree, InterpretedArgs, Context, TreeWalker);
                         _ ->
-                            case parse(DefaultFilePath, Context#dtl_context.reader) of
-                                {ok, TagParseTree} ->
-                                    tag_ast2(DefaultFilePath, TagParseTree, InterpretedArgs, Context, TreeWalker);
+                            case parse(DefaultFilePath, Context#dtl_context.module, Context#dtl_context.reader) of
+                                {ok, TagParseTree, CheckSum} ->
+                                    tag_ast2({DefaultFilePath, CheckSum}, TagParseTree, InterpretedArgs, Context, TreeWalker);
                                 _ ->
                                     Reason = lists:concat(["Loading tag source for '", Name, "' failed: ", 
                                         CustomFilePath, ", ", DefaultFilePath]),
@@ -585,8 +652,8 @@ tag_ast(Name, Args, Context, TreeWalker) ->
             throw({error, lists:concat(["Custom tag '", Name, "' not loaded"])})
     end.
  
- tag_ast2(Source, TagParseTree, InterpretedArgs, Context, TreeWalker) ->
-    with_dependency(Source, body_ast(TagParseTree, Context#dtl_context{
+ tag_ast2({Source, _} = Dep, TagParseTree, InterpretedArgs, Context, TreeWalker) ->
+    with_dependency(Dep, body_ast(TagParseTree, Context#dtl_context{
         local_scopes = [ InterpretedArgs | Context#dtl_context.local_scopes ],
         parse_trail = [ Source | Context#dtl_context.parse_trail ]}, TreeWalker)).
 
