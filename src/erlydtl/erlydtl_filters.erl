@@ -44,14 +44,21 @@ capfirst(Input) ->
 center(Input, Number) ->
     string:centre(lists:flatten(Input), Number).
 
+escapejs([Input]) when is_list(Input) ->
+    escapejs(Input);
+escapejs(Input) ->
+    escapejs(Input, []).
+
 first([[First|_Rest]]) ->
     [First].
 
 fix_ampersands(Input) ->
     fix_ampersands(lists:flatten(Input), []).
 
+force_escape([Input]) when is_list(Input) ->
+    force_escape(Input);
 force_escape(Input) when is_list(Input) ->
-    escape(lists:flatten(Input), []);
+    escape(Input, []);
 force_escape(Input) when is_binary(Input) ->
     escape(binary_to_list(Input), []);
 force_escape(Input) ->
@@ -120,6 +127,15 @@ escape("'" ++ Rest, Acc) ->
     escape(Rest, lists:reverse("&#039;", Acc));
 escape([C | Rest], Acc) ->
     escape(Rest, [C | Acc]).
+
+escapejs([], Acc) ->
+    lists:reverse(Acc);
+escapejs("'" ++ Rest, Acc) ->
+    escapejs(Rest, lists:reverse("\\'", Acc));
+escapejs("\"" ++ Rest, Acc) ->
+    escapejs(Rest, lists:reverse("\\\"", Acc));
+escapejs([C | Rest], Acc) ->
+    escapejs(Rest, [C | Acc]).
 
 fix_ampersands([], Acc) ->
     lists:reverse(Acc);
