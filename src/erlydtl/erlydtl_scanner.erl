@@ -4,7 +4,7 @@
 %%% @author    Evan Miller <emmiller@gmail.com>
 %%% @copyright 2008 Roberto Saccon, Evan Miller
 %%% @doc 
-%%%Template language scanner
+%%% Template language scanner
 %%% @end  
 %%%
 %%% The MIT License

@@ -96,7 +96,11 @@ compile(File, Module, Options) ->
         Err ->
             Err
     end.
+    
 
+%%====================================================================
+%% Internal functions
+%%====================================================================
 
 init_dtl_context(File, Module, Options) ->
     Ctx = #dtl_context{},
