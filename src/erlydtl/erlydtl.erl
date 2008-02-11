@@ -37,27 +37,34 @@
 -author('emmiller@gmail.com').
 
 %% API
--export([create_parser/0]).
+-export([create_parser/0, parser_src/0]).
 
 %% --------------------------------------------------------------------
 %% Definitions
 %% --------------------------------------------------------------------
--ifdef(debug). 
 -define(PRINT_ERR_WARNS, [report_warnings, report_errors]). 
--else. 
--define(PRINT_ERR_WARNS, []). 
--endif.
 
     
 %%--------------------------------------------------------------------
-%% @spec () -> any()
+%% @spec () ->  Ok::atom() | Err::tuple()
 %% @doc creates the yecc-based ErlyDTL parser
 %% @end 
 %%--------------------------------------------------------------------
 create_parser() ->
     create_parser("src/erlydtl/erlydtl_parser", "ebin").
 
-
+ 
+%%--------------------------------------------------------------------
+%% @spec () -> string()
+%% @doc creates the yecc-based ErlyDTL parser
+%% @end 
+%%--------------------------------------------------------------------   
+parser_src() ->
+    {file, Ebin} = code:is_loaded(?MODULE),
+    filename:join([filename:dirname(filename:dirname(Ebin)), 
+        "src", "erlydtl", "erlydtl_parser.yrl"]).
+    
+         
 %%====================================================================
 %% Internal functions
 %%====================================================================

@@ -35,6 +35,11 @@
 -author('rsaccon@gmail.com').
 -author('emmiller@gmail.com').
 
+%% --------------------------------------------------------------------
+%% Definitions
+%% --------------------------------------------------------------------
+-define(COMPILE_OPTIONS, [verbose, report_errors, report_warnings]).
+
 -export([compile/2, compile/3]).
 
 -record(dtl_context, {
@@ -70,8 +75,12 @@ compile(File, Module, Options) ->
             ok;
         {ok, DjangoParseTree, CheckSum} ->
             try body_ast(DjangoParseTree, Context, #treewalker{}) of
-                {{Ast, Info}, _} ->
-                    case compile:forms(forms(File, Module, Ast, Info, CheckSum), []) of
+                {{Ast, Info}, _} ->                  
+                    CompileOptions = case  proplists:get_value(verbose, Options, false) of
+                        true -> ?COMPILE_OPTIONS;
+                        _ -> []
+                    end,
+                    case compile:forms(forms(File, Module, Ast, Info, CheckSum), CompileOptions) of
                         {ok, Module1, Bin} -> 
                             OutDir = proplists:get_value(out_dir, Options, "ebin"),       
                             BeamFile = filename:join([OutDir, atom_to_list(Module1) ++ ".beam"]),

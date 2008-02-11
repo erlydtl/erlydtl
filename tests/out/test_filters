@@ -1,0 +1,42 @@
+Capfirst: Capitalized
+
+Centered:
+<pre>
+       center       
+</pre>
+
+Escape JS: \" \'
+
+First letter: f
+
+Fix ampersands: &amp;
+
+Force_escape: &lt;b&gt;&lt;/b&gt;
+
+Joined: 
+
+Last: t
+
+Length: 3
+
+Length is 2?: false
+
+Left adjust: 
+<pre>
+left                
+</pre>
+
+Line breaks: Line 1<br />Line 2<br />Line 3
+
+Lowercase: lowercase
+
+Plus: 2 + 2 = 4
+
+Right adjust:
+<pre>
+               right
+</pre>
+
+Uppercase: UPPERCASE
+
+URL Encode: Let%27s+go%21
