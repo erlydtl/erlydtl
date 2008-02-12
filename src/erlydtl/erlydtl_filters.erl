@@ -37,82 +37,153 @@
 
 -compile(export_all).
 
-capfirst(Input) ->
-    [H|T] = lists:flatten(Input),
-    [string:to_upper(H)] ++ T.
+-define(NO_ENCODE(C), ((C >= $a andalso C =< $z) orelse
+                                  (C >= $A andalso C =< $Z) orelse
+                                  (C >= $0 andalso C =< $9) orelse
+                                  (C =:= $\. orelse C =:= $- 
+                                  orelse C =:= $~ orelse C =:= $_))).
 
-center(Input, Number) ->
-    string:centre(lists:flatten(Input), Number).
+capfirst([Input]) when is_list(Input) or is_binary (Input) ->
+    capfirst(Input);
+capfirst([H|T]) when H >= $a andalso H =< $z ->
+    [H + $A - $a | T];
+capfirst(<<Byte:8/integer, Binary/binary>>) when Byte >= $a andalso Byte =< $z ->
+    [<<(Byte + $A - $a)>>, Binary].
 
-escapejs([Input]) when is_list(Input) ->
+center([Input], Number) when is_list(Input) or is_binary(Input) ->
+    center(Input, Number);
+center(Input, Number) when is_binary(Input) ->
+    list_to_binary(center(binary_to_list(Input), Number));
+center(Input, Number) when is_list(Input) ->
+    string:centre(Input, Number).
+
+escapejs([Input]) when is_list(Input) or is_binary(Input) ->
     escapejs(Input);
-escapejs(Input) ->
+escapejs(Input) when is_binary(Input) ->
+    escapejs(Input, 0);
+escapejs(Input) when is_list(Input) ->
     escapejs(Input, []).
 
-first([[First|_Rest]]) ->
-    [First].
+first([Input]) when is_list(Input) or is_binary(Input) ->
+    first(Input);
+first([First|_Rest]) ->
+    [First];
+first(<<First, _/binary>>) ->
+    <<First>>.
 
-fix_ampersands(Input) ->
-    fix_ampersands(lists:flatten(Input), []).
+fix_ampersands([Input]) when is_list(Input) or is_binary(Input) ->
+    fix_ampersands(Input);
+fix_ampersands(Input) when is_binary(Input) ->
+    fix_ampersands(Input, 0);
+fix_ampersands(Input) when is_list(Input) ->
+    fix_ampersands(Input, []).
 
-force_escape([Input]) when is_list(Input) ->
+force_escape([Input]) when is_list(Input) or is_binary(Input) ->
     force_escape(Input);
 force_escape(Input) when is_list(Input) ->
     escape(Input, []);
 force_escape(Input) when is_binary(Input) ->
-    escape(binary_to_list(Input), []);
-force_escape(Input) ->
-    Input.
+    escape(Input, 0).
 
+format_integer(Input) when is_integer(Input) ->
+    integer_to_list(Input);
 format_integer(Input) ->
-    case Input of
-        N when is_integer(N) ->
-            integer_to_list(N);
-        Other ->
-            Other
-    end.
+    Input.
 
 join([Input], Separator) when is_list(Input) ->
     string:join(Input, Separator).
 
-last([Input]) when is_list(Input) ->
+last([Input]) when is_list(Input) or is_binary(Input) ->
+    last(Input);
+last(Input) when is_binary(Input) ->
+    case size(Input) of
+        0 -> Input;
+        N ->
+            Offset = N - 1,
+            <<_:Offset/binary, Byte/binary>> = Input,
+            Byte
+    end;
+last(Input) when is_list(Input) ->
     [lists:last(Input)].
 
 length([Input]) when is_list(Input) ->
     integer_to_list(erlang:length(Input));
-length(Input) when is_list(Input) ->
-    integer_to_list(erlang:length(Input)).
+length([Input]) when is_binary(Input) ->
+    integer_to_list(size(Input)).
 
 length_is(Input, Number) when is_list(Input) ->
-    lists:concat([erlang:length(Input) =:= Number]).
+    lists:concat([?MODULE:length(Input) =:= integer_to_list(Number)]).
 
+linebreaksbr([Input]) when is_list(Input) or is_binary(Input) ->
+    linebreaksbr(Input);
+linebreaksbr(Input) when is_binary(Input) ->
+    linebreaksbr(Input, 0);
 linebreaksbr(Input) ->
-    linebreaksbr(lists:flatten(Input), []).
+    linebreaksbr(Input, []).
 
-ljust(Input, Number) ->
-    string:left(lists:flatten(Input), Number).
+ljust([Input], Number) when is_list(Input) or is_binary(Input) ->
+    ljust(Input, Number);
+ljust(Input, Number) when is_binary(Input) ->
+    list_to_binary(ljust(binary_to_list(Input), Number));
+ljust(Input, Number) when is_list(Input) ->
+    string:left(Input, Number).
 
+lower([Input]) when is_list(Input) or is_binary(Input) ->
+    lower(Input);
+lower(Input) when is_binary(Input) ->
+    lower(Input, 0);
 lower(Input) ->
-    string:to_lower(lists:flatten(Input)).
+    string:to_lower(Input).
 
+rjust([Input], Number) when is_list(Input) or is_binary(Input) ->
+    rjust(Input, Number);
+rjust(Input, Number) when is_binary(Input) ->
+    list_to_binary(rjust(binary_to_list(Input), Number));
 rjust(Input, Number) ->
-    string:right(lists:flatten(Input), Number).
+    string:right(Input, Number).
 
-plus([Input], Number) when is_list(Input) ->
-    integer_to_list(list_to_integer(Input) + Number);
+plus([Input], Number) when is_list(Input) or is_binary(Input) ->
+    plus(Input, Number);
+plus(Input, Number) when is_binary(Input) ->
+    list_to_binary(plus(binary_to_list(Input), Number));
 plus(Input, Number) when is_list(Input) ->
-    integer_to_list(list_to_integer(Input) + Number);
+    integer_to_list(plus(list_to_integer(Input), Number));
 plus(Input, Number) when is_integer(Input) ->
     Input + Number.
 
+upper([Input]) when is_list(Input) or is_binary(Input) ->
+    upper(Input);
+upper(Input) when is_binary(Input) ->
+    list_to_binary(upper(binary_to_list(Input)));
 upper(Input) ->
-    string:to_upper(lists:flatten(Input)).
+    string:to_upper(Input).
 
-urlencode(Input) ->
-    urlencode(lists:flatten(Input), []).
+urlencode([Input]) when is_list(Input) or is_binary(Input) ->
+    urlencode(Input);
+urlencode(Input) when is_binary(Input) ->
+    urlencode(Input, 0);
+urlencode(Input) when is_list(Input) ->
+    urlencode(Input, []).
 
 % internal
 
+escape(Binary, Index) when is_binary(Binary) ->
+    case Binary of
+        <<Pre:Index/binary, $<, Post/binary>> ->
+            process_binary_match(Pre, <<"&lt;">>, size(Post), escape(Post, 0));
+        <<Pre:Index/binary, $>, Post/binary>> ->
+            process_binary_match(Pre, <<"&gt;">>, size(Post), escape(Post, 0));
+        <<Pre:Index/binary, $&, Post/binary>> ->
+            process_binary_match(Pre, <<"&amp;">>, size(Post), escape(Post, 0));
+        <<Pre:Index/binary, 34, Post/binary>> ->
+            process_binary_match(Pre, <<"&quot;">>, size(Post), escape(Post, 0));
+        <<Pre:Index/binary, 39, Post/binary>> ->
+            process_binary_match(Pre, <<"&#039;">>, size(Post), escape(Post, 0));
+        <<_:Index/binary, _, _/binary>> ->
+            escape(Binary, Index + 1);
+        Binary ->
+            Binary
+    end;
 escape([], Acc) ->
     lists:reverse(Acc);
 escape("<" ++ Rest, Acc) ->
@@ -128,6 +199,7 @@ escape("'" ++ Rest, Acc) ->
 escape([C | Rest], Acc) ->
     escape(Rest, [C | Acc]).
 
+
 escapejs([], Acc) ->
     lists:reverse(Acc);
 escapejs("'" ++ Rest, Acc) ->
@@ -135,8 +207,28 @@ escapejs("'" ++ Rest, Acc) ->
 escapejs("\"" ++ Rest, Acc) ->
     escapejs(Rest, lists:reverse("\\\"", Acc));
 escapejs([C | Rest], Acc) ->
-    escapejs(Rest, [C | Acc]).
+    escapejs(Rest, [C | Acc]);
+escapejs(Binary, Index) when is_binary(Binary) ->
+    case Binary of
+        <<Pre:Index/binary, 39, Post/binary>> ->
+            process_binary_match(Pre, <<"\\'">>, size(Post), escapejs(Post, 0));
+        <<Pre:Index/binary, 34, Post/binary>> ->
+            process_binary_match(Pre, <<"\\\"">>, size(Post), escapejs(Post, 0));
+        <<_:Index/binary, _/binary>> ->
+            escapejs(Binary, Index + 1);
+        _ ->
+            Binary
+    end.
 
+fix_ampersands(Input, Index) when is_binary(Input) ->
+    case Input of
+        <<Pre:Index/binary, $&, Post/binary>> ->
+            process_binary_match(Pre, <<"&amp;">>, size(Post), Post);
+        <<_:Index/binary, _/binary>> ->
+            fix_ampersands(Input, Index + 1);
+        _ ->
+            Input
+    end;
 fix_ampersands([], Acc) ->
     lists:reverse(Acc);
 fix_ampersands("&" ++ Rest, Acc) ->
@@ -144,6 +236,18 @@ fix_ampersands("&" ++ Rest, Acc) ->
 fix_ampersands([C | Rest], Acc) ->
     fix_ampersands(Rest, [C | Acc]).
 
+linebreaksbr(Input, Index) when is_binary(Input) ->
+    Break = <<"<br />">>,
+    case Input of
+        <<Pre:Index/binary, $\r, $\n, Post/binary>> ->
+            process_binary_match(Pre, Break, size(Post), linebreaksbr(Post, 0));
+        <<Pre:Index/binary, $\n, Post/binary>> ->
+            process_binary_match(Pre, Break, size(Post), linebreaksbr(Post, 0));
+        <<_:Index/binary, _/binary>> ->
+            linebreaksbr(Input, Index + 1);
+        _ ->
+            Input
+    end;
 linebreaksbr([], Acc) ->
     lists:reverse(Acc);
 linebreaksbr("\r\n" ++ Rest, Acc) ->
@@ -153,14 +257,35 @@ linebreaksbr("\n" ++ Rest, Acc) ->
 linebreaksbr([C | Rest], Acc) ->
     linebreaksbr(Rest, [C | Acc]).
 
+lower(Input, Index) ->
+    case Input of
+        <<Pre:Index/binary, Byte, Post/binary>> when Byte >= $A andalso Byte =< $Z ->
+            process_binary_match(Pre, <<(Byte - $A + $a)>>, size(Post), lower(Post, 0));
+        <<_:Index/binary, _/binary>> ->
+            lower(Input, Index + 1);
+        _ ->
+            Input
+    end.
+
 % Taken from quote_plus of mochiweb_util
+
+urlencode(Input, Index) when is_binary(Input) ->
+    case Input of
+        <<_:Index/binary, Byte, _/binary>> when ?NO_ENCODE(Byte) ->
+            urlencode(Input, Index + 1);
+        <<Pre:Index/binary, $\s, Post/binary>> ->
+            process_binary_match(Pre, <<"+">>, size(Post), urlencode(Post, 0));
+        <<Pre:Index/binary, Hi:4, Lo:4, Post/binary>> ->
+            HiDigit = hexdigit(Hi),
+            LoDigit = hexdigit(Lo),
+            Code = <<$\%, HiDigit, LoDigit>>,
+            process_binary_match(Pre, Code, size(Post), urlencode(Post, 0));
+        Input ->
+            Input
+    end;
 urlencode([], Acc) ->
     lists:reverse(Acc);
-urlencode([C | Rest], Acc) when ((C >= $a andalso C =< $z) orelse
-                                  (C >= $A andalso C =< $Z) orelse
-                                  (C >= $0 andalso C =< $9) orelse
-                                  (C =:= $\. orelse C =:= $- 
-                                      orelse C =:= $~ orelse C =:= $_)) ->
+urlencode([C | Rest], Acc) when ?NO_ENCODE(C) ->
     urlencode(Rest, [C | Acc]);
 urlencode([$\s | Rest], Acc) ->
     urlencode(Rest, [$+ | Acc]);
@@ -170,3 +295,11 @@ urlencode([C | Rest], Acc) ->
 
 hexdigit(C) when C < 10 -> $0 + C;
 hexdigit(C) when C < 16 -> $A + (C - 10).
+
+process_binary_match(Pre, Insertion, SizePost, Post) ->
+    case {size(Pre), SizePost} of
+        {0, 0} -> Insertion;
+        {0, _} -> [Insertion, Post];
+        {_, 0} -> [Pre, Insertion];
+        _ -> [Pre, Insertion, Post]
+    end.

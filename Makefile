@@ -1,11 +1,13 @@
-ERL=/Users/rsaccon/R11B/start.sh  # temporary
-# ERL=erl
+ERL=erl
 
 all:
 	$(ERL) -make 
 
 run:
 	$(ERL) -pa `pwd`/ebin
+
+test:
+	$(ERL) -noshell -s erlydtl_unittests run_tests
 	
 clean:
 	rm -fv ebin/*.beam
