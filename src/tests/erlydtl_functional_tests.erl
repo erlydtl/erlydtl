@@ -30,19 +30,16 @@
 %%%
 %%% @since 2008-02-11 by Roberto Saccon
 %%%-------------------------------------------------------------------
--module(erlydtl_tests).
+-module(erlydtl_functional_tests).
 -author('rsaccon@gmail.com').
 -author('emmiller@gmail.com').
 
 
 %% API
--export([setup/1]).
+-export([run_tests/0, run_test/1]).
 
-%%====================================================================
-%% API
-%%====================================================================
-%%--------------------------------------------------------------------
-%% @spec (Name::string()) -> {CompileStatus::atom(), PresetVars::List, RenderStatus::atom(), RenderVars::List}
+%% @spec (Name::string()) -> {CompileStatus::atom(), PresetVars::list(), 
+%%     RenderStatus::atom(), RenderVars::list()} | skip
 %% @doc
 %% @end 
 %%--------------------------------------------------------------------
@@ -138,32 +135,145 @@ setup("var_preset") ->
 setup("var_error") ->
     CompileVars = [],
     RenderVars = [{var1, "foostring1"}],   
-    {ok, CompileVars, error, RenderVars};        
-%% Custom tag
+    {ok, CompileVars, error, RenderVars}; 
+%%--------------------------------------------------------------------       
+%% Custom tags
+%%--------------------------------------------------------------------
 setup("custom_tag") ->
     CompileVars  = [],
     RenderVars = [],
-    {ok, CompileVars, ok, RenderVars};  
-%% Custom tag      
+    {ok, CompileVars, ok, RenderVars};        
 setup("custom_tag_error") ->
     CompileVars  = [],
     RenderVars = [],
-    {error, CompileVars, ignore, RenderVars};
-%% Custom tag        
+    {error, CompileVars, ignore, RenderVars};        
 setup("custom_call") ->
     CompileVars  = [],
     RenderVars = [{var1, "something"}],
-    {ok, CompileVars, ok, RenderVars};        
+    {ok, CompileVars, ok, RenderVars};    
+%%--------------------------------------------------------------------       
+%% Files to ignore:
+%%-------------------------------------------------------------------- 
+setup("base") ->
+    %% example base template used in the extends tag
+    skip; 
+setup("include.html") ->
+    %% example plain text file used in include tag 
+    skip;      
 setup(_) ->
     undefined.
     
 
+run_tests() ->    
+    case maybe_create_parser() of
+        ok ->
+            case fold_tests() of
+                {N, []}->
+                    Msg = lists:concat(["All ", N, " functional tests passed"]),
+                    {ok, Msg};
+                {_, Errs} -> 
+                    {error, Errs}
+            end;
+        Err ->
+            Err
+    end.
 
 
+run_test(Name) ->
+    case maybe_create_parser() of
+        ok ->
+            test_compile_render(filename:join([templates_docroot(), Name]));
+        Err ->
+            Err
+    end.    
 
 
+%%====================================================================
+%% Internal functions
+%%====================================================================
+
+maybe_create_parser() ->
+    case filelib:is_regular(erlydtl:parser_src()) of
+        ok ->
+            ok; 
+        _ ->
+            erlydtl:create_parser()   
+    end.
 
 
+fold_tests() ->
+    filelib:fold_files(templates_docroot(), "^[^\.].+", false,
+        fun
+            (File, {AccCount, AccErrs}) ->
+                case test_compile_render(File) of
+                    ok -> 
+                        {AccCount + 1, AccErrs};
+                    {error, Reason} -> 
+                        {AccCount + 1, [{File, Reason} | AccErrs]}
+                end
+        end, {0, []}). 
 
 
+test_compile_render(File) ->   
+    Module = filename:rootname(filename:basename(File)),
+    case setup(Module) of
+        {CompileStatus, CompileVars, RenderStatus, RenderVars} ->
+            Options = [
+                {vars, CompileVars}, 
+                {force_recompile, true}],
+            io:format("Template: ~p, ... compiling ... ", [Module]),
+            case erlydtl_compiler:compile(File, Module, Options) of
+                ok ->
+                    case CompileStatus of
+                        ok -> test_render(File, list_to_atom(Module), RenderStatus, RenderVars);
+                        _ -> {error, "compiling should have failed :" ++ File}
+                    end;
+                Err ->
+                    case CompileStatus of
+                        error ->  ok;
+                        _ -> Err
+                    end
+            end;
+        skip ->
+            ok;
+        _ ->
+            {error, "no 'setup' clause defined for this test"}
+    end.
 
+
+test_render(File, Module, RenderStatus, Vars) ->   
+    case catch Module:render(Vars) of
+        {ok, Data} ->
+            io:format("rendering~n"), 
+            case RenderStatus of
+                ok ->
+                    {File, _} = Module:source(),
+                    OutFile = filename:join([templates_outdir(), filename:basename(File)]),
+                    case file:open(OutFile, [write]) of
+                        {ok, IoDev} ->
+                            file:write(IoDev, Data),
+                            file:close(IoDev),
+                            ok;    
+                        Err ->
+                            Err
+                    end;
+                _ ->
+                    {error, "rendering should have failed :" ++ File}
+            end;
+        {'EXIT', _} ->
+            io:format("~n"),
+            {error, "failed invoking render method:" ++ Module};
+        Err ->
+            io:format("~n"),
+            case RenderStatus of
+                error ->  ok;
+                _ -> Err
+            end
+    end.   
+
+
+templates_docroot() ->
+    filename:join([erlydtl_deps:get_base_dir(), "examples", "docroot"]).
+
+templates_outdir() ->   
+    filename:join([erlydtl_deps:get_base_dir(), "examples", "rendered_output"]).
