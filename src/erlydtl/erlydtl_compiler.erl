@@ -38,8 +38,6 @@
 %% --------------------------------------------------------------------
 %% Definitions
 %% --------------------------------------------------------------------
--define(COMPILE_OPTIONS, [verbose, report_errors, report_warnings]).
-
 -export([compile/2, compile/3]).
 
 -record(dtl_context, {
@@ -52,6 +50,7 @@
     custom_tags_dir = [],
     reader = {file, read_file},
     module = [],
+    compiler_options = [verbose, report_errors],
     force_recompile = false}).
 
 -record(ast_info, {
@@ -63,9 +62,27 @@
     counter = 0,
     custom_tags = []}).    
 
+compile(Binary, Module) when is_binary(Binary) ->
+    compile(Binary, Module, []);
 
-compile(File, Module) -> 
+compile(File, Module) ->
     compile(File, Module, []).
+
+compile(Binary, Module, Options) when is_binary(Binary) ->
+    File = "",
+    CheckSum = "",
+    case parse(Binary) of
+        {ok, DjangoParseTree} ->
+            case compile_to_binary(File, DjangoParseTree, 
+                    init_dtl_context(File, Module, Options), CheckSum) of
+                {ok, Module1, _} ->
+                    {ok, Module1};
+                Err ->
+                    Err
+            end;
+        Err ->
+            Err
+    end;
     
 compile(File, Module, Options) ->  
     crypto:start(),
@@ -74,33 +91,18 @@ compile(File, Module, Options) ->
         ok ->
             ok;
         {ok, DjangoParseTree, CheckSum} ->
-            try body_ast(DjangoParseTree, Context, #treewalker{}) of
-                {{Ast, Info}, _} ->                  
-                    CompileOptions = case  proplists:get_value(verbose, Options, false) of
-                        true -> ?COMPILE_OPTIONS;
-                        _ -> []
-                    end,
-                    case compile:forms(forms(File, Module, Ast, Info, CheckSum), CompileOptions) of
-                        {ok, Module1, Bin} -> 
-                            OutDir = proplists:get_value(out_dir, Options, "ebin"),       
-                            BeamFile = filename:join([OutDir, atom_to_list(Module1) ++ ".beam"]),
-                            case file:write_file(BeamFile, Bin) of
-                                ok ->
-                                    code:purge(Module1),
-                                    case code:load_binary(Module1, atom_to_list(Module1) ++ ".erl", Bin) of
-                                        {module, _} -> ok;
-                                        _ -> {error, lists:concat(["code reload failed: ", BeamFile])}
-                                    end;
-                                {error, Reason} ->
-                                    {error, lists:concat(["beam generation failed (", Reason, "): ", BeamFile])}
-                            end;
-                        error ->
-                            {error, lists:concat(["compilation failed: ", File])};
-                        OtherError ->
-                            OtherError
-                    end
-            catch 
-                throw:Error -> Error
+            case compile_to_binary(File, DjangoParseTree, Context, CheckSum) of
+                {ok, Module1, Bin} ->
+                    OutDir = proplists:get_value(out_dir, Options, "ebin"),       
+                    BeamFile = filename:join([OutDir, atom_to_list(Module1) ++ ".beam"]),
+                    case file:write_file(BeamFile, Bin) of
+                        ok ->
+                            ok;
+                        {error, Reason} ->
+                            {error, lists:concat(["beam generation failed (", Reason, "): ", BeamFile])}
+                    end;
+                Err ->
+                    Err
             end;
         Err ->
             Err
@@ -111,17 +113,40 @@ compile(File, Module, Options) ->
 %% Internal functions
 %%====================================================================
 
+compile_to_binary(File, DjangoParseTree, Context, CheckSum) ->
+    try body_ast(DjangoParseTree, Context, #treewalker{}) of
+        {{Ast, Info}, _} ->
+            case compile:forms(forms(File, Context#dtl_context.module, Ast, Info, CheckSum), 
+                    Context#dtl_context.compiler_options) of
+                {ok, Module1, Bin} -> 
+                    code:purge(Module1),
+                    case code:load_binary(Module1, atom_to_list(Module1) ++ ".erl", Bin) of
+                        {module, _} -> {ok, Module1, Bin};
+                        _ -> {error, lists:concat(["code reload failed: ", Module1])}
+                    end;
+                error ->
+                    {error, lists:concat(["compilation failed: ", File])};
+                OtherError ->
+                    OtherError
+            end
+    catch 
+        throw:Error -> Error
+    end.
+                
+init_dtl_context(File, Module, Options) when is_list(Module) ->
+    init_dtl_context(File, list_to_atom(Module), Options);
 init_dtl_context(File, Module, Options) ->
     Ctx = #dtl_context{},
     #dtl_context{
         parse_trail = [File], 
-        module = list_to_atom(Module),        
+        module = Module,
         doc_root = proplists:get_value(doc_root, Options, filename:dirname(File)),
         custom_tags_dir = proplists:get_value(custom_tags_dir, Options, Ctx#dtl_context.custom_tags_dir),
         vars = proplists:get_value(vars, Options, Ctx#dtl_context.vars), 
         reader = proplists:get_value(reader, Options, Ctx#dtl_context.reader),
+        compiler_options = proplists:get_value(compiler_options, Options, Ctx#dtl_context.compiler_options),
         force_recompile = proplists:get_value(force_recompile, Options, Ctx#dtl_context.force_recompile)}.
-    
+
 
 is_up_to_date(_, #dtl_context{force_recompile = true}) ->
     false;
@@ -158,14 +183,15 @@ is_up_to_date(CheckSum, Context) ->
     end.
     
     
-parse(Data) ->
-    case erlydtl_scanner:scan(binary_to_list(Data)) of
-        {ok, Tokens} ->
-            erlydtl_parser:parse(Tokens);
-        Err ->
-            Err
-    end.        
-  
+parse(File, Context) ->  
+    {M, F} = Context#dtl_context.reader,
+    case catch M:F(File) of
+        {ok, Data} ->
+            CheckSum = binary_to_list(crypto:sha(Data)),
+            parse(CheckSum, Data, Context);
+        _ ->
+            {error, "reading " ++ File ++ " failed "}
+    end.
         
 parse(CheckSum, Data, Context) ->
     case is_up_to_date(CheckSum, Context) of
@@ -180,23 +206,19 @@ parse(CheckSum, Data, Context) ->
             end
     end.
 
-
-parse(File, Context) ->  
-    {M, F} = Context#dtl_context.reader,
-    case catch M:F(File) of
-        {ok, Data} ->
-            CheckSum = binary_to_list(crypto:sha(Data)),
-            parse(CheckSum, Data, Context);
-        _ ->
-            {error, "reading " ++ File ++ " failed "}
-    end.
-
+parse(Data) ->
+    case erlydtl_scanner:scan(binary_to_list(Data)) of
+        {ok, Tokens} ->
+            erlydtl_parser:parse(Tokens);
+        Err ->
+            Err
+    end.        
   
-forms(File, Module, BodyAst, BodyInfo, CheckSum) ->    
+forms(File, Module, BodyAst, BodyInfo, CheckSum) ->
     Render0FunctionAst = erl_syntax:function(erl_syntax:atom(render),
         [erl_syntax:clause([], none, [erl_syntax:application(none, 
                         erl_syntax:atom(render), [erl_syntax:list([])])])]),
-    Function2 = erl_syntax:application(none, erl_syntax:atom(render2),
+    Function2 = erl_syntax:application(none, erl_syntax:atom(render2), 
         [erl_syntax:variable("Variables")]),
     ClauseOk = erl_syntax:clause([erl_syntax:variable("Val")], none,
         [erl_syntax:tuple([erl_syntax:atom(ok), erl_syntax:variable("Val")])]),     
@@ -224,17 +246,6 @@ forms(File, Module, BodyAst, BodyInfo, CheckSum) ->
             [erl_syntax:clause([erl_syntax:variable("Variables")], none, 
                 [BodyAst])]),   
     
-    ProplistsClauseErr = erl_syntax:clause([erl_syntax:atom(undefined)], none, 
-        [erl_syntax:application(none, erl_syntax:atom(throw),
-            [erl_syntax:tuple([erl_syntax:atom(undefined_variable), erl_syntax:variable("Key")])])]),  
-    ProplistsClauseOk = erl_syntax:clause([erl_syntax:variable("Val")], none, 
-        [erl_syntax:variable("Val")]),       
-    ProplistsFunctionAst = erl_syntax:function(erl_syntax:atom(get_value), 
-        [erl_syntax:clause([erl_syntax:variable("Key"), erl_syntax:variable("L")], none, 
-                [erl_syntax:case_expr(erl_syntax:application(erl_syntax:atom(proplists), 
-                            erl_syntax:atom(get_value), [erl_syntax:variable("Key"), erl_syntax:variable("L")]), 
-                        [ProplistsClauseErr, ProplistsClauseOk])])]),
-    
     ModuleAst  = erl_syntax:attribute(erl_syntax:atom(module), [erl_syntax:atom(Module)]),
     
     ExportAst = erl_syntax:attribute(erl_syntax:atom(export),
@@ -244,8 +255,8 @@ forms(File, Module, BodyAst, BodyInfo, CheckSum) ->
                     erl_syntax:arity_qualifier(erl_syntax:atom(dependencies), erl_syntax:integer(0))])]),
     
     [erl_syntax:revert(X) || X <- [ModuleAst, ExportAst, Render0FunctionAst,
-            Render1FunctionAst, SourceFunctionAst, DependenciesFunctionAst, RenderInternalFunctionAst, 
-            ProplistsFunctionAst | BodyInfo#ast_info.pre_render_asts]].    
+            Render1FunctionAst, SourceFunctionAst, DependenciesFunctionAst, RenderInternalFunctionAst
+            | BodyInfo#ast_info.pre_render_asts]].    
 
         
 % child templates should only consist of blocks at the top level
@@ -465,24 +476,22 @@ search_for_escape_filter(_Variable, _Filter) ->
     off.
 
 resolve_variable_ast(VarTuple, Context) ->
-    resolve_variable_ast(VarTuple, Context, none).
+    resolve_variable_ast(VarTuple, Context, 'fetch_value').
  
 resolve_ifvariable_ast(VarTuple, Context) ->
-    resolve_variable_ast(VarTuple, Context, erl_syntax:atom(proplists)).
+    resolve_variable_ast(VarTuple, Context, 'find_value').
            
-resolve_variable_ast({{identifier, _, VarName}}, Context, ModuleAst) ->
-    {resolve_variable_name_ast(VarName, Context, ModuleAst), VarName};
+resolve_variable_ast({{identifier, _, VarName}}, Context, FinderFunction) ->
+    {resolve_variable_name_ast(VarName, Context, FinderFunction), VarName};
 
-resolve_variable_ast({{identifier, _, VarName}, {identifier, _, AttrName}}, Context, ModuleAst) ->
-    {erl_syntax:application(ModuleAst, erl_syntax:atom(get_value),
+resolve_variable_ast({{identifier, _, VarName}, {identifier, _, AttrName}}, Context, FinderFunction) ->
+    {erl_syntax:application(erl_syntax:atom(erlydtl_runtime), erl_syntax:atom(FinderFunction),
                     [erl_syntax:atom(AttrName), resolve_variable_name_ast(VarName, Context)]), VarName}.
 
-
 resolve_variable_name_ast(VarName, Context) ->
-    resolve_variable_name_ast(VarName, Context, none).
-  
+    resolve_variable_name_ast(VarName, Context, 'fetch_value').
     
-resolve_variable_name_ast(VarName, Context, ModuleAst) ->
+resolve_variable_name_ast(VarName, Context, FinderFunction) ->
     VarValue = lists:foldl(fun(Scope, Value) ->
                 case Value of
                     undefined ->
@@ -493,7 +502,7 @@ resolve_variable_name_ast(VarName, Context, ModuleAst) ->
         end, undefined, Context#dtl_context.local_scopes),
     case VarValue of
         undefined ->
-            erl_syntax:application(ModuleAst, erl_syntax:atom('get_value'),
+            erl_syntax:application(erl_syntax:atom(erlydtl_runtime), erl_syntax:atom(FinderFunction),
                 [erl_syntax:atom(VarName), erl_syntax:variable("Variables")]);
         _ ->
             VarValue
@@ -523,14 +532,8 @@ ifelse_ast(Variable, {IfContentsAst, IfContentsInfo}, {ElseContentsAst, ElseCont
     Info = merge_info(IfContentsInfo, ElseContentsInfo),
     VarNames = Info#ast_info.var_names,
     {Ast, VarName} = resolve_ifvariable_ast(Variable, Context),
-    {{erl_syntax:case_expr(Ast,
-        [erl_syntax:clause([erl_syntax:string("")], none, 
-                [ElseContentsAst]),
-            erl_syntax:clause([erl_syntax:atom(undefined)], none,
-                [ElseContentsAst]),
-            erl_syntax:clause([erl_syntax:atom(false)], none,
-                [ElseContentsAst]),
-            erl_syntax:clause([erl_syntax:string("0")], none,
+    {{erl_syntax:case_expr(erl_syntax:application(erl_syntax:atom(erlydtl_runtime), erl_syntax:atom(is_false), [Ast]),
+        [erl_syntax:clause([erl_syntax:atom(true)], none, 
                 [ElseContentsAst]),
             erl_syntax:clause([erl_syntax:underscore()], none,
                 [IfContentsAst])
@@ -553,12 +556,12 @@ ifequalelse_ast(Args, {IfContentsAst, IfContentsInfo}, {ElseContentsAst, ElseCon
         end,
         {[], Info#ast_info.var_names},
         Args),
-    Ast = erl_syntax:application(none, erl_syntax:atom(apply), [erl_syntax:fun_expr(
-        [erl_syntax:clause([erl_syntax:variable("Arg1"), erl_syntax:variable("Arg2")], none, 
-            [erl_syntax:case_expr(erl_syntax:variable("Arg1"),
-                [erl_syntax:clause([erl_syntax:variable("Arg2")], none, [IfContentsAst]),
-                    erl_syntax:clause([erl_syntax:underscore()], none, [ElseContentsAst])])])]), 
-                        erl_syntax:list([Arg1Ast, Arg2Ast])]),    
+    Ast = erl_syntax:case_expr(erl_syntax:application(erl_syntax:atom(erlydtl_runtime), erl_syntax:atom(are_equal),
+            [Arg1Ast, Arg2Ast]),
+        [
+            erl_syntax:clause([erl_syntax:atom(true)], none, [IfContentsAst]),
+            erl_syntax:clause([erl_syntax:underscore()], none, [ElseContentsAst])
+        ]),
     {{Ast, Info#ast_info{var_names = VarNames}}, TreeWalker}.         
 
 
@@ -616,11 +619,11 @@ unescape_string_literal([$\\ | Rest], Acc, noslash) ->
 unescape_string_literal([C | Rest], Acc, noslash) ->
     unescape_string_literal(Rest, [C | Acc], noslash);
 unescape_string_literal("n" ++ Rest, Acc, slash) ->
-    unescape_string_literal(Rest, ["\n" | Acc], noslash);
+    unescape_string_literal(Rest, [$\n | Acc], noslash);
 unescape_string_literal("r" ++ Rest, Acc, slash) ->
-    unescape_string_literal(Rest, ["\r" | Acc], noslash);
+    unescape_string_literal(Rest, [$\r | Acc], noslash);
 unescape_string_literal("t" ++ Rest, Acc, slash) ->
-    unescape_string_literal(Rest, ["\t" | Acc], noslash);
+    unescape_string_literal(Rest, [$\t | Acc], noslash);
 unescape_string_literal([C | Rest], Acc, slash) ->
     unescape_string_literal(Rest, [C | Acc], noslash).
 
