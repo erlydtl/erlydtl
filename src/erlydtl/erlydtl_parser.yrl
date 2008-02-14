@@ -36,7 +36,7 @@ Nonterminals
     Elements
     Literal
 
-    VariableBraced
+    ValueBraced
 
     ExtendsTag
     IncludeTag
@@ -75,6 +75,7 @@ Nonterminals
     AutoEscapeBraced
     EndAutoEscapeBraced
 
+    Value
     Variable
     Filter
     
@@ -129,7 +130,7 @@ Rootsymbol
 
 Elements -> '$empty' : [].
 Elements -> Elements text : '$1' ++ ['$2'].
-Elements -> Elements VariableBraced : '$1' ++ ['$2'].
+Elements -> Elements ValueBraced : '$1' ++ ['$2'].
 Elements -> Elements ExtendsTag : '$1' ++ ['$2'].
 Elements -> Elements IncludeTag : '$1' ++ ['$2'].
 Elements -> Elements LoadTag : '$1' ++ ['$2'].
@@ -144,13 +145,14 @@ Elements -> Elements CustomTag : '$1' ++ ['$2'].
 Elements -> Elements CallTag : '$1' ++ ['$2'].
 Elements -> Elements CallWithTag : '$1' ++ ['$2'].
 
-VariableBraced -> open_var Variable close_var : '$2'.
+ValueBraced -> open_var Value close_var : '$2'.
 
-Variable -> Variable pipe Filter : {apply_filter, '$1', '$3'}.
-Variable -> identifier : {variable, {'$1'}}.
-Variable -> identifier dot identifier : {variable, {'$1', '$3'}}.
-Variable -> string_literal : '$1'.
-Variable -> number_literal : '$1'.
+Value -> Value pipe Filter : {apply_filter, '$1', '$3'}.
+Value -> Variable : '$1'.
+Value -> Literal : '$1'.
+
+Variable -> identifier : {variable, '$1'}.
+Variable -> Value dot identifier : {attribute, {'$3', '$1'}}.
 
 ExtendsTag -> open_tag extends_keyword string_literal close_tag : {extends, '$3'}.
 IncludeTag -> open_tag include_keyword string_literal close_tag : {include, '$3'}.
@@ -170,7 +172,6 @@ EndCommentBraced -> open_tag endcomment_keyword close_tag.
 ForBlock -> ForBraced Elements EndForBraced : {for, '$1', '$2'}.
 ForBraced -> open_tag for_keyword ForExpression close_tag : '$3'.
 EndForBraced -> open_tag endfor_keyword close_tag.
-ForExpression -> Variable : '$1'.
 ForExpression -> ForGroup in_keyword Variable : {'in', '$1', '$3'}.
 ForGroup -> identifier : ['$1'].
 ForGroup -> ForGroup comma identifier : '$1' ++ ['$3'].
@@ -179,21 +180,21 @@ IfBlock -> IfBraced Elements ElseBraced Elements EndIfBraced : {ifelse, '$1', '$
 IfBlock -> IfBraced Elements EndIfBraced : {'if', '$1', '$2'}.
 IfBraced -> open_tag if_keyword IfExpression close_tag : '$3'.
 IfExpression -> not_keyword IfExpression : {'not', '$2'}.
-IfExpression -> Variable : '$1'.
+IfExpression -> Value : '$1'.
 
 ElseBraced -> open_tag else_keyword close_tag.
 EndIfBraced -> open_tag endif_keyword close_tag.
 
 IfEqualBlock -> IfEqualBraced Elements ElseBraced Elements EndIfEqualBraced : {ifequalelse, '$1', '$2', '$4'}.
 IfEqualBlock -> IfEqualBraced Elements EndIfEqualBraced : {ifequal, '$1', '$2'}.
-IfEqualBraced -> open_tag ifequal_keyword IfEqualExpression Variable close_tag : ['$3', '$4'].
-IfEqualExpression -> Variable : '$1'.
+IfEqualBraced -> open_tag ifequal_keyword IfEqualExpression Value close_tag : ['$3', '$4'].
+IfEqualExpression -> Value : '$1'.
 EndIfEqualBraced -> open_tag endifequal_keyword close_tag.
 
 IfNotEqualBlock -> IfNotEqualBraced Elements ElseBraced Elements EndIfNotEqualBraced : {ifnotequalelse, '$1', '$2', '$4'}.
 IfNotEqualBlock -> IfNotEqualBraced Elements EndIfNotEqualBraced : {ifnotequal, '$1', '$2'}.
-IfNotEqualBraced -> open_tag ifnotequal_keyword IfNotEqualExpression Variable close_tag : ['$3', '$4'].
-IfNotEqualExpression -> Variable : '$1'.
+IfNotEqualBraced -> open_tag ifnotequal_keyword IfNotEqualExpression Value close_tag : ['$3', '$4'].
+IfNotEqualExpression -> Value : '$1'.
 EndIfNotEqualBraced -> open_tag endifnotequal_keyword close_tag.
 
 AutoEscapeBlock -> AutoEscapeBraced Elements EndAutoEscapeBraced : {autoescape, '$1', '$2'}.
@@ -209,7 +210,7 @@ Literal -> number_literal : '$1'.
 CustomTag -> open_tag identifier Args close_tag : {tag, '$2', '$3'}.
 
 Args -> '$empty' : [].
-Args -> Args identifier equal Variable : '$1' ++ [{'$2', '$4'}].
+Args -> Args identifier equal Value : '$1' ++ [{'$2', '$4'}].
 
 CallTag -> open_tag call_keyword identifier close_tag : {call, '$3'}.
-CallWithTag -> open_tag call_keyword identifier with_keyword Variable close_tag: {call, '$3', '$5'}.
+CallWithTag -> open_tag call_keyword identifier with_keyword Value close_tag : {call, '$3', '$5'}.
