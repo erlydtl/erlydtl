@@ -146,7 +146,7 @@ setup("custom_tag") ->
 setup("custom_tag_error") ->
     CompileVars  = [],
     RenderVars = [],
-    {error, CompileVars, ignore, RenderVars};        
+    {error, CompileVars, skip, RenderVars};        
 setup("custom_call") ->
     CompileVars  = [],
     RenderVars = [{var1, "something"}],
@@ -171,8 +171,9 @@ run_tests() ->
                 {N, []}->
                     Msg = lists:concat(["All ", N, " functional tests passed"]),
                     {ok, Msg};
-                {_, Errs} -> 
-                    {error, Errs}
+                {_, Errs} ->
+                    io:format("Errors: ~p~n",[Errs]),
+                    failed
             end;
         Err ->
             Err
@@ -214,24 +215,29 @@ fold_tests() ->
         end, {0, []}). 
 
 
-test_compile_render(File) ->   
-    Module = filename:rootname(filename:basename(File)),
-    case setup(Module) of
+test_compile_render(File) ->  
+    Name = filename:rootname(filename:basename(File)),
+    Module = "example_" ++ Name,
+    case setup(Name) of
         {CompileStatus, CompileVars, RenderStatus, RenderVars} ->
             Options = [
                 {vars, CompileVars}, 
                 {force_recompile, true}],
-            io:format("Template: ~p, ... compiling ... ", [Module]),
+            io:format("Template: ~p, ... compiling ... ", [Name]),
             case erlydtl_compiler:compile(File, Module, Options) of
                 ok ->
                     case CompileStatus of
                         ok -> test_render(File, list_to_atom(Module), RenderStatus, RenderVars);
                         _ -> {error, "compiling should have failed :" ++ File}
                     end;
-                Err ->
+                {error, Err} ->
                     case CompileStatus of
-                        error ->  ok;
-                        _ -> Err
+                        error ->
+                            io:format("~n"),  
+                            ok;
+                        _ ->
+                            io:format("~nCompile errror: ~p~n",[Err]), 
+                            Err
                     end
             end;
         skip ->
