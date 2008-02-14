@@ -492,20 +492,22 @@ resolve_variable_ast({attribute, {{identifier, _, AttrName}, Variable}}, Context
                     [erl_syntax:atom(AttrName), VarAst]), VarName};
 
 resolve_variable_ast({variable, {identifier, _, VarName}}, Context, FinderFunction) ->
-    VarValue = lists:foldl(fun(Scope, Value) ->
+    VarValue = case resolve_scoped_variable_ast(VarName, Context) of
+        undefined ->
+            erl_syntax:application(erl_syntax:atom(erlydtl_runtime), erl_syntax:atom(FinderFunction),
+                [erl_syntax:atom(VarName), erl_syntax:variable("Variables")]);
+        Val ->
+            Val
+    end,
+    {VarValue, VarName}.
+
+resolve_scoped_variable_ast(VarName, Context) ->
+    lists:foldl(fun(Scope, Value) ->
                 case Value of
                     undefined -> proplists:get_value(list_to_atom(VarName), Scope);
                     _ -> Value
                 end
-        end, undefined, Context#dtl_context.local_scopes),
-    VarValue1 = case VarValue of
-        undefined ->
-            erl_syntax:application(erl_syntax:atom(erlydtl_runtime), erl_syntax:atom(FinderFunction),
-                [erl_syntax:atom(VarName), erl_syntax:variable("Variables")]);
-        _ ->
-            VarValue
-    end,
-    {VarValue1, VarName}.
+        end, undefined, Context#dtl_context.local_scopes).
 
 format(Ast, Context) ->
     auto_escape(format_integer_ast(Ast), Context).
@@ -567,36 +569,30 @@ for_loop_ast(IteratorList, Variable, Contents, Context, TreeWalker) ->
     Vars = lists:map(fun({identifier, _, Iterator}) -> 
                     erl_syntax:variable("Var_" ++ Iterator) 
             end, IteratorList),
-    CounterVars = erl_syntax:list([
-            erl_syntax:tuple([erl_syntax:atom('counter'), erl_syntax:variable("Counter")]),
-            erl_syntax:tuple([erl_syntax:atom('counter0'), erl_syntax:variable("Counter0")])
-        ]),
     {{InnerAst, Info}, TreeWalker2} = body_ast(Contents,
         Context#dtl_context{local_scopes = [
-                [{'forloop', CounterVars} | lists:map(
+                [{'forloop', erl_syntax:variable("Counters")} | lists:map(
                     fun({identifier, _, Iterator}) ->
                             {list_to_atom(Iterator), erl_syntax:variable("Var_" ++ Iterator)} 
                     end, IteratorList)] | Context#dtl_context.local_scopes]}, TreeWalker),
-    CounterAst = erl_syntax:list([
-            erl_syntax:tuple([erl_syntax:atom('counter'), 
-                    erl_syntax:infix_expr(erl_syntax:variable("Counter"), erl_syntax:operator("+"), erl_syntax:integer(1))]),
-            erl_syntax:tuple([erl_syntax:atom('counter0'),
-                    erl_syntax:infix_expr(erl_syntax:variable("Counter0"), erl_syntax:operator("+"), erl_syntax:integer(1))])
-        ]),
+    CounterAst = erl_syntax:application(erl_syntax:atom(erlydtl_runtime), 
+        erl_syntax:atom(increment_counter_stats), [erl_syntax:variable("Counters")]),
     {ListAst, VarName} = resolve_ifvariable_ast(Variable, Context),
-    CounterVars0 = erl_syntax:list([
-            erl_syntax:tuple([erl_syntax:atom('counter'), erl_syntax:integer(1)]),
-            erl_syntax:tuple([erl_syntax:atom('counter0'), erl_syntax:integer(0)])
-        ]),
+    CounterVars0 = case resolve_scoped_variable_ast("forloop", Context) of
+        undefined ->
+            erl_syntax:application(erl_syntax:atom(erlydtl_runtime), erl_syntax:atom(init_counter_stats), [ListAst]);
+        Value ->
+            erl_syntax:application(erl_syntax:atom(erlydtl_runtime), erl_syntax:atom(init_counter_stats), [ListAst, Value])
+    end,
     {{erl_syntax:application(
             erl_syntax:atom('erlang'), erl_syntax:atom('element'),
             [erl_syntax:integer(1), erl_syntax:application(
                     erl_syntax:atom('lists'), erl_syntax:atom('mapfoldl'),
                     [erl_syntax:fun_expr([
-                                erl_syntax:clause([erl_syntax:tuple(Vars), CounterVars], none, 
+                                erl_syntax:clause([erl_syntax:tuple(Vars), erl_syntax:variable("Counters")], none, 
                                     [erl_syntax:tuple([InnerAst, CounterAst])]),
-                                erl_syntax:clause(case Vars of [H] -> [H, CounterVars];
-                                        _ -> [erl_syntax:list(Vars), CounterVars] end, none, 
+                                erl_syntax:clause(case Vars of [H] -> [H, erl_syntax:variable("Counters")];
+                                        _ -> [erl_syntax:list(Vars), erl_syntax:variable("Counters")] end, none, 
                                     [erl_syntax:tuple([InnerAst, CounterAst])])
                             ]),
                         CounterVars0, ListAst])]),
