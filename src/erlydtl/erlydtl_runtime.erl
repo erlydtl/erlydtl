@@ -63,3 +63,24 @@ is_false(<<>>) ->
     true;
 is_false(_) ->
     false.
+
+init_counter_stats(List) ->
+    init_counter_stats(List, undefined).
+
+init_counter_stats(List, Parent) ->
+    [{counter, 1}, 
+        {counter0, 0}, 
+        {revcounter, length(List)}, 
+        {revcounter0, length(List) - 1}, 
+        {first, true}, 
+        {last, length(List) =:= 1},
+        {parentloop, Parent}].
+
+increment_counter_stats([{counter, Counter}, {counter0, Counter0}, {revcounter, RevCounter},
+        {revcounter0, RevCounter0}, {first, _}, {last, _}, {parentloop, Parent}]) ->
+    [{counter, Counter + 1},
+        {counter0, Counter0 + 1},
+        {revcounter, RevCounter - 1},
+        {revcounter0, RevCounter0 - 1},
+        {first, false}, {last, RevCounter0 =:= 1},
+        {parentloop, Parent}].
