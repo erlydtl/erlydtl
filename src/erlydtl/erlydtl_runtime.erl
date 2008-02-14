@@ -4,19 +4,30 @@
 
 find_value(Key, L) when is_list(L) ->
     proplists:get_value(Key, L);
-find_value(Key, {GBSize, GBData}) ->
+find_value(Key, {GBSize, GBData}) when is_integer(GBSize) ->
     case gb_trees:lookup(Key, {GBSize, GBData}) of
         {value, Val} ->
             Val;
         _ ->
             undefined
     end;
-find_value(Key, Dict) ->
-    case dict:find(Key, Dict) of
-        {ok, Val} ->
-            Val;
-        _ ->
-            undefined
+find_value(Key, Tuple) when is_tuple(Tuple) ->
+    Module = element(1, Tuple),
+    case Module of
+        dict -> 
+            case dict:find(Key, Tuple) of
+                {ok, Val} ->
+                    Val;
+                _ ->
+                    undefined
+            end;
+        Module ->
+            case proplists:get_value(Key, Module:module_info(exports)) of
+                1 ->
+                    Tuple:Key();
+                _ ->
+                    undefined
+            end
     end.
 
 fetch_value(Key, Data) ->

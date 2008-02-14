@@ -299,34 +299,39 @@ body_ast(DjangoParseTree, Context, TreeWalker) ->
             ({'comment', _Contents}, TreeWalkerAcc) ->
                 empty_ast(TreeWalkerAcc);
             ({'autoescape', {identifier, _, OnOrOff}, Contents}, TreeWalkerAcc) ->
-                body_ast(Contents, Context#dtl_context{auto_escape = list_to_atom(OnOrOff)}, TreeWalkerAcc);
+                body_ast(Contents, Context#dtl_context{auto_escape = list_to_atom(OnOrOff)}, 
+                    TreeWalkerAcc);
             ({'text', _Pos, String}, TreeWalkerAcc) -> 
                 string_ast(String, TreeWalkerAcc);
             ({'string_literal', _Pos, String}, TreeWalkerAcc) ->
-                {{auto_escape(erl_syntax:string(unescape_string_literal(String)), Context), #ast_info{}}, TreeWalkerAcc};
+                {{auto_escape(erl_syntax:string(unescape_string_literal(String)), Context), 
+                        #ast_info{}}, TreeWalkerAcc};
             ({'number_literal', _Pos, Number}, TreeWalkerAcc) ->
                 string_ast(Number, TreeWalkerAcc);
-            ({'variable', Variable}, TreeWalkerAcc) ->
+            ({'attribute', _} = Variable, TreeWalkerAcc) ->
+                {Ast, VarName} = resolve_variable_ast(Variable, Context),
+                {{format(Ast, Context), #ast_info{var_names = [VarName]}}, TreeWalkerAcc};
+            ({'variable', _} = Variable, TreeWalkerAcc) ->
                 {Ast, VarName} = resolve_variable_ast(Variable, Context),
                 {{format(Ast, Context), #ast_info{var_names = [VarName]}}, TreeWalkerAcc};              
             ({'include', {string_literal, _, File}}, TreeWalkerAcc) ->
                 include_ast(unescape_string_literal(File), Context, TreeWalkerAcc);
-            ({'if', {variable, Variable}, Contents}, TreeWalkerAcc) ->
-                {IfAstInfo, TreeWalker1} = body_ast(Contents, Context, TreeWalkerAcc),
-                {ElseAstInfo, TreeWalker2} = empty_ast(TreeWalker1),
-                ifelse_ast(Variable, IfAstInfo, ElseAstInfo, Context, TreeWalker2);
-            ({'if', {'not', {variable, Variable}}, Contents}, TreeWalkerAcc) ->
+            ({'if', {'not', Variable}, Contents}, TreeWalkerAcc) ->
                 {IfAstInfo, TreeWalker1} = empty_ast(TreeWalkerAcc),
                 {ElseAstInfo, TreeWalker2} = body_ast(Contents, Context, TreeWalker1),
                 ifelse_ast(Variable, IfAstInfo, ElseAstInfo, Context, TreeWalker2);
-            ({'ifelse', {variable, Variable}, IfContents, ElseContents}, TreeWalkerAcc) ->
-                {IfAstInfo, TreeWalker1} = body_ast(IfContents, Context, TreeWalkerAcc),
-                {ElseAstInfo, TreeWalker2} = body_ast(ElseContents, Context, TreeWalker1),
+            ({'if', Variable, Contents}, TreeWalkerAcc) ->
+                {IfAstInfo, TreeWalker1} = body_ast(Contents, Context, TreeWalkerAcc),
+                {ElseAstInfo, TreeWalker2} = empty_ast(TreeWalker1),
                 ifelse_ast(Variable, IfAstInfo, ElseAstInfo, Context, TreeWalker2);
-            ({'ifelse', {'not', {variable, Variable}}, IfContents, ElseContents}, TreeWalkerAcc) ->
+            ({'ifelse', {'not', Variable}, IfContents, ElseContents}, TreeWalkerAcc) ->
                 {IfAstInfo, TreeWalker1} = body_ast(ElseContents, Context, TreeWalkerAcc),
                 {ElseAstInfo, TreeWalker2} = body_ast(IfContents, Context, TreeWalker1),
                 ifelse_ast(Variable, IfAstInfo, ElseAstInfo, Context, TreeWalker2);                  
+            ({'ifelse', Variable, IfContents, ElseContents}, TreeWalkerAcc) ->
+                {IfAstInfo, TreeWalker1} = body_ast(IfContents, Context, TreeWalkerAcc),
+                {ElseAstInfo, TreeWalker2} = body_ast(ElseContents, Context, TreeWalker1),
+                ifelse_ast(Variable, IfAstInfo, ElseAstInfo, Context, TreeWalker2);
             ({'ifequal', Args, Contents}, TreeWalkerAcc) ->
                 {IfAstInfo, TreeWalker1} = body_ast(Contents, Context, TreeWalkerAcc),
                 {ElseAstInfo, TreeWalker2} = empty_ast(TreeWalker1),
@@ -353,8 +358,8 @@ body_ast(DjangoParseTree, Context, TreeWalker) ->
                 tag_ast(Name, Args, Context, TreeWalkerAcc);            
             ({'call', {'identifier', _, Name}}, TreeWalkerAcc) ->
             	call_ast(Name, TreeWalkerAcc);
-            ({'call', {'identifier', _, Name}, {variable, With}}, TreeWalkerAcc) ->
-            	call_with_ast(Name, With, Context, TreeWalkerAcc)                
+            ({'call', {'identifier', _, Name}, With}, TreeWalkerAcc) ->
+            	call_with_ast(Name, With, Context, TreeWalkerAcc)
         end, TreeWalker, DjangoParseTree),   
     {AstList, {Info, TreeWalker3}} = lists:mapfoldl(
         fun({Ast, Info}, {InfoAcc, TreeWalkerAcc}) -> 
@@ -481,33 +486,26 @@ resolve_variable_ast(VarTuple, Context) ->
 resolve_ifvariable_ast(VarTuple, Context) ->
     resolve_variable_ast(VarTuple, Context, 'find_value').
            
-resolve_variable_ast({{identifier, _, VarName}}, Context, FinderFunction) ->
-    {resolve_variable_name_ast(VarName, Context, FinderFunction), VarName};
-
-resolve_variable_ast({{identifier, _, VarName}, {identifier, _, AttrName}}, Context, FinderFunction) ->
+resolve_variable_ast({attribute, {{identifier, _, AttrName}, Variable}}, Context, FinderFunction) ->
+    {VarAst, VarName} = resolve_variable_ast(Variable, Context, FinderFunction),
     {erl_syntax:application(erl_syntax:atom(erlydtl_runtime), erl_syntax:atom(FinderFunction),
-                    [erl_syntax:atom(AttrName), resolve_variable_name_ast(VarName, Context)]), VarName}.
+                    [erl_syntax:atom(AttrName), VarAst]), VarName};
 
-resolve_variable_name_ast(VarName, Context) ->
-    resolve_variable_name_ast(VarName, Context, 'fetch_value').
-    
-resolve_variable_name_ast(VarName, Context, FinderFunction) ->
+resolve_variable_ast({variable, {identifier, _, VarName}}, Context, FinderFunction) ->
     VarValue = lists:foldl(fun(Scope, Value) ->
                 case Value of
-                    undefined ->
-                        proplists:get_value(list_to_atom(VarName), Scope);
-                    _ ->
-                        Value
+                    undefined -> proplists:get_value(list_to_atom(VarName), Scope);
+                    _ -> Value
                 end
         end, undefined, Context#dtl_context.local_scopes),
-    case VarValue of
+    VarValue1 = case VarValue of
         undefined ->
             erl_syntax:application(erl_syntax:atom(erlydtl_runtime), erl_syntax:atom(FinderFunction),
                 [erl_syntax:atom(VarName), erl_syntax:variable("Variables")]);
         _ ->
             VarValue
-    end.
-
+    end,
+    {VarValue1, VarName}.
 
 format(Ast, Context) ->
     auto_escape(format_integer_ast(Ast), Context).
@@ -545,13 +543,13 @@ ifequalelse_ast(Args, {IfContentsAst, IfContentsInfo}, {ElseContentsAst, ElseCon
     {[Arg1Ast, Arg2Ast], VarNames} = lists:foldl(fun
             (X, {Asts, AccVarNames}) ->
                 case X of
-                    {variable, Var} ->
-                        {Ast, VarName} = resolve_ifvariable_ast(Var, Context),
-                        {[Ast | Asts], [VarName | AccVarNames]};
                     {string_literal, _, Literal} ->
                         {[erl_syntax:string(unescape_string_literal(Literal)) | Asts], AccVarNames};
                     {number_literal, _, Literal} ->
-                        {[erl_syntax:integer(list_to_integer(Literal)) | Asts], AccVarNames}
+                        {[erl_syntax:integer(list_to_integer(Literal)) | Asts], AccVarNames};
+                    Variable ->
+                        {Ast, VarName} = resolve_ifvariable_ast(Variable, Context),
+                        {[Ast | Asts], [VarName | AccVarNames]}
                 end                
         end,
         {[], Info#ast_info.var_names},
@@ -565,7 +563,7 @@ ifequalelse_ast(Args, {IfContentsAst, IfContentsInfo}, {ElseContentsAst, ElseCon
     {{Ast, Info#ast_info{var_names = VarNames}}, TreeWalker}.         
 
 
-for_loop_ast(IteratorList, {variable, Variable}, Contents, Context, TreeWalker) ->
+for_loop_ast(IteratorList, Variable, Contents, Context, TreeWalker) ->
     Vars = lists:map(fun({identifier, _, Iterator}) -> 
                     erl_syntax:variable("Var_" ++ Iterator) 
             end, IteratorList),
@@ -641,7 +639,7 @@ tag_ast(Name, Args, Context, TreeWalker) ->
             InterpretedArgs = lists:map(fun
                     ({{identifier, _, Key}, {string_literal, _, Value}}) ->
                         {list_to_atom(Key), erl_syntax:string(unescape_string_literal(Value))};
-                    ({{identifier, _, Key}, {variable, Value}}) ->
+                    ({{identifier, _, Key}, Value}) ->
                         {list_to_atom(Key), format(resolve_variable_ast(Value, Context), Context)}
                 end, Args),
             DefaultFilePath = filename:join([erlydtl_deps:get_base_dir(), "priv", "custom_tags", Name]),

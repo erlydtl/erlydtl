@@ -42,7 +42,12 @@ tests() ->
                 {"Render variable with attribute in dict",
                     <<"{{ var1.attr }}">>, [{var1, dict:store(attr, "Othello", dict:new())}], <<"Othello">>},
                 {"Render variable with attribute in gb_tree",
-                    <<"{{ var1.attr }}">>, [{var1, gb_trees:insert(attr, "Othello", gb_trees:empty())}], <<"Othello">>}
+                    <<"{{ var1.attr }}">>, [{var1, gb_trees:insert(attr, "Othello", gb_trees:empty())}], <<"Othello">>},
+                {"Render variable in parameterized module",
+                    <<"{{ var1.some_var }}">>, [{var1, erlydtl_example_variable_storage:new("foo")}], <<"foo">>},
+                {"Nested attributes",
+                    <<"{{ person.city.state.country }}">>, [{person, [{city, [{state, [{country, "Italy"}]}]}]}],
+                    <<"Italy">>}
             ]},
         {"if", [
                 {"If/else",
@@ -76,6 +81,9 @@ tests() ->
                     <<"X,1\nX,2\n">>},
                 {"Resolve variable attribute",
                     <<"{% for number in person.numbers %}{{ number }}\n{% endfor %}">>, [{person, [{numbers, ["411", "911"]}]}],
+                    <<"411\n911\n">>},
+                {"Resolve nested variable attribute",
+                    <<"{% for number in person.home.numbers %}{{ number }}\n{% endfor %}">>, [{person, [{home, [{numbers, ["411", "911"]}]}]}],
                     <<"411\n911\n">>},
                 {"Nested for loop",
                     <<"{% for outer in list %}{% for inner in outer %}{{ inner }}\n{% endfor %}{% endfor %}">>,
