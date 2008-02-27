@@ -43,6 +43,15 @@
                                   (C =:= $\. orelse C =:= $- 
                                   orelse C =:= $~ orelse C =:= $_))).
 
+add([Input], Number) when is_list(Input) or is_binary(Input) ->
+    add(Input, Number);
+add(Input, Number) when is_binary(Input) ->
+    list_to_binary(add(binary_to_list(Input), Number));
+add(Input, Number) when is_list(Input) ->
+    integer_to_list(add(list_to_integer(Input), Number));
+add(Input, Number) when is_integer(Input) ->
+    Input + Number.
+
 capfirst([Input]) when is_list(Input) or is_binary (Input) ->
     capfirst(Input);
 capfirst([H|T]) when H >= $a andalso H =< $z ->
@@ -141,15 +150,6 @@ rjust(Input, Number) when is_binary(Input) ->
     list_to_binary(rjust(binary_to_list(Input), Number));
 rjust(Input, Number) ->
     string:right(Input, Number).
-
-plus([Input], Number) when is_list(Input) or is_binary(Input) ->
-    plus(Input, Number);
-plus(Input, Number) when is_binary(Input) ->
-    list_to_binary(plus(binary_to_list(Input), Number));
-plus(Input, Number) when is_list(Input) ->
-    integer_to_list(plus(list_to_integer(Input), Number));
-plus(Input, Number) when is_integer(Input) ->
-    Input + Number.
 
 upper([Input]) when is_list(Input) or is_binary(Input) ->
     upper(Input);
