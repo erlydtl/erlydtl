@@ -124,6 +124,10 @@ setup("ifnotequal_preset") ->
     CompileVars = [{var1, "foo"}, {var2, "foo"}],
     RenderVars = [],
     {ok, CompileVars, ok, RenderVars}; 
+setup("now") ->
+    CompileVars = [],
+    RenderVars = [],
+    {ok, CompileVars, ok, RenderVars}; 
 setup("var") ->
     CompileVars = [],
     RenderVars = [{var1, "foostring1"}, {var2, "foostring2"}, {var_not_used, "foostring3"}],

@@ -40,6 +40,7 @@ Nonterminals
 
     ExtendsTag
     IncludeTag
+    NowTag
 
     BlockBlock
     BlockBraced
@@ -117,6 +118,7 @@ Terminals
     include_keyword
     load_keyword
     not_keyword
+    now_keyword
     number_literal
     open_tag
     open_var
@@ -133,6 +135,7 @@ Elements -> Elements text : '$1' ++ ['$2'].
 Elements -> Elements ValueBraced : '$1' ++ ['$2'].
 Elements -> Elements ExtendsTag : '$1' ++ ['$2'].
 Elements -> Elements IncludeTag : '$1' ++ ['$2'].
+Elements -> Elements NowTag : '$1' ++ ['$2'].
 Elements -> Elements LoadTag : '$1' ++ ['$2'].
 Elements -> Elements BlockBlock : '$1' ++ ['$2'].
 Elements -> Elements ForBlock : '$1' ++ ['$2'].
@@ -156,6 +159,7 @@ Variable -> Value dot identifier : {attribute, {'$3', '$1'}}.
 
 ExtendsTag -> open_tag extends_keyword string_literal close_tag : {extends, '$3'}.
 IncludeTag -> open_tag include_keyword string_literal close_tag : {include, '$3'}.
+NowTag -> open_tag now_keyword string_literal close_tag : {date, now, '$3'}.
 
 LoadTag -> open_tag load_keyword LoadNames close_tag : {load, '$3'}.
 LoadNames -> identifier : ['$1'].
