@@ -49,6 +49,10 @@ tests() ->
                     <<"{{ person.city.state.country }}">>, [{person, [{city, [{state, [{country, "Italy"}]}]}]}],
                     <<"Italy">>}
             ]},
+        {"now", [
+               {"now functional",
+                  <<"It is the {% now \"jS o\\f F Y\" %}.">>, [{var1, ""}], generate_test_date()}
+            ]},
         {"if", [
                 {"If/else",
                     <<"{% if var1 %}boo{% else %}yay{% endif %}">>, [{var1, ""}], <<"yay">>},
@@ -276,3 +280,24 @@ vars_to_binary(Vars) when is_list(Vars) ->
         end, Vars);
 vars_to_binary(Vars) ->
     Vars.
+
+generate_test_date() ->
+    {{Y,M,D}, _} = erlang:localtime(),
+    MonthName = [
+       "January", "February", "March", "April",
+       "May", "June", "July", "August", "September",
+       "October", "November", "December"
+    ],
+    OrdinalSuffix = [
+       "st","nd","rd","th","th","th","th","th","th","th", % 1-10
+       "th","th","th","th","th","th","th","th","th","th", % 10-20
+       "st","nd","rd","th","th","th","th","th","th","th", % 20-30
+       "st"
+    ],
+    list_to_binary([
+         "It is the ",
+         integer_to_list(D),
+         lists:nth(D, OrdinalSuffix),
+         " of ", lists:nth(M, MonthName),
+         " ", integer_to_list(Y), "."
+    ]).

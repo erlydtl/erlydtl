@@ -298,6 +298,12 @@ body_ast(DjangoParseTree, Context, TreeWalker) ->
                 body_ast(Block, Context, TreeWalkerAcc);
             ({'comment', _Contents}, TreeWalkerAcc) ->
                 empty_ast(TreeWalkerAcc);
+            ({'date', 'now', {string_literal, _Pos, FormatString}}, TreeWalkerAcc) ->
+                % Note: we can't use unescape_string_literal here
+                % because we want to allow escaping in the format string.
+                % We only want to remove the surrounding quotes, i.e. \"foo\"
+                Unquoted = string:sub_string(FormatString, 2, length(FormatString) - 1),
+                string_ast(dateformat:format(Unquoted), TreeWalkerAcc);
             ({'autoescape', {identifier, _, OnOrOff}, Contents}, TreeWalkerAcc) ->
                 body_ast(Contents, Context#dtl_context{auto_escape = list_to_atom(OnOrOff)}, 
                     TreeWalkerAcc);
