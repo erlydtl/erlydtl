@@ -1,4 +1,4 @@
--module(dateformat).
+-module(erlydtl_dateformat).
 -export([format/1, format/2]).
 
 -define(TAG_SUPPORTED(C),

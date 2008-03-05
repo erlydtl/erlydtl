@@ -303,7 +303,7 @@ body_ast(DjangoParseTree, Context, TreeWalker) ->
                 % because we want to allow escaping in the format string.
                 % We only want to remove the surrounding quotes, i.e. \"foo\"
                 Unquoted = string:sub_string(FormatString, 2, length(FormatString) - 1),
-                string_ast(dateformat:format(Unquoted), TreeWalkerAcc);
+                string_ast(erlydtl_dateformat:format(Unquoted), TreeWalkerAcc);
             ({'autoescape', {identifier, _, OnOrOff}, Contents}, TreeWalkerAcc) ->
                 body_ast(Contents, Context#dtl_context{auto_escape = list_to_atom(OnOrOff)}, 
                     TreeWalkerAcc);
