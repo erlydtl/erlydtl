@@ -66,6 +66,19 @@ center(Input, Number) when is_binary(Input) ->
 center(Input, Number) when is_list(Input) ->
     string:centre(Input, Number).
 
+date([Input], FormatStr) when is_list(Input) or is_binary(Input) ->
+    date(Input, FormatStr);
+date(Input, FormatStr) when is_binary(Input) ->
+    list_to_binary(date(binary_to_list(Input), FormatStr));
+date([{{_,_,_} = Date,{_,_,_} = Time}], FormatStr) ->
+    erlydtl_dateformat:format({Date, Time}, FormatStr);
+date([{_,_,_} = Date], FormatStr) ->
+    erlydtl_dateformat:format(Date, FormatStr);
+date(Input, _FormatStr) when is_list(Input) ->
+    io:format("Unexpected date parameter : ~p~n", [Input]),
+    "".
+
+
 escapejs([Input]) when is_list(Input) or is_binary(Input) ->
     escapejs(Input);
 escapejs(Input) when is_binary(Input) ->

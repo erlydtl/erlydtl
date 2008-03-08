@@ -57,7 +57,11 @@ setup("extends") ->
     {ok, CompileVars, ok, RenderVars};
 setup("filters") ->
     CompileVars = [],
-    RenderVars = [{'list', ["eins", "zwei", "drei"]}],
+    RenderVars = [
+        {date_var1, {1975,7,24}},
+        {datetime_var1, {{1975,7,24}, {7,13,1}}},
+        {'list', ["eins", "zwei", "drei"]}
+    ],
     {ok, CompileVars, ok, RenderVars};
 setup("for") ->
     CompileVars = [],

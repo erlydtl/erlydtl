@@ -1,9 +1,14 @@
+Add: 2 + 2 = {{ 2|add:2 }}
+
 Capfirst: {{ "capitalized"|capfirst }}
 
 Centered:
 <pre>
 {{ "center"|center:20 }}
 </pre>
+
+Date format:  {{ date_var1|date:"r" }}
+DateTime format: {{ datetime_var1|date:"r" }}
 
 Escape JS: {{ "\" '"|escapejs }}
 
@@ -29,8 +34,6 @@ Left adjust:
 Line breaks: {{ "Line 1\nLine 2\nLine 3"|linebreaksbr }}
 
 Lowercase: {{ "LOWERCASE"|lower }}
-
-Plus: 2 + 2 = {{ 2|plus:2 }}
 
 Right adjust:
 <pre>
