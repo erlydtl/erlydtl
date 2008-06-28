@@ -121,18 +121,37 @@ scan("\"" ++ T, Scanned, {Row, Column}, {in_code, Closer}) ->
 scan("\"" ++ T, Scanned, {Row, Column}, {in_identifier, Closer}) ->
     scan(T, [{string_literal, {Row, Column}, "\""} | Scanned], {Row, Column + 1}, {in_double_quote, Closer});
 
+scan("\'" ++ T, Scanned, {Row, Column}, {in_code, Closer}) ->
+    scan(T, [{string_literal, {Row, Column}, "\""} | Scanned], {Row, Column + 1}, {in_single_quote, Closer});
+
+scan("\'" ++ T, Scanned, {Row, Column}, {in_identifier, Closer}) ->
+    scan(T, [{string_literal, {Row, Column}, "\""} | Scanned], {Row, Column + 1}, {in_single_quote, Closer});
+
 scan([$\\ | T], Scanned, {Row, Column}, {in_double_quote, Closer}) ->
     scan(T, append_char(Scanned, $\\), {Row, Column + 1}, {in_double_quote_slash, Closer});
 
 scan([H | T], Scanned, {Row, Column}, {in_double_quote_slash, Closer}) ->
     scan(T, append_char(Scanned, H), {Row, Column + 1}, {in_double_quote, Closer});
 
+scan([$\\ | T], Scanned, {Row, Column}, {in_single_quote, Closer}) ->
+    scan(T, append_char(Scanned, $\\), {Row, Column + 1}, {in_single_quote_slash, Closer});
+
+scan([H | T], Scanned, {Row, Column}, {in_single_quote_slash, Closer}) ->
+    scan(T, append_char(Scanned, H), {Row, Column + 1}, {in_single_quote, Closer});
+
 % end quote
 scan("\"" ++ T, Scanned, {Row, Column}, {in_double_quote, Closer}) ->
     scan(T, append_char(Scanned, 34), {Row, Column + 1}, {in_code, Closer});
 
+% treat single quotes the same as double quotes
+scan("\'" ++ T, Scanned, {Row, Column}, {in_single_quote, Closer}) ->
+    scan(T, append_char(Scanned, 34), {Row, Column + 1}, {in_code, Closer});
+
 scan([H | T], Scanned, {Row, Column}, {in_double_quote, Closer}) ->
     scan(T, append_char(Scanned, H), {Row, Column + 1}, {in_double_quote, Closer});
+
+scan([H | T], Scanned, {Row, Column}, {in_single_quote, Closer}) ->
+    scan(T, append_char(Scanned, H), {Row, Column + 1}, {in_single_quote, Closer});
 
 
 scan("," ++ T, Scanned, {Row, Column}, {_, Closer}) ->

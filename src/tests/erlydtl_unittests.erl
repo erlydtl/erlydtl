@@ -26,6 +26,15 @@ tests() ->
                 {"Newlines are escaped",
                     <<"{{ \"foo\\n\" }}">>, [], <<"foo\n">>}
             ]},
+        {"cycle", [
+                {"Cycling through quoted strings",
+                    <<"{% for i in test %}{% cycle 'a' 'b' %}{{ i }},{% endfor %}">>,
+                    [{test, ["0", "1", "2", "3", "4"]}], <<"a0,b1,a2,b3,a4,">>},
+                {"Cycling through normal variables",
+                    <<"{% for i in test %}{% cycle aye bee %}{{ i }},{% endfor %}">>,
+                    [{test, ["0", "1", "2", "3", "4"]}, {aye, "a"}, {bee, "b"}],
+                    <<"a0,b1,a2,b3,a4,">>}
+            ]},
         {"number literal", [
                 {"Render integer",
                     <<"{{ 5 }}">>, [], <<"5">>}

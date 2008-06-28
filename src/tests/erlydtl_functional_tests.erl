@@ -3,7 +3,7 @@
 %%% @author    Roberto Saccon <rsaccon@gmail.com> [http://rsaccon.com]
 %%% @author    Evan Miller <emmiller@gmail.com>
 %%% @copyright 2008 Roberto Saccon, Evan Miller
-%%% @doc       ErlyDTS test suite
+%%% @doc       ErlyDTL test suite
 %%% @end
 %%%
 %%% The MIT License
@@ -143,7 +143,12 @@ setup("var_preset") ->
 setup("var_error") ->
     CompileVars = [],
     RenderVars = [{var1, "foostring1"}],   
-    {ok, CompileVars, error, RenderVars}; 
+    {ok, CompileVars, error, RenderVars};
+setup("cycle") ->
+    CompileVars = [],
+    RenderVars = [{test, [integer_to_list(X) || X <- lists:seq(1, 20)]},
+                  {a, "Apple"}, {b, "Banana"}, {c, "Cherry"}],
+    {ok, CompileVars, ok, RenderVars};
 %%--------------------------------------------------------------------       
 %% Custom tags
 %%--------------------------------------------------------------------

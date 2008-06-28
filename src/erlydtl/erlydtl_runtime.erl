@@ -84,3 +84,6 @@ increment_counter_stats([{counter, Counter}, {counter0, Counter0}, {revcounter, 
         {revcounter0, RevCounter0 - 1},
         {first, false}, {last, RevCounter0 =:= 1},
         {parentloop, Parent}].
+
+cycle(NamesTuple, Counters) when is_tuple(NamesTuple) ->
+    element(fetch_value(counter0, Counters) rem size(NamesTuple) + 1, NamesTuple).
