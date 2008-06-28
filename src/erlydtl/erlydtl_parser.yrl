@@ -50,6 +50,10 @@ Nonterminals
     CommentBraced
     EndCommentBraced
 
+    CycleTag
+    CycleNames
+    CycleNamesCompat
+
     ForBlock
     ForBraced
     EndForBraced
@@ -98,6 +102,7 @@ Terminals
     comment_keyword
     colon
     comma
+    cycle_keyword
     dot
     else_keyword
     endautoescape_keyword
@@ -137,6 +142,7 @@ Elements -> Elements ExtendsTag : '$1' ++ ['$2'].
 Elements -> Elements IncludeTag : '$1' ++ ['$2'].
 Elements -> Elements NowTag : '$1' ++ ['$2'].
 Elements -> Elements LoadTag : '$1' ++ ['$2'].
+Elements -> Elements CycleTag : '$1' ++ ['$2'].
 Elements -> Elements BlockBlock : '$1' ++ ['$2'].
 Elements -> Elements ForBlock : '$1' ++ ['$2'].
 Elements -> Elements IfBlock : '$1' ++ ['$2'].
@@ -172,6 +178,16 @@ EndBlockBraced -> open_tag endblock_keyword close_tag.
 CommentBlock -> CommentBraced Elements EndCommentBraced : {comment, '$2'}.
 CommentBraced -> open_tag comment_keyword close_tag.
 EndCommentBraced -> open_tag endcomment_keyword close_tag.
+
+CycleTag -> open_tag cycle_keyword CycleNamesCompat close_tag : {cycle_compat, '$3'}.
+CycleTag -> open_tag cycle_keyword CycleNames close_tag : {cycle, '$3'}.
+
+CycleNames -> Value : ['$1'].
+CycleNames -> CycleNames Value : '$1' ++ ['$2'].
+
+CycleNamesCompat -> identifier comma : ['$1'].
+CycleNamesCompat -> CycleNamesCompat identifier comma : '$1' ++ ['$2'].
+CycleNamesCompat -> CycleNamesCompat identifier : '$1' ++ ['$2'].
 
 ForBlock -> ForBraced Elements EndForBraced : {for, '$1', '$2'}.
 ForBraced -> open_tag for_keyword ForExpression close_tag : '$3'.

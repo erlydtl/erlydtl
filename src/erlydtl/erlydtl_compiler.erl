@@ -365,7 +365,11 @@ body_ast(DjangoParseTree, Context, TreeWalker) ->
             ({'call', {'identifier', _, Name}}, TreeWalkerAcc) ->
             	call_ast(Name, TreeWalkerAcc);
             ({'call', {'identifier', _, Name}, With}, TreeWalkerAcc) ->
-            	call_with_ast(Name, With, Context, TreeWalkerAcc)
+            	call_with_ast(Name, With, Context, TreeWalkerAcc);
+            ({'cycle', Names}, TreeWalkerAcc) ->
+                cycle_ast(Names, Context, TreeWalkerAcc);
+            ({'cycle_compat', Names}, TreeWalkerAcc) ->
+                cycle_compat_ast(Names, Context, TreeWalkerAcc)
         end, TreeWalker, DjangoParseTree),   
     {AstList, {Info, TreeWalker3}} = lists:mapfoldl(
         fun({Ast, Info}, {InfoAcc, TreeWalkerAcc}) -> 
@@ -608,6 +612,27 @@ load_ast(Names, _Context, TreeWalker) ->
     CustomTags = lists:merge([X || {identifier, _ , X} <- Names], TreeWalker#treewalker.custom_tags),
     {{erl_syntax:list([]), #ast_info{}}, TreeWalker#treewalker{custom_tags = CustomTags}}.  
 
+cycle_ast(Names, Context, TreeWalker) ->
+    NamesTuple = lists:map(fun({string_literal, _, Str}) ->
+                                   erl_syntax:string(unescape_string_literal(Str));
+                              ({variable, _}=Var) ->
+                                   {V, _} = resolve_variable_ast(Var, Context),
+                                   V;
+                              ({number_literal, _, Num}) ->
+                                   format(erl_syntax:integer(Num), Context);
+                              (_) ->
+                                   []
+                           end, Names),
+    {{erl_syntax:application(
+        erl_syntax:atom('erlydtl_runtime'), erl_syntax:atom('cycle'),
+        [erl_syntax:tuple(NamesTuple), erl_syntax:variable("Counters")]), #ast_info{}}, TreeWalker}.
+
+%% Older Django templates treat cycle with comma-delimited elements as strings
+cycle_compat_ast(Names, _Context, TreeWalker) ->
+    NamesTuple = [erl_syntax:string(X) || {identifier, _, X} <- Names],
+    {{erl_syntax:application(
+        erl_syntax:atom('erlydtl_runtime'), erl_syntax:atom('cycle'),
+        [erl_syntax:tuple(NamesTuple), erl_syntax:variable("Counters")]), #ast_info{}}, TreeWalker}.
 
 unescape_string_literal(String) ->
     unescape_string_literal(string:strip(String, both, 34), [], noslash).
