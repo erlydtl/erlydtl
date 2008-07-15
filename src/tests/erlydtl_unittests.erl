@@ -73,6 +73,8 @@ tests() ->
                     <<"{% if var1 %}boo{% endif %}">>, [{var1, "0"}], <<>>},
                 {"If false",
                     <<"{% if var1 %}boo{% endif %}">>, [{var1, false}], <<>>},
+                {"If false string",
+                    <<"{% if var1 %}boo{% endif %}">>, [{var1, "false"}], <<"boo">>},
                 {"If undefined",
                     <<"{% if var1 %}boo{% endif %}">>, [{var1, undefined}], <<>>},
                 {"If other atom",
@@ -136,7 +138,16 @@ tests() ->
                     [{var1, "foo"}], <<"yay">>},
                 {"Compare literal to unequal variable",
                     <<"{% ifequal \"foo\" var1 %}boo{% endifequal %}">>,
-                    [{var1, "bar"}], <<>>}
+                    [{var1, "bar"}], <<>>},
+                {"Compare variable to literal (int string)",
+                    <<"{% ifequal var1 \"2\" %}yay{% else %}boo{% endifequal %}">>,
+                    [{var1, "2"}], <<"yay">>},
+                {"Compare variable to literal (int)",
+                    <<"{% ifequal var1 2 %}yay{% else %}boo{% endifequal %}">>,
+                    [{var1, 2}], <<"yay">>},
+                {"Compare variable to unequal literal (int)",
+                    <<"{% ifequal var1 2 %}boo{% else %}yay{% endifequal %}">>,
+                    [{var1, 3}], <<"yay">>}
             ]},
         {"ifequal/else", [
                 {"Compare variable to literal",
@@ -180,8 +191,8 @@ tests() ->
                     <<"{% ifnotequal \"foo\" var1 %}yay{% else %}boo{% endifnotequal %}">>,
                     [{var1, "bar"}], <<"yay">>}
             ]},
-        {"filters", [
-                {"Filter a literal",
+       {"filters", [
+               {"Filter a literal",
                     <<"{{ \"pop\"|capfirst }}">>, [],
                     <<"Pop">>},
                 {"Filters applied in order",
@@ -254,7 +265,53 @@ tests() ->
                 {"|urlencode",
                     <<"{{ url|urlencode }}">>, [{url, "You #$*@!!"}],
                     <<"You+%23%24%2A%40%21%21">>}
-            ]}
+            ]},
+        {"filters_if", [
+                {"Filter if 1.1",
+                    <<"{% if var1|length_is:0 %}Y{% else %}N{% endif %}">>,
+                     [{var1, []}],
+                     <<"Y">>},
+                {"Filter if 1.2",
+                    <<"{% if var1|length_is:1 %}Y{% else %}N{% endif %}">>,
+                     [{var1, []}],
+                     <<"N">>},
+                {"Filter if 1.3",
+                    <<"{% if var1|length_is:7 %}Y{% else %}N{% endif %}">>,
+                     [{var1, []}],
+                     <<"N">>},
+                {"Filter if 2.1",
+                    <<"{% if var1|length_is:0 %}Y{% else %}N{% endif %}">>,
+                     [{var1, ["foo"]}],
+                     <<"N">>},
+                {"Filter if 2.2",
+                    <<"{% if var1|length_is:1 %}Y{% else %}N{% endif %}">>,
+                     [{var1, ["foo"]}],
+                     <<"Y">>},
+                {"Filter if 2.3",
+                    <<"{% if var1|length_is:7 %}Y{% else %}N{% endif %}">>,
+                     [{var1, ["foo"]}],
+                     <<"N">>},
+                {"Filter if 3.1",
+                    <<"{% ifequal var1|length 0 %}Y{% else %}N{% endifequal %}">>,
+                     [{var1, []}],
+                     <<"Y">>},
+                {"Filter if 3.1",
+                    <<"{% ifequal var1|length 1 %}Y{% else %}N{% endifequal %}">>,
+                     [{var1, []}],
+                     <<"N">>},
+                {"Filter if 4.1",
+                    <<"{% ifequal var1|length 3 %}Y{% else %}N{% endifequal %}">>,
+                     [{var1, ["foo", "bar", "baz"]}],
+                     <<"Y">>},
+                {"Filter if 4.2",
+                    <<"{% ifequal var1|length 0 %}Y{% else %}N{% endifequal %}">>,
+                     [{var1, ["foo", "bar", "baz"]}],
+                     <<"N">>},
+                {"Filter if 4.3",
+                    <<"{% ifequal var1|length 1 %}Y{% else %}N{% endifequal %}">>,
+                     [{var1, ["foo", "bar", "baz"]}],
+                     <<"N">>}
+        ]}
     ].
 
 run_tests() ->

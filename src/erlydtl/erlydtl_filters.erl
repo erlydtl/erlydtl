@@ -128,13 +128,16 @@ last(Input) when is_binary(Input) ->
 last(Input) when is_list(Input) ->
     [lists:last(Input)].
 
+length([]) -> "0";
 length([Input]) when is_list(Input) ->
     integer_to_list(erlang:length(Input));
 length([Input]) when is_binary(Input) ->
     integer_to_list(size(Input)).
 
-length_is(Input, Number) when is_list(Input) ->
-    lists:concat([?MODULE:length(Input) =:= integer_to_list(Number)]).
+length_is(Input, Number) when is_list(Input), is_integer(Number) ->
+    length_is(Input, integer_to_list(Number));
+length_is(Input, Number) when is_list(Input), is_list(Number) ->
+    ?MODULE:length(Input) =:= Number.
 
 linebreaksbr([Input]) when is_list(Input) or is_binary(Input) ->
     linebreaksbr(Input);

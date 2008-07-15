@@ -38,16 +38,22 @@ fetch_value(Key, Data) ->
             Val
     end.
 
-are_equal([Arg1], Arg2) when is_list(Arg1) ->
-    are_equal(Arg1, Arg2);
-are_equal(Arg1, [Arg2]) when is_list(Arg1) ->
-    are_equal(Arg1, Arg2);
+are_equal(Arg1, Arg2) when Arg1 =:= Arg2 ->
+    true;
 are_equal(Arg1, Arg2) when is_binary(Arg1) ->
     are_equal(binary_to_list(Arg1), Arg2);
 are_equal(Arg1, Arg2) when is_binary(Arg2) ->
     are_equal(Arg1, binary_to_list(Arg2));
-are_equal(Arg1, Arg2) ->
-    Arg1 =:= Arg2.
+are_equal(Arg1, Arg2) when is_integer(Arg1) ->
+    are_equal(integer_to_list(Arg1), Arg2);
+are_equal(Arg1, Arg2) when is_integer(Arg2) ->
+    are_equal(Arg1, integer_to_list(Arg2));
+are_equal([Arg1], Arg2) when is_list(Arg1) ->
+    are_equal(Arg1, Arg2);
+are_equal(Arg1, [Arg2]) when is_list(Arg1) ->
+    are_equal(Arg1, Arg2);
+are_equal(_, _) ->
+    false.
 
 is_false("") ->
     true;
@@ -63,6 +69,15 @@ is_false(<<>>) ->
     true;
 is_false(_) ->
     false.
+
+stringify_final(In) ->
+   stringify_final(In, []).
+stringify_final([], Out) ->
+   lists:reverse(Out);
+stringify_final([El | Rest], Out) when is_atom(El) ->
+   stringify_final(Rest, [atom_to_list(El) | Out]);
+stringify_final([El | Rest], Out) ->
+   stringify_final(Rest, [El | Out]).
 
 init_counter_stats(List) ->
     init_counter_stats(List, undefined).
