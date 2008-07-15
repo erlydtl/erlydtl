@@ -305,11 +305,7 @@ body_ast(DjangoParseTree, Context, TreeWalker) ->
             ({'comment', _Contents}, TreeWalkerAcc) ->
                 empty_ast(TreeWalkerAcc);
             ({'date', 'now', {string_literal, _Pos, FormatString}}, TreeWalkerAcc) ->
-                % Note: we can't use unescape_string_literal here
-                % because we want to allow escaping in the format string.
-                % We only want to remove the surrounding quotes, i.e. \"foo\"
-                Unquoted = string:sub_string(FormatString, 2, length(FormatString) - 1),
-                string_ast(erlydtl_dateformat:format(Unquoted), TreeWalkerAcc);
+                now_ast(FormatString, Context, TreeWalkerAcc);
             ({'autoescape', {identifier, _, OnOrOff}, Contents}, TreeWalkerAcc) ->
                 body_ast(Contents, Context#dtl_context{auto_escape = list_to_atom(OnOrOff)}, 
                     TreeWalkerAcc);
@@ -653,6 +649,18 @@ cycle_compat_ast(Names, _Context, TreeWalker) ->
     {{erl_syntax:application(
         erl_syntax:atom('erlydtl_runtime'), erl_syntax:atom('cycle'),
         [erl_syntax:tuple(NamesTuple), erl_syntax:variable("Counters")]), #ast_info{}}, TreeWalker}.
+
+now_ast(FormatString, _Context, TreeWalker) ->
+    % Note: we can't use unescape_string_literal here
+    % because we want to allow escaping in the format string.
+    % We only want to remove the surrounding escapes,
+    % i.e. \"foo\" becomes "foo"
+    UnescapeOuter = string:strip(FormatString, both, 34),
+    {{erl_syntax:application(
+        erl_syntax:atom(erlydtl_dateformat),
+        erl_syntax:atom(format),
+        [erl_syntax:string(UnescapeOuter)]),
+        #ast_info{}}, TreeWalker}.
 
 unescape_string_literal(String) ->
     unescape_string_literal(string:strip(String, both, 34), [], noslash).
