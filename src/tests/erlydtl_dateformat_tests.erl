@@ -5,7 +5,8 @@
 -define(DISPLAY_PASSES, false).
 
 run_tests() ->
-   test_group_runner([
+   io:format("Running date format tests...~n"),
+   Failures = test_group_runner([
       {
          "date 1",
          {1979, 7, 8}, % just a date
@@ -155,11 +156,13 @@ run_tests() ->
       { "Ordinal suffix 22", {1984,1,121}, [{"S", "st"}] }
    ]),
 
+   io:format("Date format failures: ~p~n~n", [Failures]),
+
    ok.
 
-test_group_runner([]) -> ok;
+test_group_runner([]) -> 0;
 test_group_runner([{Info, DateParam, Tests} | Rest]) ->
-   io:format("Running ~p -> ", [Info]),
+   io:format(" Test ~p -> ", [Info]),
    PassCount = test_runner(DateParam, Tests),
    case PassCount =:= length(Tests) of
        true ->
@@ -167,7 +170,7 @@ test_group_runner([{Info, DateParam, Tests} | Rest]) ->
        _ ->
            io:format("~nFailed ~p/~p~n", [length(Tests) - PassCount, length(Tests)])
    end,
-   test_group_runner(Rest).
+   test_group_runner(Rest) + length(Tests) - PassCount.
 
 test_runner(DateParam, Tests) ->
     test_runner(DateParam, Tests, 1, 0).
@@ -184,6 +187,6 @@ is(TestNum, Text, Input1, Input2) when Input1 =:= Input2, ?DISPLAY_PASSES ->
 is(_TestNum, _Text, Input1, Input2) when Input1 =:= Input2 ->
     1;
 is(TestNum, Text, Input1, Input2) -> 
-    io:format("~nnot ok ~p - ~s~n     got : ~p~n expcted : ~p", [
+    io:format("~nnot ok ~p - ~s~n     got : ~p~n expected : ~p", [
        TestNum, Text, Input1, Input2]),
     0.

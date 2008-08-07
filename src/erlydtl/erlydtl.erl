@@ -4,8 +4,7 @@
 %%% @author    Evan Miller <emmiller@gmail.com>
 %%% @copyright 2008 Roberto Saccon, Evan Miller
 %%% @doc  
-%%% Helper module to start and stop ErlyDTL application and for 
-%%% creating yecc-grammar based template parser
+%%% Public interface for ErlyDTL
 %%% @end  
 %%%
 %%% The MIT License
@@ -37,57 +36,10 @@
 -author('emmiller@gmail.com').
 
 %% API
--export([create_parser/0, parser_src/0]).
+-export([compile/2, compile/3]).
 
-%% --------------------------------------------------------------------
-%% Definitions
-%% --------------------------------------------------------------------
--define(PRINT_ERR_WARNS, [report_warnings, report_errors]). 
+compile(FileOrBinary, Module) ->
+    erlydtl_compiler:compile(FileOrBinary, Module).
 
-    
-%%--------------------------------------------------------------------
-%% @spec () ->  Ok::atom() | Err::tuple()
-%% @doc creates the yecc-based ErlyDTL parser
-%% @end 
-%%--------------------------------------------------------------------
-create_parser() ->
-    create_parser("src/erlydtl/erlydtl_parser", "ebin").
-
- 
-%%--------------------------------------------------------------------
-%% @spec () -> string()
-%% @doc creates the yecc-based ErlyDTL parser
-%% @end 
-%%--------------------------------------------------------------------   
-parser_src() ->
-    {file, Ebin} = code:is_loaded(?MODULE),
-    filename:join([filename:dirname(filename:dirname(Ebin)), 
-        "src", "erlydtl", "erlydtl_parser.yrl"]).
-    
-         
-%%====================================================================
-%% Internal functions
-%%====================================================================
-
-create_parser(Path, Outdir) ->
-    case yecc:file(Path) of
-        {ok, _} ->
-            compile_parser(Path, Outdir);
-        _ ->
-            {error, "yecc parser generation failed"}
-    end.
-
-
-compile_parser(Path, Outdir) ->
-    case compile:file(Path, ?PRINT_ERR_WARNS ++ [{outdir, Outdir}]) of
-        {ok, Bin} ->
-            code:purge(Bin),
-            case code:load_file(Bin) of
-                {module, _} ->
-                    ok;
-                _ ->
-                    {error, "yecc parser reload failed"}
-            end;
-        _ ->
-            {error, "yecc parser compilation failed"}
-    end.
+compile(FileOrBinary, Module, Options) ->
+    erlydtl_compiler:compile(FileOrBinary, Module, Options).

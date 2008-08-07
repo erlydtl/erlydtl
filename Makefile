@@ -15,8 +15,9 @@ run:
 
 test:
 	$(ERL) -noshell -pa ebin \
-		-s erlydtl_unittests run_tests \
+		-s erlydtl_functional_tests run_tests \
 		-s erlydtl_dateformat_tests run_tests \
+		-s erlydtl_unittests run_tests \
 		-s init stop
 	
 clean:

@@ -178,42 +178,25 @@ setup(_) ->
     
 
 run_tests() ->    
-    case maybe_create_parser() of
-        ok ->
-            case fold_tests() of
-                {N, []}->
-                    Msg = lists:concat(["All ", N, " functional tests passed"]),
-                    {ok, Msg};
-                {_, Errs} ->
-                    io:format("Errors: ~p~n",[Errs]),
-                    failed
-            end;
-        Err ->
-            Err
+    io:format("Running functional tests...~n"),
+    case fold_tests() of
+        {N, []}->
+            Msg = lists:concat(["All ", N, " functional tests passed~n~n"]),
+            io:format(Msg),
+            {ok, Msg};
+        {_, Errs} ->
+            io:format("Errors: ~p~n~n",[Errs]),
+            failed
     end.
 
 
 run_test(Name) ->
-    case maybe_create_parser() of
-        ok ->
-            test_compile_render(filename:join([templates_docroot(), Name]));
-        Err ->
-            Err
-    end.    
+    test_compile_render(filename:join([templates_docroot(), Name])).
 
 
 %%====================================================================
 %% Internal functions
 %%====================================================================
-
-maybe_create_parser() ->
-    case filelib:is_regular(erlydtl:parser_src()) of
-        ok ->
-            ok; 
-        _ ->
-            erlydtl:create_parser()   
-    end.
-
 
 fold_tests() ->
     filelib:fold_files(templates_docroot(), "^[^\.].+", false,
@@ -236,8 +219,8 @@ test_compile_render(File) ->
             Options = [
                 {vars, CompileVars}, 
                 {force_recompile, true}],
-            io:format("Template: ~p, ... compiling ... ", [Name]),
-            case erlydtl_compiler:compile(File, Module, Options) of
+            io:format(" Template: ~p, ... compiling ... ", [Name]),
+            case erlydtl:compile(File, Module, Options) of
                 ok ->
                     case CompileStatus of
                         ok -> test_render(File, list_to_atom(Module), RenderStatus, RenderVars);

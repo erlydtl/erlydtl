@@ -315,11 +315,12 @@ tests() ->
     ].
 
 run_tests() ->
+    io:format("Running unit tests...~n"),
     Failures = lists:foldl(
         fun({Group, Assertions}, GroupAcc) ->
-                io:format("Running test group ~p...~n", [Group]),
+                io:format(" Test group ~p...~n", [Group]),
                 lists:foldl(fun({Name, DTL, Vars, Output}, Acc) ->
-                            case erlydtl_compiler:compile(DTL, erlydtl_running_test, []) of
+                            case erlydtl:compile(DTL, erlydtl_running_test, []) of
                                 {ok, _} ->
                                     {ok, IOList} = erlydtl_running_test:render(Vars),
                                     {ok, IOListBin} = erlydtl_running_test:render(vars_to_binary(Vars)),
@@ -340,8 +341,7 @@ run_tests() ->
                     end, GroupAcc, Assertions)
         end, [], tests()),
     
-    io:format("Failures: ~p~n", [Failures]),
-    erlang:halt().
+    io:format("Unit test failures: ~p~n", [Failures]).
 
 vars_to_binary(Vars) when is_list(Vars) ->
     lists:map(fun
