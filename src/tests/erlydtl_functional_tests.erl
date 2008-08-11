@@ -38,143 +38,124 @@
 %% API
 -export([run_tests/0, run_test/1]).
 
+test_list() ->
+% order is important.
+    ["autoescape", "comment", "extends", "filters", "for", "for_list",
+        "for_tuple", "for_list_preset", "for_preset", "for_records",
+        "for_records_preset", "include", "if", "if_preset", "ifequal",
+        "ifequal_preset", "ifnotequal", "ifnotequal_preset", "now",
+        "var", "var_preset", "var_error", "cycle", "custom_tag",
+        "custom_tag_error", "custom_call"].
+
+setup_compile("for_list_preset") ->
+    CompileVars = [{fruit_list, [["apple", "apples"], ["banana", "bananas"], ["coconut", "coconuts"]]}],
+    {ok, CompileVars};
+setup_compile("for_preset") ->
+    CompileVars = [{fruit_list, ["preset-apple", "preset-banana", "preset-coconut"]}],
+    {ok, CompileVars};
+setup_compile("for_records_preset") ->
+    Link1a = [{name, "Amazon (preset)"}, {url, "http://amazon.com"}],
+    Link2a = [{name, "Google (preset)"}, {url, "http://google.com"}],
+    Link3a = [{name, "Microsoft (preset)"}, {url, "http://microsoft.com"}],
+    CompileVars = [{software_links, [Link1a, Link2a, Link3a]}], 
+    {ok, CompileVars};
+setup_compile("if_preset") ->
+    CompileVars = [{var1, "something"}],
+    {ok, CompileVars};
+setup_compile("ifequal_preset") ->
+    CompileVars = [{var1, "foo"}, {var2, "foo"}],
+    {ok, CompileVars};
+setup_compile("ifnotequal_preset") ->
+    CompileVars = [{var1, "foo"}, {var2, "foo"}],
+    {ok, CompileVars};
+setup_compile("var_preset") ->
+    CompileVars = [{preset_var1, "preset-var1"}, {preset_var2, "preset-var2"}],
+    {ok, CompileVars};
+setup_compile("custom_tag_error") ->
+    CompileVars  = [],
+    {error, CompileVars};
+setup_compile(_) ->
+    {ok, []}.
+
 %% @spec (Name::string()) -> {CompileStatus::atom(), PresetVars::list(), 
 %%     RenderStatus::atom(), RenderVars::list()} | skip
 %% @doc
 %% @end 
 %%--------------------------------------------------------------------
 setup("autoescape") ->
-    CompileVars = [],
     RenderVars = [{var1, "<b>bold</b>"}],
-    {ok, CompileVars, ok, RenderVars};  
-setup("comment") ->
-    CompileVars = [],
-    RenderVars =[],
-    {ok, CompileVars, ok, RenderVars};   
+    {ok, RenderVars};  
 setup("extends") ->
-    CompileVars = [],
     RenderVars = [{base_var, "base-barstring"}, {test_var, "test-barstring"}],
-    {ok, CompileVars, ok, RenderVars};
+    {ok, RenderVars};
 setup("filters") ->
-    CompileVars = [],
     RenderVars = [
         {date_var1, {1975,7,24}},
         {datetime_var1, {{1975,7,24}, {7,13,1}}},
         {'list', ["eins", "zwei", "drei"]}
     ],
-    {ok, CompileVars, ok, RenderVars};
+    {ok, RenderVars};
 setup("for") ->
-    CompileVars = [],
     RenderVars = [{fruit_list, ["apple", "banana", "coconut"]}],
-    {ok, CompileVars, ok, RenderVars};
+    {ok, RenderVars};
 setup("for_list") ->
-    CompileVars = [],
     RenderVars = [{fruit_list, [["apple", "apples", "$1"], ["banana", "bananas", "$2"], ["coconut", "coconuts", "$500"]]}],
-    {ok, CompileVars, ok, RenderVars};
+    {ok, RenderVars};
 setup("for_tuple") ->
-    CompileVars = [],
     RenderVars = [{fruit_list, [{"apple", "apples"}, {"banana", "bananas"}, {"coconut", "coconuts"}]}],
-    {ok, CompileVars, ok, RenderVars};
-setup("for_list_preset") ->
-    CompileVars = [{fruit_list, [["apple", "apples"], ["banana", "bananas"], ["coconut", "coconuts"]]}],
-    RenderVars = [],
-    {ok, CompileVars, ok, RenderVars};
-setup("for_preset") ->
-    CompileVars = [{fruit_list, ["preset-apple", "preset-banana", "preset-coconut"]}],
-    RenderVars = [],
-    {ok, CompileVars, ok, RenderVars};
+    {ok, RenderVars};
 setup("for_records") ->
-    CompileVars = [],
     Link1 = [{name, "Amazon"}, {url, "http://amazon.com"}],
     Link2 = [{name, "Google"}, {url, "http://google.com"}],
     Link3 = [{name, "Microsoft"}, {url, "http://microsoft.com"}],
     RenderVars = [{link_list, [Link1, Link2, Link3]}],
-    {ok, CompileVars, ok, RenderVars};  
+    {ok, RenderVars};  
 setup("for_records_preset") ->
-    Link1a = [{name, "Amazon (preset)"}, {url, "http://amazon.com"}],
-    Link2a = [{name, "Google (preset)"}, {url, "http://google.com"}],
-    Link3a = [{name, "Microsoft (preset)"}, {url, "http://microsoft.com"}],
-    CompileVars = [{software_links, [Link1a, Link2a, Link3a]}], 
     Link1b = [{name, "Canon"}, {url, "http://canon.com"}],
     Link2b = [{name, "Leica"}, {url, "http://leica.com"}],
     Link3b = [{name, "Nikon"}, {url, "http://nikon.com"}],
     RenderVars = [{photo_links, [Link1b, Link2b, Link3b]}],
-    {ok, CompileVars, ok, RenderVars};
+    {ok, RenderVars};
 setup("include") ->
-    CompileVars = [],
     RenderVars = [{var1, "foostring1"}, {var2, "foostring2"}],
-    {ok, CompileVars, ok, RenderVars};
+    {ok, RenderVars};
 setup("if") ->
-    CompileVars = [],
     RenderVars = [{var1, "something"}],
-    {ok, CompileVars, ok, RenderVars}; 
-setup("if_preset") ->
-    CompileVars = [{var1, "something"}],
-    RenderVars = [],
-    {ok, CompileVars, ok, RenderVars};   
+    {ok, RenderVars}; 
 setup("ifequal") ->
-    CompileVars = [],
     RenderVars = [{var1, "foo"}, {var2, "foo"}, {var3, "bar"}],
-    {ok, CompileVars, ok, RenderVars};      
+    {ok, RenderVars};      
 setup("ifequal_preset") ->
-    CompileVars = [{var1, "foo"}, {var2, "foo"}],
     RenderVars = [{var3, "bar"}],
-    {ok, CompileVars, ok, RenderVars};   
+    {ok, RenderVars};   
 setup("ifnotequal") ->
-    CompileVars = [],
     RenderVars = [{var1, "foo"}, {var2, "foo"}, {var3, "bar"}],
-    {ok, CompileVars, ok, RenderVars};        
-setup("ifnotequal_preset") ->
-    CompileVars = [{var1, "foo"}, {var2, "foo"}],
-    RenderVars = [],
-    {ok, CompileVars, ok, RenderVars}; 
-setup("now") ->
-    CompileVars = [],
-    RenderVars = [],
-    {ok, CompileVars, ok, RenderVars}; 
+    {ok, RenderVars};        
 setup("var") ->
-    CompileVars = [],
     RenderVars = [{var1, "foostring1"}, {var2, "foostring2"}, {var_not_used, "foostring3"}],
-    {ok, CompileVars, ok, RenderVars};
+    {ok, RenderVars};
 setup("var_preset") ->
-    CompileVars = [{preset_var1, "preset-var1"}, {preset_var2, "preset-var2"}],
     RenderVars = [{var1, "foostring1"}, {var2, "foostring2"}],
-    {ok, CompileVars, ok, RenderVars}; 
+    {ok, RenderVars}; 
 setup("var_error") ->
-    CompileVars = [],
     RenderVars = [{var1, "foostring1"}],   
-    {ok, CompileVars, error, RenderVars};
+    {error, RenderVars};
 setup("cycle") ->
-    CompileVars = [],
     RenderVars = [{test, [integer_to_list(X) || X <- lists:seq(1, 20)]},
                   {a, "Apple"}, {b, "Banana"}, {c, "Cherry"}],
-    {ok, CompileVars, ok, RenderVars};
+    {ok, RenderVars};
 %%--------------------------------------------------------------------       
 %% Custom tags
 %%--------------------------------------------------------------------
-setup("custom_tag") ->
-    CompileVars  = [],
-    RenderVars = [],
-    {ok, CompileVars, ok, RenderVars};        
 setup("custom_tag_error") ->
-    CompileVars  = [],
     RenderVars = [],
-    {error, CompileVars, skip, RenderVars};        
+    {skip, RenderVars};        
 setup("custom_call") ->
-    CompileVars  = [],
     RenderVars = [{var1, "something"}],
-    {ok, CompileVars, ok, RenderVars};    
-%%--------------------------------------------------------------------       
-%% Files to ignore:
-%%-------------------------------------------------------------------- 
-setup("base") ->
-    %% example base template used in the extends tag
-    skip; 
-setup("include.html") ->
-    %% example plain text file used in include tag 
-    skip;      
+    {ok, RenderVars};    
+
 setup(_) ->
-    undefined.
+    {ok, []}.
     
 
 run_tests() ->    
@@ -199,23 +180,21 @@ run_test(Name) ->
 %%====================================================================
 
 fold_tests() ->
-    filelib:fold_files(templates_docroot(), "^[^\.].+", false,
-        fun
-            (File, {AccCount, AccErrs}) ->
-                case test_compile_render(File) of
+    lists:foldl(fun(Name, {AccCount, AccErrs}) ->
+                case test_compile_render(Name) of
                     ok -> 
                         {AccCount + 1, AccErrs};
                     {error, Reason} -> 
-                        {AccCount + 1, [{File, Reason} | AccErrs]}
+                        {AccCount + 1, [{Name, Reason} | AccErrs]}
                 end
-        end, {0, []}). 
+        end, {0, []}, test_list()
+    ).
 
-
-test_compile_render(File) ->  
-    Name = filename:rootname(filename:basename(File)),
+test_compile_render(Name) ->  
+    File = filename:join([templates_docroot(), Name]),
     Module = "example_" ++ Name,
-    case setup(Name) of
-        {CompileStatus, CompileVars, RenderStatus, RenderVars} ->
+    case setup_compile(Name) of
+        {CompileStatus, CompileVars} ->
             Options = [
                 {vars, CompileVars}, 
                 {force_recompile, true}],
@@ -223,7 +202,7 @@ test_compile_render(File) ->
             case erlydtl:compile(File, Module, Options) of
                 ok ->
                     case CompileStatus of
-                        ok -> test_render(File, list_to_atom(Module), RenderStatus, RenderVars);
+                        ok -> test_render(Name, list_to_atom(Module));
                         _ -> {error, "compiling should have failed :" ++ File}
                     end;
                 {error, Err} ->
@@ -243,7 +222,9 @@ test_compile_render(File) ->
     end.
 
 
-test_render(File, Module, RenderStatus, Vars) ->   
+test_render(Name, Module) ->
+    File = filename:join([templates_docroot(), Name]),
+    {RenderStatus, Vars} = setup(Name),
     case catch Module:render(Vars) of
         {ok, Data} ->
             io:format("rendering~n"), 
