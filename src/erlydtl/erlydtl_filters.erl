@@ -112,6 +112,13 @@ format_integer(Input) when is_integer(Input) ->
 format_integer(Input) ->
     Input.
 
+format_number(Input) when is_integer(Input) ->
+    integer_to_list(Input);
+format_number(Input) when is_float(Input) ->
+    io_lib:format("~p", [Input]);
+format_number(Input) ->
+    Input.
+
 join([Input], Separator) when is_list(Input) ->
     string:join(Input, Separator).
 

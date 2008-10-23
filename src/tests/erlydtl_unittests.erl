@@ -4,13 +4,24 @@
 
 tests() ->
     [
+        {"vars", [
+                {"string",
+                    <<"String value is: {{ var1 }}">>,
+                    [{var1, "foo"}], <<"String value is: foo">>},
+                {"int",
+                    <<"The magic number is: {{ var1 }}">>,
+                    [{var1, 42}], <<"The magic number is: 42">>},
+                {"float",
+                    <<"The price of milk is: {{ var1 }}">>,
+                    [{var1, 0.42}], <<"The price of milk is: 0.42">>}
+            ]},
         {"comment", [
-                {"Comment block is excised",
-                    <<"Bob {% comment %}(moron){% endcomment %} Loblaw">>,
-                    [], <<"Bob  Loblaw">>},
-                {"Inline comment is excised",
-                    <<"You're {# not #} a very nice person">>,
-                    [], <<"You're  a very nice person">>}
+                {"comment block is excised",
+                    <<"bob {% comment %}(moron){% endcomment %} loblaw">>,
+                    [], <<"bob  loblaw">>},
+                {"inline comment is excised",
+                    <<"you're {# not #} a very nice person">>,
+                    [], <<"you're  a very nice person">>}
             ]},
         {"autoescape", [
                 {"Autoescape works",
@@ -235,6 +246,15 @@ tests() ->
                     <<"Ben &amp; Jerry&#039;s &lt;=&gt; &quot;The World&#039;s Best Ice Cream&quot;">>},
                 {"|format_integer",
                     <<"{{ var1|format_integer }}">>, [{var1, 28}], <<"28">>},
+                {"|format_number 1",
+                    <<"{{ var1|format_number }}">>, [{var1, 28}], <<"28">>},
+                {"|format_number 2",
+                    <<"{{ var1|format_number }}">>, [{var1, 23.77}], <<"23.77">>},
+                {"|format_number 3",
+                    <<"{{ var1|format_number }}">>, [{var1, "28.77"}], <<"28.77">>},
+                {"|format_number 4",
+                    <<"{{ var1|format_number }}">>, [{var1, "23.77"}], <<"23.77">>},
+ 
                 {"|join:\", \"",
                     <<"{{ var1|join:\", \" }}">>, [{var1, ["Liberte", "Egalite", "Fraternite"]}],
                     <<"Liberte, Egalite, Fraternite">>},
