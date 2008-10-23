@@ -536,11 +536,11 @@ resolve_scoped_variable_ast(VarName, Context) ->
         end, undefined, Context#dtl_context.local_scopes).
 
 format(Ast, Context) ->
-    auto_escape(format_integer_ast(Ast), Context).
+    auto_escape(format_number_ast(Ast), Context).
 
 
-format_integer_ast(Ast) ->
-    erl_syntax:application(erl_syntax:atom(erlydtl_filters), erl_syntax:atom(format_integer),
+format_number_ast(Ast) ->
+    erl_syntax:application(erl_syntax:atom(erlydtl_filters), erl_syntax:atom(format_number),
         [Ast]).
 
 
