@@ -2,6 +2,8 @@
 
 -compile(export_all).
 
+find_value(Key, Fun) when is_function(Fun, 1) ->
+    Fun(Key);
 find_value(Key, L) when is_list(L) ->
     proplists:get_value(Key, L);
 find_value(Key, {GBSize, GBData}) when is_integer(GBSize) ->
