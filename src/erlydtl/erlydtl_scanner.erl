@@ -109,6 +109,9 @@ scan("{%" ++ T, Scanned, {Row, Column}, in_text) ->
 scan([_ | T], Scanned, {Row, Column}, {in_comment, Closer}) ->
     scan(T, Scanned, {Row, Column + 1}, {in_comment, Closer});
 
+%% Drop newlines from lines that end with a backslash
+scan("\\\n" ++ T, Scanned, {Row, _Column}, in_text) ->
+    scan(T, Scanned, {Row + 1, 1}, in_text);
 scan("\n" ++ T, Scanned, {Row, Column}, in_text) ->
     scan(T, append_text_char(Scanned, {Row, Column}, $\n), {Row + 1, 1}, in_text);
 
@@ -194,7 +197,7 @@ scan([H | T], Scanned, {Row, Column}, {in_code, Closer}) ->
         digit ->
             scan(T, [{number_literal, {Row, Column}, [H]} | Scanned], {Row, Column + 1}, {in_number, Closer});
         _ ->
-            {error, io_lib:format("Illegal character line ~p column ~p", [Row, Column])}
+            {error, lists:concat(["Illegal character line ", Row, " column ", Column])}
     end;
 
 scan([H | T], Scanned, {Row, Column}, {in_number, Closer}) ->
@@ -202,7 +205,7 @@ scan([H | T], Scanned, {Row, Column}, {in_number, Closer}) ->
         digit ->
             scan(T, append_char(Scanned, H), {Row, Column + 1}, {in_number, Closer});
         _ ->
-            {error, io_lib:format("Illegal character line ~p column ~p", [Row, Column])}
+            {error, lists:concat(["Illegal character line ", Row, " column ", Column])}
     end;
 
 scan([H | T], Scanned, {Row, Column}, {in_identifier, Closer}) ->
@@ -212,7 +215,7 @@ scan([H | T], Scanned, {Row, Column}, {in_identifier, Closer}) ->
         digit ->
             scan(T, append_char(Scanned, H), {Row, Column + 1}, {in_identifier, Closer});
         _ ->
-            {error, io_lib:format("Illegal character line ~p column ~p", [Row, Column])}
+            {error, lists:concat(["Illegal character line ", Row, " column ", Column])}
     end.
 
 % internal functions
