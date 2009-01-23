@@ -3,7 +3,10 @@
 -compile(export_all).
 
 find_value(Key, L) when is_list(L) ->
-    proplists:get_value(Key, L);
+    case proplists:get_value(Key, L) of
+        undefined -> proplists:get_value(atom_to_list(Key), L);
+        V -> V
+    end;
 find_value(Key, {GBSize, GBData}) when is_integer(GBSize) ->
     case gb_trees:lookup(Key, {GBSize, GBData}) of
         {value, Val} ->
