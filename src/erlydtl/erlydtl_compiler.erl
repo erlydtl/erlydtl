@@ -93,13 +93,17 @@ compile(File, Module, Options) ->
         {ok, DjangoParseTree, CheckSum} ->
             case compile_to_binary(File, DjangoParseTree, Context, CheckSum) of
                 {ok, Module1, Bin} ->
-                    OutDir = proplists:get_value(out_dir, Options, "ebin"),       
-                    BeamFile = filename:join([OutDir, atom_to_list(Module1) ++ ".beam"]),
-                    case file:write_file(BeamFile, Bin) of
-                        ok ->
+                    case proplists:get_value(out_dir, Options) of
+                        undefined ->
                             ok;
-                        {error, Reason} ->
-                            {error, lists:concat(["beam generation failed (", Reason, "): ", BeamFile])}
+                        OutDir ->
+                            BeamFile = filename:join([OutDir, atom_to_list(Module1) ++ ".beam"]),
+                            case file:write_file(BeamFile, Bin) of
+                                ok ->
+                                    ok;
+                                {error, Reason} ->
+                                    {error, lists:concat(["beam generation failed (", Reason, "): ", BeamFile])}
+                            end
                     end;
                 Err ->
                     Err
@@ -188,7 +192,12 @@ parse(File, Context) ->
     case catch M:F(File) of
         {ok, Data} ->
             CheckSum = binary_to_list(crypto:sha(Data)),
-            parse(CheckSum, Data, Context);
+            case parse(CheckSum, Data, Context) of
+                {error, Msg} when is_list(Msg) ->
+                    {error, File ++ ": " ++ Msg};
+                Result ->
+                    Result
+            end;
         _ ->
             {error, "reading " ++ File ++ " failed "}
     end.
