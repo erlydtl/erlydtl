@@ -27,6 +27,9 @@ Four ways:
 
 Options is a proplist possibly containing:
 
+    out_dir - Directory to store generated .beam files. If not specified, no
+        .beam files will be created.
+
     doc_root - Included template paths will be relative to this directory;
         defaults to the compiled template's directory.
 
