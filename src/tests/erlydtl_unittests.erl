@@ -254,6 +254,10 @@ tests() ->
                     <<"{{ var1|format_number }}">>, [{var1, "28.77"}], <<"28.77">>},
                 {"|format_number 4",
                     <<"{{ var1|format_number }}">>, [{var1, "23.77"}], <<"23.77">>},
+                {"|format_number 5",
+                    <<"{{ var1|format_number }}">>, [{var1, fun() -> 29 end}], <<"29">>},
+                {"|format_number 6",
+                    <<"{{ var1|format_number }}">>, [{var1, fun() -> fun() -> 31 end end}], <<"31">>},
  
                 {"|join:\", \"",
                     <<"{{ var1|join:\", \" }}">>, [{var1, ["Liberte", "Egalite", "Fraternite"]}],
