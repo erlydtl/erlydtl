@@ -116,6 +116,8 @@ format_number(Input) when is_integer(Input) ->
     integer_to_list(Input);
 format_number(Input) when is_float(Input) ->
     io_lib:format("~p", [Input]);
+format_number(Input) when is_function(Input, 0) ->
+    format_number(Input());
 format_number(Input) ->
     Input.
 
