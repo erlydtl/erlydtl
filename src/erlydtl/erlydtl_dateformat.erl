@@ -209,12 +209,11 @@ tag_to_value($N, {_,M,_}, _) ->
 % Difference to Greenwich time in hours; e.g. '+0200'
 tag_to_value($O, Date, Time) ->
    Diff = utc_diff(Date, Time),
-   Offset = case utc_diff(Date, Time) of
-      Diff when abs(Diff) > 2400 -> "+0000";
-      Diff when Diff < 0 ->
-          io_lib:format("-~4..0w", [trunc(abs(Diff))]);
-      _ ->
-          io_lib:format("+~4..0w", [trunc(abs(Diff))])
+   Offset = if
+      Diff < 0 ->
+          io_lib:format("-~4..0w", [abs(Diff)]);
+      true ->
+          io_lib:format("+~4..0w", [Diff])
    end,
    lists:flatten(Offset);
 
@@ -314,11 +313,11 @@ weeks_in_year(Y) ->
     if (D1 =:= 4 orelse D2 =:= 4) -> 53; true -> 52 end.
 
 utc_diff(Date, Time) ->
-   % Note: this code is plagarised from yaws_log
-   UTime = erlang:universaltime(),
-   DiffSecs = calendar:datetime_to_gregorian_seconds({Date,Time})
-       - calendar:datetime_to_gregorian_seconds(UTime),
-   ((DiffSecs/3600)*100).
+   LTime = {Date, Time},
+   UTime = erlang:localtime_to_universaltime(LTime),
+   DiffSecs = calendar:datetime_to_gregorian_seconds(LTime) - 
+       calendar:datetime_to_gregorian_seconds(UTime),
+   trunc((DiffSecs / 3600) * 100).
 
 dayname(1) -> "monday";
 dayname(2) -> "tuesday";

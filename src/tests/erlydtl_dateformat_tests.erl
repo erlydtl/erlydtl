@@ -18,13 +18,13 @@ run_tests() ->
           {"n", "7"}, {"N", "July"}, {"P", "midnight"},
           {"s", "00"}, {"S", "th"}, {"t", "31"},
           {"w", "0"}, {"W", "27"}, {"y", "79"}, {"z", "189"},
-          {"r", "Sun, 8 Jul 1979 00:00:00 +0000"},
           {"jS F Y H:i", "8th July 1979 00:00"},
           {"jS o\\f F", "8th of July"},
           % We expect these to come back verbatim
           {"x", "x"}, {"C", "C"}, {";", ";"}, {"%", "%"}
 
           % TODO : timzeone related tests.
+          %{"r", "Sun, 8 Jul 1979 00:00:00 +0000"},
           %{"O", "0000"},
           %{"T", "CET"},
           %{"U", "300531600"},
@@ -42,12 +42,12 @@ run_tests() ->
           {"n", "7"}, {"N", "July"}, {"P", "10:07 p.m."},
           {"s", "12"}, {"S", "th"}, {"t", "31"},
           {"w", "0"}, {"W", "27"}, {"y", "79"}, {"z", "189"},
-          {"r", "Sun, 8 Jul 1979 22:07:12 +0000"},
           {"jS F Y H:i", "8th July 1979 22:07"},
           {"jS o\\f F", "8th of July"},
           % We expect these to come back verbatim
           {"x", "x"}, {"C", "C"}, {";", ";"}, {"%", "%"}
           % TODO : timzeone related tests.
+          %{"r", "Sun, 8 Jul 1979 22:07:12 +0000"},
           %{"O", "0000"},
           %{"T", "CET"},
           %{"U", "300531600"},
@@ -65,12 +65,12 @@ run_tests() ->
           {"n", "12"}, {"N", "Dec."}, {"P", "7 a.m."},
           {"s", "09"}, {"S", "th"}, {"t", "31"},
           {"w", "4"}, {"W", "52"}, {"y", "08"}, {"z", "360"},
-          {"r", "Thu, 25 Dec 2008 07:00:09 +0000"},
           {"jS F Y H:i", "25th December 2008 07:00"},
           {"jS o\\f F", "25th of December"},
           % We expect these to come back verbatim
           {"x", "x"}, {"C", "C"}, {";", ";"}, {"%", "%"}
           % TODO : timzeone related tests.
+          %{"r", "Thu, 25 Dec 2008 07:00:09 +0000"},
           %{"O", "0000"},
           %{"T", "CET"},
           %{"U", "300531600"},
@@ -88,12 +88,12 @@ run_tests() ->
           {"n", "2"}, {"N", "Feb."}, {"P", "noon"},
           {"s", "59"}, {"S", "th"}, {"t", "29"},
           {"w", "0"}, {"W", "9"}, {"y", "04"}, {"z", "58"},
-          {"r", "Sun, 29 Feb 2004 12:00:59 +0000"},
           {"jS F Y H:i", "29th February 2004 12:00"},
           {"jS o\\f F", "29th of February"},
           % We expect these to come back verbatim
           {"x", "x"}, {"C", "C"}, {";", ";"}, {"%", "%"}
           % TODO : timzeone related tests.
+          %{"r", "Sun, 29 Feb 2004 12:00:59 +0000"},
           %{"O", "0000"},
           %{"T", "CET"},
           %{"U", "300531600"},
