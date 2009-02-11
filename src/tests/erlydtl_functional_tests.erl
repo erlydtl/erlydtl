@@ -45,7 +45,8 @@ test_list() ->
         "for_records_preset", "include", "if", "if_preset", "ifequal",
         "ifequal_preset", "ifnotequal", "ifnotequal_preset", "now",
         "var", "var_preset", "var_error", "cycle", "custom_tag",
-        "custom_tag_error", "custom_call"].
+        "custom_tag_error", "custom_call", 
+        "include_template", "include_path", "extends_path" ].
 
 setup_compile("for_list_preset") ->
     CompileVars = [{fruit_list, [["apple", "apples"], ["banana", "bananas"], ["coconut", "coconuts"]]}],
@@ -144,6 +145,16 @@ setup("cycle") ->
     RenderVars = [{test, [integer_to_list(X) || X <- lists:seq(1, 20)]},
                   {a, "Apple"}, {b, "Banana"}, {c, "Cherry"}],
     {ok, RenderVars};
+setup("include_template") ->
+    RenderVars = [{base_var, "base-barstring"}, {test_var, "test-barstring"}],
+    {ok, RenderVars};
+setup("include_path") ->
+    RenderVars = [{base_var, "base-barstring"}, {test_var, "test-barstring"}],
+    {ok, RenderVars};
+setup("extends_path") ->
+    RenderVars = [{base_var, "base-barstring"}, {test_var, "test-barstring"}],
+    {ok, RenderVars};
+
 %%--------------------------------------------------------------------       
 %% Custom tags
 %%--------------------------------------------------------------------

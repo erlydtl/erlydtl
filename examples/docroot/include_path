@@ -1,0 +1,5 @@
+main file
+
+{% include "path1/template1" %}
+
+{{ base_var }}
