@@ -13,7 +13,10 @@ tests() ->
                     [{var1, 42}], <<"The magic number is: 42">>},
                 {"float",
                     <<"The price of milk is: {{ var1 }}">>,
-                    [{var1, 0.42}], <<"The price of milk is: 0.42">>}
+                    [{var1, 0.42}], <<"The price of milk is: 0.42">>},
+                {"No spaces",
+                    <<"{{var1}}">>,
+                    [{var1, "foo"}], <<"foo">>}
             ]},
         {"comment", [
                 {"comment block is excised",
