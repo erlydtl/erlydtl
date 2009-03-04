@@ -3,11 +3,14 @@ ERLC=erlc
 
 PARSER=src/erlydtl/erlydtl_parser
 
-all: $(PARSER).erl
+all: $(PARSER).erl ebin/erlydtl.app
 	$(ERL) -make 
 
 $(PARSER).erl: $(PARSER).yrl
 	$(ERLC) -o src/erlydtl src/erlydtl/erlydtl_parser.yrl
+
+ebin/erlydtl.app: src/erlydtl/erlydtl.app
+	@cp -v $< $@
  
 run:
 	$(ERL) -pa ebin
@@ -21,5 +24,5 @@ test:
 		-s init stop
 	
 clean:
-	rm -fv ebin/*.beam
+	rm -fv ebin/*.beam ebin/erlydtl.app
 	rm -fv erl_crash.dump $(PARSER).erl
