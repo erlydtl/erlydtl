@@ -46,7 +46,8 @@ test_list() ->
         "ifequal_preset", "ifnotequal", "ifnotequal_preset", "now",
         "var", "var_preset", "var_error", "cycle", "custom_tag",
         "custom_tag_error", "custom_call", 
-        "include_template", "include_path", "extends_path" ].
+        "include_template", "include_path",
+        "extends_path", "extends_path2" ].
 
 setup_compile("for_list_preset") ->
     CompileVars = [{fruit_list, [["apple", "apples"], ["banana", "bananas"], ["coconut", "coconuts"]]}],
@@ -154,6 +155,11 @@ setup("include_path") ->
 setup("extends_path") ->
     RenderVars = [{base_var, "base-barstring"}, {test_var, "test-barstring"}],
     {ok, RenderVars};
+setup("extends_path2") ->
+    RenderVars = [{base_var, "base-barstring"}, {test_var, "test-barstring"}],
+    {ok, RenderVars};
+
+
 
 %%--------------------------------------------------------------------       
 %% Custom tags
