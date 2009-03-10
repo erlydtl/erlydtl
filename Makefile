@@ -9,8 +9,11 @@ all: $(PARSER).erl ebin/erlydtl.app
 $(PARSER).erl: $(PARSER).yrl
 	$(ERLC) -o src/erlydtl src/erlydtl/erlydtl_parser.yrl
 
-ebin/erlydtl.app: src/erlydtl/erlydtl.app
-	@cp -v $< $@
+ebin/erlydtl.app: ebin src/erlydtl/erlydtl.app
+	@cp src/erlydtl/erlydtl.app $<
+
+ebin:
+	mkdir ebin
  
 run:
 	$(ERL) -pa ebin
@@ -24,5 +27,5 @@ test:
 		-s init stop
 	
 clean:
-	rm -fv ebin/*.beam ebin/erlydtl.app
-	rm -fv erl_crash.dump $(PARSER).erl
+	rm -f ebin/*.beam ebin/erlydtl.app
+	rm -f erl_crash.dump $(PARSER).erl
