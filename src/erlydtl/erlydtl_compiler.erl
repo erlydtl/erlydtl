@@ -293,8 +293,7 @@ body_ast([{extends, {string_literal, _Pos, String}} | ThisParseTree], Context, T
                     with_dependency({File, CheckSum}, body_ast(ParentParseTree, Context#dtl_context{
                         block_dict = dict:merge(fun(_Key, _ParentVal, ChildVal) -> ChildVal end,
                             BlockDict, Context#dtl_context.block_dict),
-                                parse_trail = [File | Context#dtl_context.parse_trail], 
-                                doc_root = filename:dirname(File)}, TreeWalker));
+                                parse_trail = [File | Context#dtl_context.parse_trail]}, TreeWalker));
                 Err ->
                     throw(Err)
             end        
@@ -450,8 +449,7 @@ include_ast(File, Context, TreeWalker) ->
     case parse(FilePath, Context) of
         {ok, InclusionParseTree, CheckSum} ->
             with_dependency({FilePath, CheckSum}, body_ast(InclusionParseTree, Context#dtl_context{
-                parse_trail = [FilePath | Context#dtl_context.parse_trail], 
-                doc_root = filename:dirname(FilePath) }, TreeWalker));
+                parse_trail = [FilePath | Context#dtl_context.parse_trail]}, TreeWalker));
         Err ->
             throw(Err)
     end.
