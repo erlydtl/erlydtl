@@ -2,9 +2,13 @@ ERL=erl
 ERLC=erlc
 
 PARSER=src/erlydtl/erlydtl_parser
+APP=erlydtl.app
 
-all: $(PARSER).erl
+all: $(PARSER).erl ebin/$(APP)
 	$(ERL) -make 
+
+ebin/$(APP): src/erlydtl/$(APP)
+	cp $< $@
 
 $(PARSER).erl: $(PARSER).yrl
 	$(ERLC) -o src/erlydtl src/erlydtl/erlydtl_parser.yrl
