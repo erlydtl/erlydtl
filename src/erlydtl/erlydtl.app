@@ -16,7 +16,7 @@
              erlydtl_scanner,
              erlydtl_unittests
             ]},
-  {applications, [kernel, stdlib]},
+  {applications, [kernel, stdlib, crypto]},
   {registered, []}
  ]}.
 
