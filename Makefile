@@ -26,4 +26,5 @@ test:
 	
 clean:
 	rm -fv ebin/*.beam
+	rm -fv ebin/$(APP)
 	rm -fv erl_crash.dump $(PARSER).erl
