@@ -52,6 +52,10 @@ are_equal([Arg1], Arg2) when is_list(Arg1) ->
     are_equal(Arg1, Arg2);
 are_equal(Arg1, [Arg2]) when is_list(Arg1) ->
     are_equal(Arg1, Arg2);
+are_equal(Arg1, Arg2) when is_atom(Arg1), is_list(Arg2) ->
+	 are_equal(atom_to_list(Arg1), Arg2);
+are_equal(Arg1, Arg2) when is_list(Arg1), is_atom(Arg2) ->
+	 are_equal(Arg1, atom_to_list(Arg2));
 are_equal(_, _) ->
     false.
 
