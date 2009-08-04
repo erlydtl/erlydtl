@@ -161,7 +161,13 @@ tests() ->
                     [{var1, 2}], <<"yay">>},
                 {"Compare variable to unequal literal (int)",
                     <<"{% ifequal var1 2 %}boo{% else %}yay{% endifequal %}">>,
-                    [{var1, 3}], <<"yay">>}
+                    [{var1, 3}], <<"yay">>},
+                {"Compare variable to equal literal (atom)",
+                    <<"{% ifequal var1 \"foo\"%}yay{% endifequal %}">>,
+                    [{var1, foo}], <<"yay">>},
+                {"Compare variable to unequal literal (atom)",
+                    <<"{% ifequal var1 \"foo\"%}yay{% else %}boo{% endifequal %}">>,
+                    [{var1, bar}], <<"boo">>}
             ]},
         {"ifequal/else", [
                 {"Compare variable to literal",
@@ -261,9 +267,11 @@ tests() ->
                     <<"{{ var1|format_number }}">>, [{var1, fun() -> 29 end}], <<"29">>},
                 {"|format_number 6",
                     <<"{{ var1|format_number }}">>, [{var1, fun() -> fun() -> 31 end end}], <<"31">>},
- 
-                {"|join:\", \"",
+                {"|join:\", \" (list)",
                     <<"{{ var1|join:\", \" }}">>, [{var1, ["Liberte", "Egalite", "Fraternite"]}],
+                    <<"Liberte, Egalite, Fraternite">>},
+                {"|join:\", \" (binary)",
+                    <<"{{ var1|join:\", \" }}">>, [{var1, [<<"Liberte">>, "Egalite", <<"Fraternite">>]}],
                     <<"Liberte, Egalite, Fraternite">>},
                 {"|last",
                     <<"{{ var1|last }}">>, [{var1, "XYZ"}],

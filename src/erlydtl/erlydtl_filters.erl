@@ -122,7 +122,7 @@ format_number(Input) ->
     Input.
 
 join([Input], Separator) when is_list(Input) ->
-    string:join(Input, Separator).
+    join_io(Input, Separator).
 
 last([Input]) when is_list(Input) or is_binary(Input) ->
     last(Input);
@@ -260,6 +260,10 @@ fix_ampersands("&" ++ Rest, Acc) ->
     fix_ampersands(Rest, lists:reverse("&amp;", Acc));
 fix_ampersands([C | Rest], Acc) ->
     fix_ampersands(Rest, [C | Acc]).
+
+join_io([], _Sep) -> [];
+join_io([_] = X, _Sep) -> X;
+join_io([X|T], Sep) -> [X,Sep] ++ join_io(T, Sep).
 
 linebreaksbr(Input, Index) when is_binary(Input) ->
     Break = <<"<br />">>,
