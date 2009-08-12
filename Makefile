@@ -8,6 +8,7 @@ all: $(PARSER).erl ebin/$(APP)
 	$(ERL) -make 
 
 ebin/$(APP): src/erlydtl/$(APP)
+	-mkdir ebin
 	cp $< $@
 
 $(PARSER).erl: $(PARSER).yrl
