@@ -195,6 +195,8 @@ parse(File, Context) ->
             case parse(CheckSum, Data, Context) of
                 {error, Msg} when is_list(Msg) ->
                     {error, File ++ ": " ++ Msg};
+                {error, Msg} ->
+                    {error, {File, Msg}};
                 Result ->
                     Result
             end;

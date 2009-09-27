@@ -58,6 +58,8 @@ tests() ->
                     <<"{{ var1 }} is my game">>, [{var1, "bar"}], <<"bar is my game">>},
                 {"Render variable with attribute",
                     <<"I enjoy {{ var1.game }}">>, [{var1, [{game, "Othello"}]}], <<"I enjoy Othello">>},
+                {"Render variable with string-key attribute",
+                    <<"I also enjoy {{ var1.game }}">>, [{var1, [{"game", "Parcheesi"}]}], <<"I also enjoy Parcheesi">>},
                 {"Render variable in dict",
                     <<"{{ var1 }}">>, dict:store(var1, "bar", dict:new()), <<"bar">>},
                 {"Render variable in gb_tree",
