@@ -2,8 +2,6 @@
 
 -export([run_tests/0]).
 
--define(DISPLAY_PASSES, false).
-
 run_tests() ->
    io:format("Running date format tests...~n"),
    Failures = test_group_runner([
@@ -181,9 +179,6 @@ test_runner(DateParam, [{Input, Expect} | Rest], TestNum, PassCount) ->
     IsPass = is(TestNum, Text, erlydtl_dateformat:format(DateParam, Input), Expect),
     test_runner(DateParam, Rest, TestNum + 1, PassCount + IsPass).
     
-is(TestNum, Text, Input1, Input2) when Input1 =:= Input2, ?DISPLAY_PASSES ->
-    io:format("~nok ~p - ~s", [TestNum, Text]),
-    1;
 is(_TestNum, _Text, Input1, Input2) when Input1 =:= Input2 ->
     1;
 is(TestNum, Text, Input1, Input2) -> 
