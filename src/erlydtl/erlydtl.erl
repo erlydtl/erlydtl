@@ -38,8 +38,10 @@
 %% API
 -export([compile/2, compile/3]).
 
+%% @spec compile( FileOrBinary, Module::atom() ) -> ok | {error, Reason}
 compile(FileOrBinary, Module) ->
     erlydtl_compiler:compile(FileOrBinary, Module).
 
+%% @spec compile( FileOrBinary, Module::atom(), Options ) -> ok | {error, Reason}
 compile(FileOrBinary, Module, Options) ->
     erlydtl_compiler:compile(FileOrBinary, Module, Options).
