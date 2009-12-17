@@ -286,6 +286,9 @@ tests() ->
                 {"|upper",
                     <<"{{ message|upper }}">>, [{message, "That man has a gun."}],
                     <<"THAT MAN HAS A GUN.">>},
+                {"|base64",
+                    <<"{{ url|base64 }}">>, [{url, "You #$*@!!"}],
+                    <<"WW91ICMkKkAhIQ==">>},
                 {"|urlencode",
                     <<"{{ url|urlencode }}">>, [{url, "You #$*@!!"}],
                     <<"You+%23%24%2A%40%21%21">>}
