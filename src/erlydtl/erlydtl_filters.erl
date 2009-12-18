@@ -39,6 +39,7 @@
 -export([fix_ampersands/1, force_escape/1, format_integer/1, format_number/1]).
 -export([join/2, last/1, length/1, length_is/2, linebreaksbr/1, ljust/2]).
 -export([lower/1, rjust/2, upper/1, urlencode/1]).
+-export([base64/1]).
 
 -define(NO_ENCODE(C), ((C >= $a andalso C =< $z) orelse
         (C >= $A andalso C =< $Z) orelse
@@ -211,7 +212,7 @@ urlencode(Input) when is_list(Input) ->
     urlencode(Input, []).
 
 base64(Input) ->
-	base64:encode(erlang:iolist_to_binary(Input)).
+    base64:encode(erlang:iolist_to_binary(Input)).
 
 
 % internal
