@@ -210,6 +210,10 @@ urlencode(Input) when is_binary(Input) ->
 urlencode(Input) when is_list(Input) ->
     urlencode(Input, []).
 
+base64(Input) ->
+	base64:encode(erlang:iolist_to_binary(Input)).
+
+
 % internal
 
 escape(Binary, Index) when is_binary(Binary) ->

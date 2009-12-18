@@ -85,7 +85,6 @@ compile(Binary, Module, Options) when is_binary(Binary) ->
     end;
     
 compile(File, Module, Options) ->  
-    crypto:start(),
     Context = init_dtl_context(File, Module, Options),
     case parse(File, Context) of  
         ok ->
@@ -165,7 +164,7 @@ is_up_to_date(CheckSum, Context) ->
                             ({XFile, XCheckSum}, Acc) ->
                                 case catch M:F(XFile) of
                                     {ok, Data} ->
-                                        case binary_to_list(crypto:sha(Data)) of
+                                        case binary_to_list(erlang:md5(Data)) of
                                             XCheckSum ->
                                                 Acc;
                                             _ ->
@@ -191,7 +190,7 @@ parse(File, Context) ->
     {M, F} = Context#dtl_context.reader,
     case catch M:F(File) of
         {ok, Data} ->
-            CheckSum = binary_to_list(crypto:sha(Data)),
+            CheckSum = binary_to_list(erlang:md5(Data)),
             case parse(CheckSum, Data, Context) of
                 {error, Msg} when is_list(Msg) ->
                     {error, File ++ ": " ++ Msg};

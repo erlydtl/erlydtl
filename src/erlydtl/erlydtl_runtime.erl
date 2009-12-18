@@ -2,6 +2,8 @@
 
 -compile(export_all).
 
+find_value(Key, Fun) when is_function(Fun, 1) ->
+    Fun(Key);
 find_value(Key, L) when is_list(L) ->
     case proplists:get_value(Key, L) of
         undefined ->

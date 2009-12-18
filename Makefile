@@ -13,6 +13,12 @@ ebin/$(APP): src/erlydtl/$(APP)
 
 $(PARSER).erl: $(PARSER).yrl
 	$(ERLC) -o src/erlydtl src/erlydtl/erlydtl_parser.yrl
+
+ebin/erlydtl.app: ebin src/erlydtl/erlydtl.app
+	@cp src/erlydtl/erlydtl.app $<
+
+ebin:
+	mkdir ebin
  
 run:
 	$(ERL) -pa ebin
