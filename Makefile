@@ -9,13 +9,10 @@ all: $(PARSER).erl ebin/$(APP)
 
 ebin/$(APP): src/erlydtl/$(APP)
 	-mkdir -p ebin
-	cp $< $@
+	@cp src/erlydtl/erlydtl.app $@
 
 $(PARSER).erl: $(PARSER).yrl
 	$(ERLC) -o src/erlydtl src/erlydtl/erlydtl_parser.yrl
-
-ebin/erlydtl.app: ebin src/erlydtl/erlydtl.app
-	@cp src/erlydtl/erlydtl.app $<
 
 ebin:
 	mkdir ebin
