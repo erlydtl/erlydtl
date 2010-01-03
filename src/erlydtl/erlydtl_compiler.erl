@@ -378,6 +378,8 @@ body_ast(DjangoParseTree, Context, TreeWalker) ->
             	call_ast(Name, TreeWalkerAcc);
             ({'call', {'identifier', _, Name}, With}, TreeWalkerAcc) ->
             	call_with_ast(Name, With, Context, TreeWalkerAcc);
+		    ({'firstof', Vars}, TreeWalkerAcc) ->
+				 firstof_ast(Vars, Context, TreeWalkerAcc);
             ({'cycle', Names}, TreeWalkerAcc) ->
                 cycle_ast(Names, Context, TreeWalkerAcc);
             ({'cycle_compat', Names}, TreeWalkerAcc) ->
@@ -563,6 +565,17 @@ auto_escape(Value, Context) ->
             Value
     end.
 
+firstof_ast(Vars, Context, TreeWalker) ->
+	body_ast([lists:foldl(fun
+        ({L, _, _}=Var, []) when L=:=string_literal;L=:=number_literal ->
+            Var;
+        ({L, _, _}, _) when L=:=string_literal;L=:=number_literal ->
+            erlang:error(errbadliteral);
+        (Var, []) ->
+            {'ifelse', Var, [Var], []};
+        (Var, Acc) ->
+            {'ifelse', Var, [Var], [Acc]} end,
+    	[], Vars)], Context, TreeWalker).
 
 ifelse_ast(Variable, {IfContentsAst, IfContentsInfo}, {ElseContentsAst, ElseContentsInfo}, Context, TreeWalker) ->
     Info = merge_info(IfContentsInfo, ElseContentsInfo),

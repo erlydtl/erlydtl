@@ -196,7 +196,7 @@ CycleNamesCompat -> CycleNamesCompat identifier comma : '$1' ++ ['$2'].
 CycleNamesCompat -> CycleNamesCompat identifier : '$1' ++ ['$2'].
 
 FirstofTag -> open_tag firstof_keyword FirstofList close_tag : '$3'.
-FirstofList -> FirstofValues : firstof_create('$1').
+FirstofList -> FirstofValues : {firstof, '$1'}.
 FirstofValues -> FirstofValues Value : ['$2'|'$1'].
 FirstofValues -> Value : ['$1'].
 
@@ -245,16 +245,3 @@ Args -> Args identifier equal Value : '$1' ++ [{'$2', '$4'}].
 
 CallTag -> open_tag call_keyword identifier close_tag : {call, '$3'}.
 CallWithTag -> open_tag call_keyword identifier with_keyword Value close_tag : {call, '$3', '$5'}.
-
-Erlang code.
-firstof_create(List) when is_list(List) ->
-    lists:foldl(fun
-        ({L, _, _}=Var, []) when L=:=string_literal;L=:=number_literal ->
-            Var;
-        ({L, _, _}, _) when L=:=string_literal;L=:=number_literal ->
-            erlang:error(errbadliteral);
-        (Var, []) ->
-            {'ifelse', Var, [Var], []};
-        (Var, Acc) ->
-            {'ifelse', Var, [Var], [Acc]} end,
-    [], List).

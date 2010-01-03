@@ -2,6 +2,8 @@
 
 -compile(export_all).
 
+find_value(_, undefined) ->
+	undefined;
 find_value(Key, Fun) when is_function(Fun, 1) ->
     Fun(Key);
 find_value(Key, L) when is_list(L) ->
@@ -116,3 +118,9 @@ increment_counter_stats([{counter, Counter}, {counter0, Counter0}, {revcounter, 
 
 cycle(NamesTuple, Counters) when is_tuple(NamesTuple) ->
     element(fetch_value(counter0, Counters) rem size(NamesTuple) + 1, NamesTuple).
+
+firstof([]) ->
+	[];
+
+firstof(Any) ->
+	io:format("Unhandled firstof: ~p~n", [Any]).
