@@ -706,7 +706,8 @@ tag_ast(Name, Args, Context, TreeWalker) ->
                     ({{identifier, _, Key}, {string_literal, _, Value}}) ->
                         {list_to_atom(Key), erl_syntax:string(unescape_string_literal(Value))};
                     ({{identifier, _, Key}, Value}) ->
-                        {list_to_atom(Key), format(resolve_variable_ast(Value, Context), Context)}
+                        {AST, _} = resolve_variable_ast(Value, Context),
+                        {list_to_atom(Key), format(AST,Context)}
                 end, Args),
             DefaultFilePath = filename:join([erlydtl_deps:get_base_dir(), "priv", "custom_tags", Name]),
             case Context#dtl_context.custom_tags_dir of
