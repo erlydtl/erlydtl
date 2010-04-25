@@ -100,7 +100,19 @@ tests() ->
                 {"If non-empty string",
                     <<"{% if var1 %}yay{% endif %}">>, [{var1, "hello"}], <<"yay">>},
                 {"If proplist",
-                    <<"{% if var1 %}yay{% endif %}">>, [{var1, [{foo, "bar"}]}], <<"yay">>}
+                    <<"{% if var1 %}yay{% endif %}">>, [{var1, [{foo, "bar"}]}], <<"yay">>},
+                {"If substring in string",
+                    <<"{% if var1 in var2 %}yay{% endif %}">>, [{var1, "rook"}, {var2, "Crooks"}], <<"yay">>},
+                {"If substring in string (false)",
+                    <<"{% if var1 in var2 %}boo{% endif %}">>, [{var1, "Cook"}, {var2, "Crooks"}], <<>>},
+                {"If substring not in string",
+                    <<"{% if var1 not in var2 %}yay{% endif %}">>, [{var1, "Cook"}, {var2, "Crooks"}], <<"yay">>},
+                {"If substring not in string (false)",
+                    <<"{% if var1 not in var2 %}boo{% endif %}">>, [{var1, "rook"}, {var2, "Crooks"}], <<>>},
+                {"If element in list",
+                    <<"{% if var1 in var2 %}yay{% endif %}">>, [{var1, "foo"}, {var2, ["bar", "foo", "baz"]}], <<"yay">>},
+                {"If element in list (false)",
+                    <<"{% if var1 in var2 %}boo{% endif %}">>, [{var1, "FOO"}, {var2, ["bar", "foo", "baz"]}], <<>>}
             ]},
         {"for", [
                 {"Simple loop",

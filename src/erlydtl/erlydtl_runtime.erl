@@ -82,6 +82,23 @@ is_false(<<>>) ->
 is_false(_) ->
     false.
 
+is_in(Sublist, [Sublist|_]) ->
+    true;
+is_in(Sublist, List) when is_binary(Sublist) ->
+    is_in(binary_to_list(Sublist), List);
+is_in(Sublist, List) when is_binary(List) ->
+    is_in(Sublist, binary_to_list(List));
+is_in(Sublist, [C|Rest]) when is_list(Sublist) andalso is_binary(C) ->
+    is_in(Sublist, [binary_to_list(C)|Rest]);
+is_in(Sublist, [C|Rest]) when is_list(Sublist) andalso is_list(C) ->
+    is_in(Sublist, Rest);
+is_in(Sublist, List) when is_list(Sublist) andalso is_list(List) ->
+    string:str(List, Sublist) > 0;
+is_in(Element, List) when is_list(List) ->
+    lists:member(Element, List);
+is_in(_, _) ->
+    false.
+
 stringify_final(In) ->
    stringify_final(In, []).
 stringify_final([], Out) ->

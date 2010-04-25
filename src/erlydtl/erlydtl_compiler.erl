@@ -335,22 +335,14 @@ body_ast(DjangoParseTree, Context, TreeWalker) ->
                 {{format(Ast, Context), #ast_info{var_names = [VarName]}}, TreeWalkerAcc};              
             ({'include', {string_literal, _, File}}, TreeWalkerAcc) ->
                 include_ast(unescape_string_literal(File), Context, TreeWalkerAcc);
-            ({'if', {'not', Variable}, Contents}, TreeWalkerAcc) ->
-                {IfAstInfo, TreeWalker1} = empty_ast(TreeWalkerAcc),
-                {ElseAstInfo, TreeWalker2} = body_ast(Contents, Context, TreeWalker1),
-                ifelse_ast(Variable, IfAstInfo, ElseAstInfo, Context, TreeWalker2);
-            ({'if', Variable, Contents}, TreeWalkerAcc) ->
+            ({'if', Expression, Contents}, TreeWalkerAcc) ->
                 {IfAstInfo, TreeWalker1} = body_ast(Contents, Context, TreeWalkerAcc),
                 {ElseAstInfo, TreeWalker2} = empty_ast(TreeWalker1),
-                ifelse_ast(Variable, IfAstInfo, ElseAstInfo, Context, TreeWalker2);
-            ({'ifelse', {'not', Variable}, IfContents, ElseContents}, TreeWalkerAcc) ->
-                {IfAstInfo, TreeWalker1} = body_ast(ElseContents, Context, TreeWalkerAcc),
-                {ElseAstInfo, TreeWalker2} = body_ast(IfContents, Context, TreeWalker1),
-                ifelse_ast(Variable, IfAstInfo, ElseAstInfo, Context, TreeWalker2);                  
-            ({'ifelse', Variable, IfContents, ElseContents}, TreeWalkerAcc) ->
+                ifelse_ast(Expression, IfAstInfo, ElseAstInfo, Context, TreeWalker2);
+            ({'ifelse', Expression, IfContents, ElseContents}, TreeWalkerAcc) ->
                 {IfAstInfo, TreeWalker1} = body_ast(IfContents, Context, TreeWalkerAcc),
                 {ElseAstInfo, TreeWalker2} = body_ast(ElseContents, Context, TreeWalker1),
-                ifelse_ast(Variable, IfAstInfo, ElseAstInfo, Context, TreeWalker2);
+                ifelse_ast(Expression, IfAstInfo, ElseAstInfo, Context, TreeWalker2);
             ({'ifequal', Args, Contents}, TreeWalkerAcc) ->
                 {IfAstInfo, TreeWalker1} = body_ast(Contents, Context, TreeWalkerAcc),
                 {ElseAstInfo, TreeWalker2} = empty_ast(TreeWalker1),
@@ -565,6 +557,19 @@ auto_escape(Value, Context) ->
     end.
 
 
+ifelse_ast({'not', Expression}, IfAstInfo, ElseAstInfo, Context, TreeWalker) ->
+    ifelse_ast(Expression, ElseAstInfo, IfAstInfo, Context, TreeWalker);
+ifelse_ast({'in', Variable1, Variable2}, {IfContentsAst, IfContentsInfo}, {ElseContentsAst, ElseContentsInfo}, Context, TreeWalker) ->
+    Info = merge_info(IfContentsInfo, ElseContentsInfo),
+    VarNames = Info#ast_info.var_names,
+    {Ast1, VarName1} = resolve_ifvariable_ast(Variable1, Context),
+    {Ast2, VarName2} = resolve_ifvariable_ast(Variable2, Context),
+    {{erl_syntax:case_expr(erl_syntax:application(erl_syntax:atom(erlydtl_runtime), erl_syntax:atom(is_in), [Ast1, Ast2]),
+        [erl_syntax:clause([erl_syntax:atom(true)], none, 
+                [IfContentsAst]),
+            erl_syntax:clause([erl_syntax:underscore()], none,
+                [ElseContentsAst])
+        ]), Info#ast_info{var_names = [VarName1, VarName2 | VarNames]}}, TreeWalker};
 ifelse_ast(Variable, {IfContentsAst, IfContentsInfo}, {ElseContentsAst, ElseContentsInfo}, Context, TreeWalker) ->
     Info = merge_info(IfContentsInfo, ElseContentsInfo),
     VarNames = Info#ast_info.var_names,
