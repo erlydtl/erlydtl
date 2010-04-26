@@ -177,13 +177,19 @@ setup(_) ->
 
 run_tests() ->    
     io:format("Running functional tests...~n"),
-    case fold_tests() of
-        {N, []}->
-            Msg = lists:concat(["All ", N, " functional tests passed~n~n"]),
-            io:format(Msg),
-            {ok, Msg};
-        {_, Errs} ->
-            io:format("Errors: ~p~n~n",[Errs]),
+    case filelib:ensure_dir(filename:join([templates_outdir(), "foo"])) of
+        ok ->
+            case fold_tests() of
+                {N, []}->
+                    Msg = lists:concat(["All ", N, " functional tests passed~n~n"]),
+                    io:format(Msg),
+                    {ok, Msg};
+                {_, Errs} ->
+                    io:format("Errors: ~p~n~n",[Errs]),
+                    failed
+            end;
+        {error, Reason} ->
+            io:format("Error: ~p~n~n", [Reason]),
             failed
     end.
 
