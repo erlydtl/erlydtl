@@ -220,6 +220,7 @@ urlencode(Input) when is_binary(Input) ->
 urlencode(Input) when is_list(Input) ->
     urlencode(Input, []).
 
+
 % internal
 
 escape(Binary, Index) when is_binary(Binary) ->

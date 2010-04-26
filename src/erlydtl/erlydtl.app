@@ -19,7 +19,3 @@
   {applications, [kernel, stdlib]},
   {registered, []}
  ]}.
-
-
-
-

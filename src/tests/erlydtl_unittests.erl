@@ -116,7 +116,9 @@ tests() ->
                 {"If element in list",
                     <<"{% if var1 in var2 %}yay{% endif %}">>, [{var1, "foo"}, {var2, ["bar", "foo", "baz"]}], <<"yay">>},
                 {"If element in list (false)",
-                    <<"{% if var1 in var2 %}boo{% endif %}">>, [{var1, "FOO"}, {var2, ["bar", "foo", "baz"]}], <<>>}
+                    <<"{% if var1 in var2 %}boo{% endif %}">>, [{var1, "FOO"}, {var2, ["bar", "foo", "baz"]}], <<>>},
+                {"If complex",
+                    <<"{% if foo.bar.baz %}omgwtfbbq{% endif %}">>, [], <<"">>}
             ]},
         {"for", [
                 {"Simple loop",
@@ -375,6 +377,32 @@ tests() ->
                     <<"{% ifequal var1|length 1 %}Y{% else %}N{% endifequal %}">>,
                      [{var1, ["foo", "bar", "baz"]}],
                      <<"N">>}
+        ]},
+    {"firstof", [
+            {"Firstof first",
+                <<"{% firstof foo bar baz %}">>,
+                [{foo, "1"},{bar, "2"}],
+                <<"1">>},
+            {"Firstof second",
+                <<"{% firstof foo bar baz %}">>,
+                [{bar, "2"}],
+                <<"2">>},
+            {"Firstof none",
+                <<"{% firstof foo bar baz %}">>,
+                [],
+                <<"">>},
+            {"Firstof complex",
+                <<"{% firstof foo.bar.baz bar %}">>,
+                [{foo, [{bar, [{baz, "quux"}]}]}],
+                <<"quux">>},
+            {"Firstof undefined complex",
+                <<"{% firstof foo.bar.baz bar %}">>,
+                [{bar, "bar"}],
+                <<"bar">>},
+            {"Firstof literal",
+                <<"{% firstof foo bar \"baz\" %}">>,
+                [],
+                <<"baz">>}
         ]}
     ].
 
