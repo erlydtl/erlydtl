@@ -44,7 +44,7 @@ test_list() ->
         "for_tuple", "for_list_preset", "for_preset", "for_records",
         "for_records_preset", "include", "if", "if_preset", "ifequal",
         "ifequal_preset", "ifnotequal", "ifnotequal_preset", "now",
-        "var", "var_preset", "var_error", "cycle", "custom_tag",
+        "var", "var_preset", "cycle", "custom_tag",
         "custom_tag_error", "custom_call", 
         "include_template", "include_path",
         "extends_path", "extends_path2" ].
@@ -139,9 +139,6 @@ setup("var") ->
 setup("var_preset") ->
     RenderVars = [{var1, "foostring1"}, {var2, "foostring2"}],
     {ok, RenderVars}; 
-setup("var_error") ->
-    RenderVars = [{var1, "foostring1"}],   
-    {error, RenderVars};
 setup("cycle") ->
     RenderVars = [{test, [integer_to_list(X) || X <- lists:seq(1, 20)]},
                   {a, "Apple"}, {b, "Banana"}, {c, "Cherry"}],

@@ -503,7 +503,7 @@ search_for_escape_filter(_Variable, _Filter) ->
 
 
 resolve_variable_ast(VarTuple, Context) ->
-    resolve_variable_ast(VarTuple, Context, 'fetch_value').
+    resolve_variable_ast(VarTuple, Context, 'find_value').
  
 resolve_ifvariable_ast(VarTuple, Context) ->
     resolve_variable_ast(VarTuple, Context, 'find_value').
