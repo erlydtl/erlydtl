@@ -30,8 +30,8 @@ find_value(Key, Tuple) when is_tuple(Tuple) ->
                     undefined
             end;
         Module ->
-            case proplists:get_value(Key, Module:module_info(exports)) of
-                1 ->
+            case lists:member({Key, 1}, Module:module_info(exports)) of
+                true ->
                     Tuple:Key();
                 _ ->
                     undefined
@@ -84,6 +84,8 @@ is_false(_) ->
 
 is_in(Sublist, [Sublist|_]) ->
     true;
+is_in(Sublist, List) when is_atom(List) ->
+    is_in(Sublist, atom_to_list(List));
 is_in(Sublist, List) when is_binary(Sublist) ->
     is_in(binary_to_list(Sublist), List);
 is_in(Sublist, List) when is_binary(List) ->
@@ -105,6 +107,8 @@ stringify_final([], Out) ->
    lists:reverse(Out);
 stringify_final([El | Rest], Out) when is_atom(El) ->
    stringify_final(Rest, [atom_to_list(El) | Out]);
+stringify_final([El | Rest], Out) when is_list(El) ->
+   stringify_final(Rest, [stringify_final(El) | Out]);
 stringify_final([El | Rest], Out) ->
    stringify_final(Rest, [El | Out]).
 

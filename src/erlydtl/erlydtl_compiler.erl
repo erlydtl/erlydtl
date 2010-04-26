@@ -530,6 +530,22 @@ resolve_variable_ast({apply_filter, Variable, Filter}, Context, FinderFunction) 
 resolve_variable_ast(What, _Context, _FinderFunction) ->
    error_logger:error_msg("~p:resolve_variable_ast unhandled: ~p~n", [?MODULE, What]).
 
+resolve_multiple_ifvariable_ast(Args, Info, Context) ->
+    lists:foldr(fun
+            (X, {Asts, AccVarNames}) ->
+                case X of
+                    {string_literal, _, Literal} ->
+                        {[erl_syntax:string(unescape_string_literal(Literal)) | Asts], AccVarNames};
+                    {number_literal, _, Literal} ->
+                        {[erl_syntax:integer(list_to_integer(Literal)) | Asts], AccVarNames};
+                    Variable ->
+                        {Ast, VarName} = resolve_ifvariable_ast(Variable, Context),
+                        {[Ast | Asts], [VarName | AccVarNames]}
+                end                
+        end,
+        {[], Info#ast_info.var_names},
+        Args).
+
 resolve_scoped_variable_ast(VarName, Context) ->
     lists:foldl(fun(Scope, Value) ->
                 case Value of
@@ -561,15 +577,13 @@ ifelse_ast({'not', Expression}, IfAstInfo, ElseAstInfo, Context, TreeWalker) ->
     ifelse_ast(Expression, ElseAstInfo, IfAstInfo, Context, TreeWalker);
 ifelse_ast({'in', Variable1, Variable2}, {IfContentsAst, IfContentsInfo}, {ElseContentsAst, ElseContentsInfo}, Context, TreeWalker) ->
     Info = merge_info(IfContentsInfo, ElseContentsInfo),
-    VarNames = Info#ast_info.var_names,
-    {Ast1, VarName1} = resolve_ifvariable_ast(Variable1, Context),
-    {Ast2, VarName2} = resolve_ifvariable_ast(Variable2, Context),
+    {[Ast1, Ast2], VarNames} = resolve_multiple_ifvariable_ast([Variable1, Variable2], Info, Context),
     {{erl_syntax:case_expr(erl_syntax:application(erl_syntax:atom(erlydtl_runtime), erl_syntax:atom(is_in), [Ast1, Ast2]),
         [erl_syntax:clause([erl_syntax:atom(true)], none, 
                 [IfContentsAst]),
             erl_syntax:clause([erl_syntax:underscore()], none,
                 [ElseContentsAst])
-        ]), Info#ast_info{var_names = [VarName1, VarName2 | VarNames]}}, TreeWalker};
+        ]), Info#ast_info{var_names = VarNames}}, TreeWalker};
 ifelse_ast(Variable, {IfContentsAst, IfContentsInfo}, {ElseContentsAst, ElseContentsInfo}, Context, TreeWalker) ->
     Info = merge_info(IfContentsInfo, ElseContentsInfo),
     VarNames = Info#ast_info.var_names,
@@ -584,20 +598,7 @@ ifelse_ast(Variable, {IfContentsAst, IfContentsInfo}, {ElseContentsAst, ElseCont
         
 ifequalelse_ast(Args, {IfContentsAst, IfContentsInfo}, {ElseContentsAst, ElseContentsInfo}, Context, TreeWalker) ->
     Info = merge_info(IfContentsInfo, ElseContentsInfo),
-    {[Arg1Ast, Arg2Ast], VarNames} = lists:foldl(fun
-            (X, {Asts, AccVarNames}) ->
-                case X of
-                    {string_literal, _, Literal} ->
-                        {[erl_syntax:string(unescape_string_literal(Literal)) | Asts], AccVarNames};
-                    {number_literal, _, Literal} ->
-                        {[erl_syntax:integer(list_to_integer(Literal)) | Asts], AccVarNames};
-                    Variable ->
-                        {Ast, VarName} = resolve_ifvariable_ast(Variable, Context),
-                        {[Ast | Asts], [VarName | AccVarNames]}
-                end                
-        end,
-        {[], Info#ast_info.var_names},
-        Args),
+    {[Arg1Ast, Arg2Ast], VarNames} = resolve_multiple_ifvariable_ast(Args, Info, Context),
     Ast = erl_syntax:case_expr(erl_syntax:application(erl_syntax:atom(erlydtl_runtime), erl_syntax:atom(are_equal),
             [Arg1Ast, Arg2Ast]),
         [
