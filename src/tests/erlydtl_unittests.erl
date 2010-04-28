@@ -84,6 +84,15 @@ tests() ->
                {"now functional",
                   <<"It is the {% now \"jS o\\f F Y\" %}.">>, [{var1, ""}], generate_test_date()}
             ]},
+	{"trans", 
+		[
+		{"trans functional default locale",
+		  <<"Hello {% trans \"Hi\" %}">>, [], <<"Hello Hi">>
+		},
+		{"trans functional reverse locale",
+                  <<"Hello {% trans \"Hi\" %}">>, [], [{locale, "reverse"}], <<"Hello iH">>
+                }	
+	]},
         {"if", [
                 {"If/else",
                     <<"{% if var1 %}boo{% else %}yay{% endif %}">>, [{var1, ""}], <<"yay">>},
@@ -419,29 +428,33 @@ run_tests() ->
     Failures = lists:foldl(
         fun({Group, Assertions}, GroupAcc) ->
                 io:format(" Test group ~p...~n", [Group]),
-                lists:foldl(fun({Name, DTL, Vars, Output}, Acc) ->
-                            case erlydtl:compile(DTL, erlydtl_running_test, []) of
-                                {ok, _} ->
-                                    {ok, IOList} = erlydtl_running_test:render(Vars),
-                                    {ok, IOListBin} = erlydtl_running_test:render(vars_to_binary(Vars)),
-                                    case {iolist_to_binary(IOList), iolist_to_binary(IOListBin)} of
-                                        {Output, Output} ->
-                                            Acc;
-                                        {Output, Unexpected} ->
-                                            [{Group, Name, 'binary', Unexpected, Output} | Acc];
-                                        {Unexpected, Output} ->
-                                            [{Group, Name, 'list', Unexpected, Output} | Acc];
-                                        {Unexpected1, Unexpected2} ->
-                                            [{Group, Name, 'list', Unexpected1, Output}, 
-                                                {Group, Name, 'binary', Unexpected2, Output} | Acc]
-                                    end;
-                                Err ->
-                                    [{Group, Name, Err} | Acc]
-                            end
-                    end, GroupAcc, Assertions)
+                lists:foldl(fun({Name, DTL, Vars, Output}, Acc) -> process_unit_test(erlydtl:compile(DTL, erlydtl_running_test, []),Vars, Output, Acc, Group, Name);
+                               ({Name, DTL, Vars, CompilerOpts, Output}, Acc) -> process_unit_test(erlydtl:compile(DTL, erlydtl_running_test, CompilerOpts),Vars, Output, Acc, Group, Name)
+                            end, GroupAcc, Assertions)
         end, [], tests()),
     
     io:format("Unit test failures: ~p~n", [Failures]).
+
+process_unit_test(CompiledTemplate, Vars, Output,Acc, Group, Name) ->
+	case CompiledTemplate of
+             {ok, _} ->
+                   {ok, IOList} = erlydtl_running_test:render(Vars),
+                   {ok, IOListBin} = erlydtl_running_test:render(vars_to_binary(Vars)),
+                   case {iolist_to_binary(IOList), iolist_to_binary(IOListBin)} of
+                        {Output, Output} ->
+	                          Acc; 
+                        {Output, Unexpected} ->
+                                  [{Group, Name, 'binary', Unexpected, Output} | Acc];
+                        {Unexpected, Output} ->
+                                  [{Group, Name, 'list', Unexpected, Output} | Acc];
+                        {Unexpected1, Unexpected2} ->
+                                  [{Group, Name, 'list', Unexpected1, Output},
+                                      {Group, Name, 'binary', Unexpected2, Output} | Acc]
+                   end;
+             Err ->
+                   [{Group, Name, Err} | Acc]
+        end.
+
 
 vars_to_binary(Vars) when is_list(Vars) ->
     lists:map(fun

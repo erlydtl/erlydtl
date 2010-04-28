@@ -93,7 +93,9 @@ Nonterminals
     
     CustomTag
     Args
-    
+
+    TransTag    
+
     CallTag
     CallWithTag.
 
@@ -135,6 +137,7 @@ Terminals
     pipe
     string_literal
     text
+    trans_keyword
     with_keyword.
 
 Rootsymbol
@@ -142,6 +145,7 @@ Rootsymbol
 
 Elements -> '$empty' : [].
 Elements -> Elements text : '$1' ++ ['$2'].
+Elements -> Elements TransTag : '$1' ++ ['$2'].
 Elements -> Elements ValueBraced : '$1' ++ ['$2'].
 Elements -> Elements ExtendsTag : '$1' ++ ['$2'].
 Elements -> Elements IncludeTag : '$1' ++ ['$2'].
@@ -168,6 +172,8 @@ Value -> Literal : '$1'.
 
 Variable -> identifier : {variable, '$1'}.
 Variable -> Value dot identifier : {attribute, {'$3', '$1'}}.
+
+TransTag -> open_tag trans_keyword string_literal close_tag : {trans, '$3'}.
 
 ExtendsTag -> open_tag extends_keyword string_literal close_tag : {extends, '$3'}.
 IncludeTag -> open_tag include_keyword string_literal close_tag : {include, '$3'}.

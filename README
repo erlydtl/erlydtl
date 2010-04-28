@@ -49,6 +49,12 @@ Options is a proplist possibly containing:
     force_recompile - Recompile the module even if the source's checksum has not
         changed. Useful for debugging.
 
+    locale - The locale used for template compile. Requires erlang_gettext. It
+        will ask gettext_server for the string value on the provided locale.
+        For example, adding {locale, "en_US"} will call {key2str, Key, "en_US"}
+        for all string marked as trans ({% trans "StringValue"%} on templates).
+        See README_I18N.
+
 
 Usage (of a compiled template)
 ------------------------------ 

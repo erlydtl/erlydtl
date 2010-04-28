@@ -38,7 +38,7 @@
 %% --------------------------------------------------------------------
 %% Definitions
 %% --------------------------------------------------------------------
--export([compile/2, compile/3]).
+-export([compile/2, compile/3, parse/1]).
 
 -record(dtl_context, {
     local_scopes = [], 
@@ -51,7 +51,8 @@
     reader = {file, read_file},
     module = [],
     compiler_options = [verbose, report_errors],
-    force_recompile = false}).
+    force_recompile = false,
+    locale}).
 
 -record(ast_info, {
     dependencies = [],
@@ -148,7 +149,8 @@ init_dtl_context(File, Module, Options) ->
         vars = proplists:get_value(vars, Options, Ctx#dtl_context.vars), 
         reader = proplists:get_value(reader, Options, Ctx#dtl_context.reader),
         compiler_options = proplists:get_value(compiler_options, Options, Ctx#dtl_context.compiler_options),
-        force_recompile = proplists:get_value(force_recompile, Options, Ctx#dtl_context.force_recompile)}.
+        force_recompile = proplists:get_value(force_recompile, Options, Ctx#dtl_context.force_recompile),
+        locale = proplists:get_value(locale, Options, Ctx#dtl_context.locale)}.
 
 
 is_up_to_date(_, #dtl_context{force_recompile = true}) ->
@@ -321,6 +323,8 @@ body_ast(DjangoParseTree, Context, TreeWalker) ->
                     TreeWalkerAcc);
             ({'text', _Pos, String}, TreeWalkerAcc) -> 
                 string_ast(String, TreeWalkerAcc);
+	    ({'trans', {string_literal, _Pos, FormatString}}, TreeWalkerAcc) ->
+                translated_ast(FormatString, Context, TreeWalkerAcc);
             ({'string_literal', _Pos, String}, TreeWalkerAcc) ->
                 {{auto_escape(erl_syntax:string(unescape_string_literal(String)), Context), 
                         #ast_info{}}, TreeWalkerAcc};
@@ -433,6 +437,12 @@ with_dependency(FilePath, {{Ast, Info}, TreeWalker}) ->
 empty_ast(TreeWalker) ->
     {{erl_syntax:list([]), #ast_info{}}, TreeWalker}.
 
+
+translated_ast(String,Context, TreeWalker) ->
+        NewStr = string:sub_string(String, 2, string:len(String) -1),
+	Locale = Context#dtl_context.locale,
+        LocalizedString = erlydtl_i18n:translate(NewStr,Locale),
+        {{erl_syntax:string(LocalizedString), #ast_info{}}, TreeWalker}.
 
 string_ast(String, TreeWalker) ->
     {{erl_syntax:string(String), #ast_info{}}, TreeWalker}. %% less verbose AST, better for development and debugging
