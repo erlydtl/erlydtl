@@ -114,6 +114,10 @@ tests() ->
                     <<"{% if var1 %}yay{% endif %}">>, [{var1, "hello"}], <<"yay">>},
                 {"If proplist",
                     <<"{% if var1 %}yay{% endif %}">>, [{var1, [{foo, "bar"}]}], <<"yay">>},
+                {"If complex",
+                    <<"{% if foo.bar.baz %}omgwtfbbq{% endif %}">>, [], <<"">>}
+            ]},
+        {"if .. in ..", [
                 {"If substring in string",
                     <<"{% if var1 in var2 %}yay{% endif %}">>, [{var1, "rook"}, {var2, "Crooks"}], <<"yay">>},
                 {"If substring in string (false)",
@@ -129,9 +133,53 @@ tests() ->
                 {"If element in list",
                     <<"{% if var1 in var2 %}yay{% endif %}">>, [{var1, "foo"}, {var2, ["bar", "foo", "baz"]}], <<"yay">>},
                 {"If element in list (false)",
-                    <<"{% if var1 in var2 %}boo{% endif %}">>, [{var1, "FOO"}, {var2, ["bar", "foo", "baz"]}], <<>>},
-                {"If complex",
-                    <<"{% if foo.bar.baz %}omgwtfbbq{% endif %}">>, [], <<"">>}
+                    <<"{% if var1 in var2 %}boo{% endif %}">>, [{var1, "FOO"}, {var2, ["bar", "foo", "baz"]}], <<>>}
+            ]},
+        {"if .. and ..", [
+                {"If true and true",
+                    <<"{% if var1 and var2 %}yay{% endif %}">>, [{var1, true}, {var2, true}], <<"yay">>},
+                {"If true and false",
+                    <<"{% if var1 and var2 %}yay{% endif %}">>, [{var1, true}, {var2, false}], <<"">>},
+                {"If false and true",
+                    <<"{% if var1 and var2 %}yay{% endif %}">>, [{var1, false}, {var2, true}], <<"">>},
+                {"If false and false ",
+                    <<"{% if var1 and var2 %}yay{% endif %}">>, [{var1, false}, {var2, false}], <<"">>}
+            ]},
+        {"if .. or ..", [
+                {"If true or true",
+                    <<"{% if var1 or var2 %}yay{% endif %}">>, [{var1, true}, {var2, true}], <<"yay">>},
+                {"If true or false",
+                    <<"{% if var1 or var2 %}yay{% endif %}">>, [{var1, true}, {var2, false}], <<"yay">>},
+                {"If false or true",
+                    <<"{% if var1 or var2 %}yay{% endif %}">>, [{var1, false}, {var2, true}], <<"yay">>},
+                {"If false or false ",
+                    <<"{% if var1 or var2 %}yay{% endif %}">>, [{var1, false}, {var2, false}], <<"">>}
+            ]},
+        {"if comparisons", [
+                {"If int equals number literal",
+                    <<"{% if var1 == 2 %}yay{% endif %}">>, [{var1, 2}], <<"yay">>},
+                {"If int equals number literal (false)",
+                    <<"{% if var1 == 2 %}yay{% endif %}">>, [{var1, 3}], <<"">>},
+                {"If string equals string literal",
+                    <<"{% if var1 == \"2\" %}yay{% endif %}">>, [{var1, "2"}], <<"yay">>},
+                {"If string equals string literal (false)",
+                    <<"{% if var1 == \"2\" %}yay{% endif %}">>, [{var1, "3"}], <<"">>},
+                {"If int not equals number literal",
+                    <<"{% if var1 /= 2 %}yay{% endif %}">>, [{var1, 3}], <<"yay">>},
+                {"If string not equals string literal",
+                    <<"{% if var1 /= \"2\" %}yay{% endif %}">>, [{var1, "3"}], <<"yay">>},
+                {"If filter result equals number literal",
+                    <<"{% if var1|length == 2 %}yay{% endif %}">>, [{var1, ["fo", "bo"]}], <<"yay">>},
+                {"If filter result equals string literal",
+                    <<"{% if var1|capfirst == \"Foo\" %}yay{% endif %}">>, [{var1, "foo"}], <<"yay">>}
+            ]},
+        {"if complex bool", [
+                {"If (true or false) and true",
+                    <<"{% if (var1 or var2) and var3 %}yay{% endif %}">>, 
+                    [{var1, true}, {var2, false}, {var3, true}], <<"yay">>},
+                {"If true or (false and true)",
+                    <<"{% if var1 or (var2 and var3) %}yay{% endif %}">>, 
+                    [{var1, true}, {var2, false}, {var3, true}], <<"yay">>}
             ]},
         {"for", [
                 {"Simple loop",
@@ -378,7 +426,7 @@ tests() ->
                     <<"{% ifequal var1|length 0 %}Y{% else %}N{% endifequal %}">>,
                      [{var1, []}],
                      <<"Y">>},
-                {"Filter if 3.1",
+                {"Filter if 3.2",
                     <<"{% ifequal var1|length 1 %}Y{% else %}N{% endifequal %}">>,
                      [{var1, []}],
                      <<"N">>},
@@ -433,7 +481,7 @@ run_tests() ->
                             end, GroupAcc, Assertions)
         end, [], tests()),
     
-    io:format("Unit test failures: ~p~n", [Failures]).
+    io:format("Unit test failures: ~p~n", [lists:reverse(Failures)]).
 
 process_unit_test(CompiledTemplate, Vars, Output,Acc, Group, Name) ->
 	case CompiledTemplate of
