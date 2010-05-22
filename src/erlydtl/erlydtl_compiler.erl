@@ -197,12 +197,12 @@ parse(File, Context) ->
                 {error, Msg} when is_list(Msg) ->
                     {error, File ++ ": " ++ Msg};
                 {error, Msg} ->
-                    {error, {File, Msg}};
+                    {error, {File, [Msg]}};
                 Result ->
                     Result
             end;
         _ ->
-            {error, "reading " ++ File ++ " failed "}
+            {error, {File, ["Failed to read file"]}}
     end.
         
 parse(CheckSum, Data, Context) ->
@@ -319,9 +319,9 @@ body_ast(DjangoParseTree, Context, TreeWalker) ->
             ({'date', 'now', {string_literal, _Pos, FormatString}}, TreeWalkerAcc) ->
                 now_ast(FormatString, Context, TreeWalkerAcc);
             ({'autoescape', {identifier, _, OnOrOff}, Contents}, TreeWalkerAcc) ->
-                body_ast(Contents, Context#dtl_context{auto_escape = list_to_atom(OnOrOff)}, 
+                body_ast(Contents, Context#dtl_context{auto_escape = OnOrOff}, 
                     TreeWalkerAcc);
-            ({'text', _Pos, String}, TreeWalkerAcc) -> 
+            ({'string', _Pos, String}, TreeWalkerAcc) -> 
                 string_ast(String, TreeWalkerAcc);
 	    ({'trans', {string_literal, _Pos, FormatString}}, TreeWalkerAcc) ->
                 translated_ast(FormatString, Context, TreeWalkerAcc);
@@ -359,7 +359,7 @@ body_ast(DjangoParseTree, Context, TreeWalker) ->
                 for_loop_ast(IteratorList, Variable, Contents, EmptyAstInfo, Context, TreeWalker1);
             ({'load', Names}, TreeWalkerAcc) ->
                 load_ast(Names, Context, TreeWalkerAcc);
-            ({'tag', {identifier, _, Name}, Args}, TreeWalkerAcc) ->
+            ({'tag', {'identifier', _, Name}, Args}, TreeWalkerAcc) ->
                 tag_ast(Name, Args, Context, TreeWalkerAcc);            
             ({'call', {'identifier', _, Name}}, TreeWalkerAcc) ->
             	call_ast(Name, TreeWalkerAcc);
@@ -379,7 +379,7 @@ body_ast(DjangoParseTree, Context, TreeWalker) ->
         fun({Ast, Info}, {InfoAcc, TreeWalkerAcc}) -> 
                 PresetVars = lists:foldl(fun
                         (X, Acc) ->
-                            case proplists:lookup(list_to_atom(X), Context#dtl_context.vars) of
+                            case proplists:lookup(X, Context#dtl_context.vars) of
                                 none ->
                                     Acc;
                                 Val ->
@@ -505,7 +505,7 @@ filter_ast(Variable, Filter, Context, TreeWalker) ->
             {{UnescapedAst, Info}, TreeWalker2}
     end.
 
-filter_ast_noescape(Variable, [{identifier, _, "escape"}], Context, TreeWalker) ->
+filter_ast_noescape(Variable, [{identifier, _, 'escape'}], Context, TreeWalker) ->
     value_ast(Variable, true, Context, TreeWalker);
 filter_ast_noescape(Variable, Filter, Context, TreeWalker) ->
     {{VariableAst, Info}, TreeWalker2} = value_ast(Variable, true, Context, TreeWalker),
@@ -530,7 +530,7 @@ search_for_escape_filter(_, _, #dtl_context{auto_escape = did}) ->
 search_for_escape_filter(Variable, Filter, _) ->
     search_for_escape_filter(Variable, Filter).
 
-search_for_escape_filter(_, [{identifier, _, "escape"}]) ->
+search_for_escape_filter(_, [{identifier, _, 'escape'}]) ->
     on;
 search_for_escape_filter({apply_filter, Variable, Filter}, _) ->
     search_for_escape_filter(Variable, Filter);
@@ -568,7 +568,7 @@ resolve_variable_ast(What, _Context, _FinderFunction) ->
 resolve_scoped_variable_ast(VarName, Context) ->
     lists:foldl(fun(Scope, Value) ->
                 case Value of
-                    undefined -> proplists:get_value(list_to_atom(VarName), Scope);
+                    undefined -> proplists:get_value(VarName, Scope);
                     _ -> Value
                 end
         end, undefined, Context#dtl_context.local_scopes).
@@ -616,20 +616,20 @@ ifelse_ast(Expression, {IfContentsAst, IfContentsInfo}, {ElseContentsAst, ElseCo
 
 for_loop_ast(IteratorList, LoopValue, Contents, {EmptyContentsAst, EmptyContentsInfo}, Context, TreeWalker) ->
     Vars = lists:map(fun({identifier, _, Iterator}) -> 
-                    erl_syntax:variable("Var_" ++ Iterator) 
+                erl_syntax:variable(lists:concat(["Var_", Iterator])) 
             end, IteratorList),
     {{InnerAst, Info}, TreeWalker1} = body_ast(Contents,
         Context#dtl_context{local_scopes = [
                 [{'forloop', erl_syntax:variable("Counters")} | lists:map(
                     fun({identifier, _, Iterator}) ->
-                            {list_to_atom(Iterator), erl_syntax:variable("Var_" ++ Iterator)} 
+                            {Iterator, erl_syntax:variable(lists:concat(["Var_", Iterator]))} 
                     end, IteratorList)] | Context#dtl_context.local_scopes]}, TreeWalker),
     CounterAst = erl_syntax:application(erl_syntax:atom(erlydtl_runtime), 
         erl_syntax:atom(increment_counter_stats), [erl_syntax:variable("Counters")]),
 
     {{LoopValueAst, LoopValueInfo}, TreeWalker2} = value_ast(LoopValue, false, Context, TreeWalker1),
 
-    CounterVars0 = case resolve_scoped_variable_ast("forloop", Context) of
+    CounterVars0 = case resolve_scoped_variable_ast('forloop', Context) of
         undefined ->
             erl_syntax:application(erl_syntax:atom(erlydtl_runtime), erl_syntax:atom(init_counter_stats), [LoopValueAst]);
         Value ->
@@ -727,9 +727,9 @@ tag_ast(Name, Args, Context, TreeWalker) ->
         true ->
             InterpretedArgs = lists:map(fun
                     ({{identifier, _, Key}, {string_literal, _, Value}}) ->
-                        {list_to_atom(Key), erl_syntax:string(unescape_string_literal(Value))};
+                        {Key, erl_syntax:string(unescape_string_literal(Value))};
                     ({{identifier, _, Key}, Value}) ->
-                        {list_to_atom(Key), format(resolve_variable_ast(Value, Context), Context)}
+                        {Key, format(resolve_variable_ast(Value, Context), Context)}
                 end, Args),
             DefaultFilePath = filename:join([erlydtl_deps:get_base_dir(), "priv", "custom_tags", Name]),
             case Context#dtl_context.custom_tags_dir of
@@ -762,7 +762,7 @@ tag_ast(Name, Args, Context, TreeWalker) ->
             throw({error, lists:concat(["Custom tag '", Name, "' not loaded"])})
     end.
  
- tag_ast2({Source, _} = Dep, TagParseTree, InterpretedArgs, Context, TreeWalker) ->
+tag_ast2({Source, _} = Dep, TagParseTree, InterpretedArgs, Context, TreeWalker) ->
     with_dependency(Dep, body_ast(TagParseTree, Context#dtl_context{
         local_scopes = [ InterpretedArgs | Context#dtl_context.local_scopes ],
         parse_trail = [ Source | Context#dtl_context.parse_trail ]}, TreeWalker)).
@@ -795,5 +795,4 @@ call_ast(Module, Variable, AstInfo, TreeWalker) ->
 		 none,
 		 [ErrStrAst]),
     CallAst = erl_syntax:case_expr(AppAst, [OkAst, ErrorAst]),   
-    Module2 = list_to_atom(Module),
-    with_dependencies(Module2:dependencies(), {{CallAst, AstInfo}, TreeWalker}).
+    with_dependencies(Module:dependencies(), {{CallAst, AstInfo}, TreeWalker}).
