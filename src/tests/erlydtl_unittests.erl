@@ -155,7 +155,7 @@ tests() ->
                 {"If false or false ",
                     <<"{% if var1 or var2 %}yay{% endif %}">>, [{var1, false}, {var2, false}], <<"">>}
             ]},
-        {"if comparisons", [
+        {"if equality", [
                 {"If int equals number literal",
                     <<"{% if var1 == 2 %}yay{% endif %}">>, [{var1, 2}], <<"yay">>},
                 {"If int equals number literal (false)",
@@ -165,13 +165,38 @@ tests() ->
                 {"If string equals string literal (false)",
                     <<"{% if var1 == \"2\" %}yay{% endif %}">>, [{var1, "3"}], <<"">>},
                 {"If int not equals number literal",
-                    <<"{% if var1 /= 2 %}yay{% endif %}">>, [{var1, 3}], <<"yay">>},
+                    <<"{% if var1 != 2 %}yay{% endif %}">>, [{var1, 3}], <<"yay">>},
                 {"If string not equals string literal",
-                    <<"{% if var1 /= \"2\" %}yay{% endif %}">>, [{var1, "3"}], <<"yay">>},
+                    <<"{% if var1 != \"2\" %}yay{% endif %}">>, [{var1, "3"}], <<"yay">>},
                 {"If filter result equals number literal",
                     <<"{% if var1|length == 2 %}yay{% endif %}">>, [{var1, ["fo", "bo"]}], <<"yay">>},
                 {"If filter result equals string literal",
                     <<"{% if var1|capfirst == \"Foo\" %}yay{% endif %}">>, [{var1, "foo"}], <<"yay">>}
+            ]},
+        {"if size comparison", [
+                {"If int greater than number literal",
+                    <<"{% if var1 > 2 %}yay{% endif %}">>, [{var1, 3}], <<"yay">>},
+                {"If int greater than number literal (false)",
+                    <<"{% if var1 > 2 %}yay{% endif %}">>, [{var1, 2}], <<"">>},
+
+                {"If int greater than or equal to number literal",
+                    <<"{% if var1 >= 2 %}yay{% endif %}">>, [{var1, 3}], <<"yay">>},
+                {"If int greater than or equal to number literal (2)",
+                    <<"{% if var1 >= 2 %}yay{% endif %}">>, [{var1, 2}], <<"yay">>},
+                {"If int greater than or equal to number literal (false)",
+                    <<"{% if var1 >= 2 %}yay{% endif %}">>, [{var1, 1}], <<"">>},
+
+                {"If int less than number literal",
+                    <<"{% if var1 < 2 %}yay{% endif %}">>, [{var1, 1}], <<"yay">>},
+                {"If int less than number literal (false)",
+                    <<"{% if var1 < 2 %}yay{% endif %}">>, [{var1, 2}], <<"">>},
+
+                {"If int less than or equal to number literal",
+                    <<"{% if var1 <= 2 %}yay{% endif %}">>, [{var1, 1}], <<"yay">>},
+                {"If int less than or equal to number literal",
+                    <<"{% if var1 <= 2 %}yay{% endif %}">>, [{var1, 2}], <<"yay">>},
+                {"If int less than or equal to number literal (false)",
+                    <<"{% if var1 <= 2 %}yay{% endif %}">>, [{var1, 3}], <<"">>}
             ]},
         {"if complex bool", [
                 {"If (true or false) and true",
