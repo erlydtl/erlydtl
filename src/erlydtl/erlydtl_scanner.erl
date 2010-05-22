@@ -57,7 +57,7 @@ scan([], Scanned, _, in_text) ->
                 fun
                     ({identifier, Pos, String}) ->
                         RevString = lists:reverse(String),
-                        Keywords = ["for", "endfor", "in", "include", "block", "endblock",
+                        Keywords = ["for", "empty", "endfor", "in", "include", "block", "endblock",
                             "extends", "autoescape", "endautoescape", "if", "else", "endif",
                             "not", "or", "and", "comment", "endcomment", "cycle", "firstof",
                             "ifchanged", "ifequal", "endifequal", "ifnotequal", "endifnotequal",

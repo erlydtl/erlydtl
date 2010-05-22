@@ -352,7 +352,11 @@ body_ast(DjangoParseTree, Context, TreeWalker) ->
                 {ElseAstInfo, TreeWalker2} = body_ast(ElseContents, Context, TreeWalker1),
                 ifelse_ast({'expr', "ne", Arg1, Arg2}, IfAstInfo, ElseAstInfo, Context, TreeWalker2);                    
             ({'for', {'in', IteratorList, Variable}, Contents}, TreeWalkerAcc) ->
-                for_loop_ast(IteratorList, Variable, Contents, Context, TreeWalkerAcc);
+                {EmptyAstInfo, TreeWalker1} = empty_ast(TreeWalkerAcc),
+                for_loop_ast(IteratorList, Variable, Contents, EmptyAstInfo, Context, TreeWalker1);
+            ({'for', {'in', IteratorList, Variable}, Contents, EmptyPartContents}, TreeWalkerAcc) ->
+                {EmptyAstInfo, TreeWalker1} = body_ast(EmptyPartContents, Context, TreeWalkerAcc),
+                for_loop_ast(IteratorList, Variable, Contents, EmptyAstInfo, Context, TreeWalker1);
             ({'load', Names}, TreeWalkerAcc) ->
                 load_ast(Names, Context, TreeWalkerAcc);
             ({'tag', {identifier, _, Name}, Args}, TreeWalkerAcc) ->
@@ -610,11 +614,11 @@ ifelse_ast(Expression, {IfContentsAst, IfContentsInfo}, {ElseContentsAst, ElseCo
         ]), merge_info(ExpressionInfo, Info)}, TreeWalker1}.
 
 
-for_loop_ast(IteratorList, Variable, Contents, Context, TreeWalker) ->
+for_loop_ast(IteratorList, LoopValue, Contents, {EmptyContentsAst, EmptyContentsInfo}, Context, TreeWalker) ->
     Vars = lists:map(fun({identifier, _, Iterator}) -> 
                     erl_syntax:variable("Var_" ++ Iterator) 
             end, IteratorList),
-    {{InnerAst, Info}, TreeWalker2} = body_ast(Contents,
+    {{InnerAst, Info}, TreeWalker1} = body_ast(Contents,
         Context#dtl_context{local_scopes = [
                 [{'forloop', erl_syntax:variable("Counters")} | lists:map(
                     fun({identifier, _, Iterator}) ->
@@ -622,26 +626,37 @@ for_loop_ast(IteratorList, Variable, Contents, Context, TreeWalker) ->
                     end, IteratorList)] | Context#dtl_context.local_scopes]}, TreeWalker),
     CounterAst = erl_syntax:application(erl_syntax:atom(erlydtl_runtime), 
         erl_syntax:atom(increment_counter_stats), [erl_syntax:variable("Counters")]),
-    {ListAst, VarName} = resolve_variable_ast(Variable, Context),
+
+    {{LoopValueAst, LoopValueInfo}, TreeWalker2} = value_ast(LoopValue, false, Context, TreeWalker1),
+
     CounterVars0 = case resolve_scoped_variable_ast("forloop", Context) of
         undefined ->
-            erl_syntax:application(erl_syntax:atom(erlydtl_runtime), erl_syntax:atom(init_counter_stats), [ListAst]);
+            erl_syntax:application(erl_syntax:atom(erlydtl_runtime), erl_syntax:atom(init_counter_stats), [LoopValueAst]);
         Value ->
-            erl_syntax:application(erl_syntax:atom(erlydtl_runtime), erl_syntax:atom(init_counter_stats), [ListAst, Value])
+            erl_syntax:application(erl_syntax:atom(erlydtl_runtime), erl_syntax:atom(init_counter_stats), [LoopValueAst, Value])
     end,
-    {{erl_syntax:application(
-            erl_syntax:atom('erlang'), erl_syntax:atom('element'),
-            [erl_syntax:integer(1), erl_syntax:application(
-                    erl_syntax:atom('lists'), erl_syntax:atom('mapfoldl'),
-                    [erl_syntax:fun_expr([
-                                erl_syntax:clause([erl_syntax:tuple(Vars), erl_syntax:variable("Counters")], none, 
-                                    [erl_syntax:tuple([InnerAst, CounterAst])]),
-                                erl_syntax:clause(case Vars of [H] -> [H, erl_syntax:variable("Counters")];
-                                        _ -> [erl_syntax:list(Vars), erl_syntax:variable("Counters")] end, none, 
-                                    [erl_syntax:tuple([InnerAst, CounterAst])])
-                            ]),
-                        CounterVars0, ListAst])]),
-                Info#ast_info{var_names = [VarName]}}, TreeWalker2}.
+    {{erl_syntax:case_expr(
+                    erl_syntax:application(
+                            erl_syntax:atom('lists'), erl_syntax:atom('mapfoldl'),
+                            [erl_syntax:fun_expr([
+                                        erl_syntax:clause([erl_syntax:tuple(Vars), erl_syntax:variable("Counters")], none, 
+                                            [erl_syntax:tuple([InnerAst, CounterAst])]),
+                                        erl_syntax:clause(case Vars of [H] -> [H, erl_syntax:variable("Counters")];
+                                                _ -> [erl_syntax:list(Vars), erl_syntax:variable("Counters")] end, none, 
+                                            [erl_syntax:tuple([InnerAst, CounterAst])])
+                                    ]),
+                                CounterVars0, LoopValueAst]),
+                        [erl_syntax:clause(
+                                [erl_syntax:tuple([erl_syntax:underscore(), 
+                                    erl_syntax:list([erl_syntax:tuple([erl_syntax:atom(counter), erl_syntax:integer(1)])], 
+                                        erl_syntax:underscore())])],
+                                none, [EmptyContentsAst]),
+                            erl_syntax:clause(
+                                [erl_syntax:tuple([erl_syntax:variable("L"), erl_syntax:underscore()])],
+                                none, [erl_syntax:variable("L")])]
+                    ),
+                    merge_info(merge_info(Info, EmptyContentsInfo), LoopValueInfo)
+            }, TreeWalker2}.
 
 load_ast(Names, _Context, TreeWalker) ->
     CustomTags = lists:merge([X || {identifier, _ , X} <- Names], TreeWalker#treewalker.custom_tags),

@@ -248,6 +248,14 @@ tests() ->
                     <<"{% for outer in list %}{% for inner in outer %}({{ forloop.parentloop.counter0 }}, {{ forloop.counter0 }})\n{% endfor %}{% endfor %}">>,
                     [{'list', [["One", "two"], ["One", "two"]]}], <<"(0, 0)\n(0, 1)\n(1, 0)\n(1, 1)\n">>}
             ]},
+        {"for/empty", [
+                {"Simple loop",
+                    <<"{% for x in list %}{{ x }}{% empty %}shucks{% endfor %}">>, [{'list', ["1", "2", "3"]}],
+                    <<"123">>},
+                {"Simple loop (empty)",
+                    <<"{% for x in list %}{{ x }}{% empty %}shucks{% endfor %}">>, [{'list', []}],
+                    <<"shucks">>}
+            ]},
         {"ifequal", [
                 {"Compare variable to literal",
                     <<"{% ifequal var1 \"foo\" %}yay{% endifequal %}">>,

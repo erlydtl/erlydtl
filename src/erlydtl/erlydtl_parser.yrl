@@ -60,6 +60,7 @@ Nonterminals
 
     ForBlock
     ForBraced
+    EmptyBraced
     EndForBraced
     ForExpression
     ForGroup
@@ -114,6 +115,7 @@ Terminals
     cycle_keyword
     dot
     else_keyword
+    empty_keyword
     endautoescape_keyword
     endblock_keyword
     endcomment_keyword
@@ -221,6 +223,8 @@ FirstofValues -> FirstofValues Value : ['$2'|'$1'].
 FirstofValues -> Value : ['$1'].
 
 ForBlock -> ForBraced Elements EndForBraced : {for, '$1', '$2'}.
+ForBlock -> ForBraced Elements EmptyBraced Elements EndForBraced : {for, '$1', '$2', '$4'}.
+EmptyBraced -> open_tag empty_keyword close_tag.
 ForBraced -> open_tag for_keyword ForExpression close_tag : '$3'.
 EndForBraced -> open_tag endfor_keyword close_tag.
 ForExpression -> ForGroup in_keyword Variable : {'in', '$1', '$3'}.
