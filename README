@@ -67,6 +67,17 @@ Usage (of a compiled template)
 
         IOList is the rendered template.
 
+    my_compiled_template:render(Variables, Dictionary) -> 
+            {ok, IOList} | {error, Err}
+
+        Same as render/1, but Dictionary is a dict that will be used to 
+        translate strings appearing inside {% trans %} tags.
+
+    my_compiled_template:translatable_strings() -> [String]
+
+        List of strings appearing in {% trans %} tags that can be overridden 
+        with a dictionary passed to render/2.
+
     my_compiled_template:source() -> {FileName, CheckSum}
 
         Name and checksum of the original template file.

@@ -50,6 +50,14 @@ fetch_value(Key, Data) ->
             Val
     end.
 
+translate(String, Dictionary, Default) ->
+    case dict:find(String, Dictionary) of
+        {ok, Val} ->
+            Val;
+        _ ->
+            Default
+    end.
+
 are_equal(Arg1, Arg2) when Arg1 =:= Arg2 ->
     true;
 are_equal(Arg1, Arg2) when is_binary(Arg1) ->

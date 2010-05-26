@@ -52,10 +52,11 @@
     module = [],
     compiler_options = [verbose, report_errors],
     force_recompile = false,
-    locale}).
+    locale = none}).
 
 -record(ast_info, {
     dependencies = [],
+    translatable_strings = [],
     var_names = [],
     pre_render_asts = []}).
     
@@ -230,14 +231,22 @@ forms(File, Module, BodyAst, BodyInfo, CheckSum) ->
     Render0FunctionAst = erl_syntax:function(erl_syntax:atom(render),
         [erl_syntax:clause([], none, [erl_syntax:application(none, 
                         erl_syntax:atom(render), [erl_syntax:list([])])])]),
-    Function2 = erl_syntax:application(none, erl_syntax:atom(render2), 
-        [erl_syntax:variable("Variables")]),
+    Render1FunctionAst = erl_syntax:function(erl_syntax:atom(render),
+        [erl_syntax:clause([erl_syntax:variable("Variables")], none, 
+                [erl_syntax:application(none,
+                        erl_syntax:atom(render), 
+                        [erl_syntax:variable("Variables"), 
+                        erl_syntax:application(
+                            erl_syntax:atom(dict), erl_syntax:atom(new), [])])])]),
+    Function2 = erl_syntax:application(none, erl_syntax:atom(render_internal), 
+        [erl_syntax:variable("Variables"), erl_syntax:variable("Dictionary")]),
     ClauseOk = erl_syntax:clause([erl_syntax:variable("Val")], none,
         [erl_syntax:tuple([erl_syntax:atom(ok), erl_syntax:variable("Val")])]),     
     ClauseCatch = erl_syntax:clause([erl_syntax:variable("Err")], none,
         [erl_syntax:tuple([erl_syntax:atom(error), erl_syntax:variable("Err")])]),            
-    Render1FunctionAst = erl_syntax:function(erl_syntax:atom(render),
-        [erl_syntax:clause([erl_syntax:variable("Variables")], none, 
+    Render2FunctionAst = erl_syntax:function(erl_syntax:atom(render),
+        [erl_syntax:clause([erl_syntax:variable("Variables"), 
+                    erl_syntax:variable("Dictionary")], none, 
             [erl_syntax:try_expr([Function2], [ClauseOk], [ClauseCatch])])]),  
      
     SourceFunctionTuple = erl_syntax:tuple(
@@ -253,15 +262,19 @@ forms(File, Module, BodyAst, BodyInfo, CheckSum) ->
                         erl_syntax:tuple([erl_syntax:string(XFile), erl_syntax:string(XCheckSum)])
                 end, BodyInfo#ast_info.dependencies))])]),     
 
-   BodyAstTmp = erl_syntax:application(
+    TranslatableStringsAst = erl_syntax:function(
+        erl_syntax:atom(translatable_strings), [erl_syntax:clause([], none,
+                [erl_syntax:list(lists:map(fun(String) -> erl_syntax:string(String) end,
+                            BodyInfo#ast_info.translatable_strings))])]),
+
+    BodyAstTmp = erl_syntax:application(
                     erl_syntax:atom(erlydtl_runtime),
                     erl_syntax:atom(stringify_final),
-                    [BodyAst]
-                ),
+                    [BodyAst]),
 
     RenderInternalFunctionAst = erl_syntax:function(
-        erl_syntax:atom(render2), 
-            [erl_syntax:clause([erl_syntax:variable("Variables")], none, 
+        erl_syntax:atom(render_internal), 
+        [erl_syntax:clause([erl_syntax:variable("Variables"), erl_syntax:variable("Dictionary")], none, 
                 [BodyAstTmp])]),   
     
     ModuleAst  = erl_syntax:attribute(erl_syntax:atom(module), [erl_syntax:atom(Module)]),
@@ -269,11 +282,13 @@ forms(File, Module, BodyAst, BodyInfo, CheckSum) ->
     ExportAst = erl_syntax:attribute(erl_syntax:atom(export),
         [erl_syntax:list([erl_syntax:arity_qualifier(erl_syntax:atom(render), erl_syntax:integer(0)),
                     erl_syntax:arity_qualifier(erl_syntax:atom(render), erl_syntax:integer(1)),
+                    erl_syntax:arity_qualifier(erl_syntax:atom(render), erl_syntax:integer(2)),
                     erl_syntax:arity_qualifier(erl_syntax:atom(source), erl_syntax:integer(0)),
-                    erl_syntax:arity_qualifier(erl_syntax:atom(dependencies), erl_syntax:integer(0))])]),
+                    erl_syntax:arity_qualifier(erl_syntax:atom(dependencies), erl_syntax:integer(0)),
+                    erl_syntax:arity_qualifier(erl_syntax:atom(translatable_strings), erl_syntax:integer(0))])]),
     
-    [erl_syntax:revert(X) || X <- [ModuleAst, ExportAst, Render0FunctionAst,
-            Render1FunctionAst, SourceFunctionAst, DependenciesFunctionAst, RenderInternalFunctionAst
+    [erl_syntax:revert(X) || X <- [ModuleAst, ExportAst, Render0FunctionAst, Render1FunctionAst, Render2FunctionAst,
+            SourceFunctionAst, DependenciesFunctionAst, TranslatableStringsAst, RenderInternalFunctionAst
             | BodyInfo#ast_info.pre_render_asts]].    
 
         
@@ -446,6 +461,10 @@ merge_info(Info1, Info2) ->
             lists:merge(
                 lists:sort(Info1#ast_info.var_names), 
                 lists:sort(Info2#ast_info.var_names)),
+        translatable_strings =
+            lists:merge(
+                lists:sort(Info1#ast_info.translatable_strings),
+                lists:sort(Info2#ast_info.translatable_strings)),
         pre_render_asts = 
             lists:merge(
                 Info1#ast_info.pre_render_asts,
@@ -466,10 +485,17 @@ empty_ast(TreeWalker) ->
 
 
 translated_ast(String,Context, TreeWalker) ->
-        NewStr = string:sub_string(String, 2, string:len(String) -1),
-	Locale = Context#dtl_context.locale,
-        LocalizedString = erlydtl_i18n:translate(NewStr,Locale),
-        {{erl_syntax:string(LocalizedString), #ast_info{}}, TreeWalker}.
+        NewStr = unescape_string_literal(String),
+        DefaultString = case Context#dtl_context.locale of
+            none -> NewStr;
+            Locale -> erlydtl_i18n:translate(NewStr,Locale)
+        end,
+        StringLookupAst = erl_syntax:application(
+            erl_syntax:atom(erlydtl_runtime),
+            erl_syntax:atom(translate),
+            [erl_syntax:string(NewStr), erl_syntax:variable("Dictionary"), 
+                erl_syntax:string(DefaultString)]),
+        {{StringLookupAst, #ast_info{translatable_strings = [NewStr]}}, TreeWalker}.
 
 string_ast(String, TreeWalker) ->
     {{erl_syntax:string(String), #ast_info{}}, TreeWalker}. %% less verbose AST, better for development and debugging

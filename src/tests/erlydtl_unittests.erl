@@ -90,8 +90,11 @@ tests() ->
 		  <<"Hello {% trans \"Hi\" %}">>, [], <<"Hello Hi">>
 		},
 		{"trans functional reverse locale",
-                  <<"Hello {% trans \"Hi\" %}">>, [], [{locale, "reverse"}], <<"Hello iH">>
-                }	
+                    <<"Hello {% trans \"Hi\" %}">>, [], dict:new(), [{locale, "reverse"}], <<"Hello iH">>
+                },
+                {"trans run-time lookup",
+                    <<"Hello {% trans \"Hi\" %}">>, [], dict:from_list([{"Hi", "Konichiwa"}]), [],
+                    <<"Hello Konichiwa">>}
 	]},
         {"if", [
                 {"If/else",
@@ -550,18 +553,26 @@ run_tests() ->
     Failures = lists:foldl(
         fun({Group, Assertions}, GroupAcc) ->
                 io:format(" Test group ~p...~n", [Group]),
-                lists:foldl(fun({Name, DTL, Vars, Output}, Acc) -> process_unit_test(erlydtl:compile(DTL, erlydtl_running_test, []),Vars, Output, Acc, Group, Name);
-                               ({Name, DTL, Vars, CompilerOpts, Output}, Acc) -> process_unit_test(erlydtl:compile(DTL, erlydtl_running_test, CompilerOpts),Vars, Output, Acc, Group, Name)
+                lists:foldl(fun
+                        ({Name, DTL, Vars, Output}, Acc) -> 
+                            process_unit_test(erlydtl:compile(DTL, erlydtl_running_test, []),
+                                Vars, dict:new(), Output, Acc, Group, Name);
+                        ({Name, DTL, Vars, Dictionary, Output}, Acc) -> 
+                            process_unit_test(erlydtl:compile(DTL, erlydtl_running_test, []), 
+                                Vars, Dictionary, Output, Acc, Group, Name);
+                        ({Name, DTL, Vars, Dictionary, CompilerOpts, Output}, Acc) -> 
+                            process_unit_test(erlydtl:compile(DTL, erlydtl_running_test, CompilerOpts), 
+                                Vars, Dictionary, Output, Acc, Group, Name)
                             end, GroupAcc, Assertions)
         end, [], tests()),
     
     io:format("Unit test failures: ~p~n", [lists:reverse(Failures)]).
 
-process_unit_test(CompiledTemplate, Vars, Output,Acc, Group, Name) ->
+process_unit_test(CompiledTemplate, Vars, Dictionary, Output,Acc, Group, Name) ->
 	case CompiledTemplate of
              {ok, _} ->
-                   {ok, IOList} = erlydtl_running_test:render(Vars),
-                   {ok, IOListBin} = erlydtl_running_test:render(vars_to_binary(Vars)),
+                   {ok, IOList} = erlydtl_running_test:render(Vars, Dictionary),
+                   {ok, IOListBin} = erlydtl_running_test:render(vars_to_binary(Vars), Dictionary),
                    case {iolist_to_binary(IOList), iolist_to_binary(IOListBin)} of
                         {Output, Output} ->
 	                          Acc; 
