@@ -67,11 +67,14 @@ Usage (of a compiled template)
 
         IOList is the rendered template.
 
-    my_compiled_template:render(Variables, Dictionary) -> 
+    my_compiled_template:render(Variables, TranslationFun) -> 
             {ok, IOList} | {error, Err}
 
-        Same as render/1, but Dictionary is a dict that will be used to 
-        translate strings appearing inside {% trans %} tags.
+        Same as render/1, but TranslationFun is a fun/1 that will be used to 
+        translate strings appearing inside {% trans %} tags. The simplest
+        TranslatioFun would be
+
+            fun(Val) -> Val end
 
     my_compiled_template:translatable_strings() -> [String]
 

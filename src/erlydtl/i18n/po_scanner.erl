@@ -25,7 +25,7 @@ scan(Path) ->
 	end.
 
 
-scan("#" ++ T, Scanned, {Row, Column}, Status) -> 
+scan("#" ++ T, Scanned, {Row, Column}, Status = [in_text]) -> 
 	scan(T, Scanned, {Row, Column + 1}, lists:append([{in_comment, []}],Status));
 scan("\n" ++ T, Scanned, {Row, _Column}, [{in_comment, Comment}|Status]) -> 
 	scan(T, lists:append(Scanned, [{comment, Comment}]), {Row +1 , 1}, Status);

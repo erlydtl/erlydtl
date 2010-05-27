@@ -234,19 +234,17 @@ forms(File, Module, BodyAst, BodyInfo, CheckSum) ->
     Render1FunctionAst = erl_syntax:function(erl_syntax:atom(render),
         [erl_syntax:clause([erl_syntax:variable("Variables")], none, 
                 [erl_syntax:application(none,
-                        erl_syntax:atom(render), 
-                        [erl_syntax:variable("Variables"), 
-                        erl_syntax:application(
-                            erl_syntax:atom(dict), erl_syntax:atom(new), [])])])]),
+                        erl_syntax:atom(render),
+                        [erl_syntax:variable("Variables"), erl_syntax:atom(none)])])]),
     Function2 = erl_syntax:application(none, erl_syntax:atom(render_internal), 
-        [erl_syntax:variable("Variables"), erl_syntax:variable("Dictionary")]),
+        [erl_syntax:variable("Variables"), erl_syntax:variable("TranslationFun")]),
     ClauseOk = erl_syntax:clause([erl_syntax:variable("Val")], none,
         [erl_syntax:tuple([erl_syntax:atom(ok), erl_syntax:variable("Val")])]),     
     ClauseCatch = erl_syntax:clause([erl_syntax:variable("Err")], none,
         [erl_syntax:tuple([erl_syntax:atom(error), erl_syntax:variable("Err")])]),            
     Render2FunctionAst = erl_syntax:function(erl_syntax:atom(render),
         [erl_syntax:clause([erl_syntax:variable("Variables"), 
-                    erl_syntax:variable("Dictionary")], none, 
+                    erl_syntax:variable("TranslationFun")], none, 
             [erl_syntax:try_expr([Function2], [ClauseOk], [ClauseCatch])])]),  
      
     SourceFunctionTuple = erl_syntax:tuple(
@@ -274,7 +272,7 @@ forms(File, Module, BodyAst, BodyInfo, CheckSum) ->
 
     RenderInternalFunctionAst = erl_syntax:function(
         erl_syntax:atom(render_internal), 
-        [erl_syntax:clause([erl_syntax:variable("Variables"), erl_syntax:variable("Dictionary")], none, 
+        [erl_syntax:clause([erl_syntax:variable("Variables"), erl_syntax:variable("TranslationFun")], none, 
                 [BodyAstTmp])]),   
     
     ModuleAst  = erl_syntax:attribute(erl_syntax:atom(module), [erl_syntax:atom(Module)]),
@@ -338,8 +336,8 @@ body_ast(DjangoParseTree, Context, TreeWalker) ->
                     TreeWalkerAcc);
             ({'string', _Pos, String}, TreeWalkerAcc) -> 
                 string_ast(String, TreeWalkerAcc);
-	    ({'trans', {string_literal, _Pos, FormatString}}, TreeWalkerAcc) ->
-                translated_ast(FormatString, Context, TreeWalkerAcc);
+	    ({'trans', Value}, TreeWalkerAcc) ->
+                translated_ast(Value, Context, TreeWalkerAcc);
             ({'include', {string_literal, _, File}}, TreeWalkerAcc) ->
                 include_ast(unescape_string_literal(File), Context, TreeWalkerAcc);
             ({'if', Expression, Contents}, TreeWalkerAcc) ->
@@ -484,18 +482,24 @@ empty_ast(TreeWalker) ->
     {{erl_syntax:list([]), #ast_info{}}, TreeWalker}.
 
 
-translated_ast(String,Context, TreeWalker) ->
-        NewStr = unescape_string_literal(String),
-        DefaultString = case Context#dtl_context.locale of
-            none -> NewStr;
-            Locale -> erlydtl_i18n:translate(NewStr,Locale)
-        end,
-        StringLookupAst = erl_syntax:application(
-            erl_syntax:atom(erlydtl_runtime),
-            erl_syntax:atom(translate),
-            [erl_syntax:string(NewStr), erl_syntax:variable("Dictionary"), 
-                erl_syntax:string(DefaultString)]),
-        {{StringLookupAst, #ast_info{translatable_strings = [NewStr]}}, TreeWalker}.
+translated_ast({string_literal, _, String}, Context, TreeWalker) ->
+    NewStr = unescape_string_literal(String),
+    DefaultString = case Context#dtl_context.locale of
+        none -> NewStr;
+        Locale -> erlydtl_i18n:translate(NewStr,Locale)
+    end,
+    translated_ast2(erl_syntax:string(NewStr), erl_syntax:string(DefaultString),
+        #ast_info{translatable_strings = [NewStr]}, TreeWalker);
+translated_ast(ValueToken, Context, TreeWalker) ->
+    {{Ast, Info}, TreeWalker1} = value_ast(ValueToken, true, Context, TreeWalker),
+    translated_ast2(Ast, Ast, Info, TreeWalker1).
+
+translated_ast2(NewStrAst, DefaultStringAst, AstInfo, TreeWalker) ->
+    StringLookupAst = erl_syntax:application(
+        erl_syntax:atom(erlydtl_runtime),
+        erl_syntax:atom(translate),
+        [NewStrAst, erl_syntax:variable("TranslationFun"), DefaultStringAst]),
+    {{StringLookupAst, AstInfo}, TreeWalker}.
 
 string_ast(String, TreeWalker) ->
     {{erl_syntax:string(String), #ast_info{}}, TreeWalker}. %% less verbose AST, better for development and debugging
@@ -538,16 +542,16 @@ filter_ast_noescape(Variable, Filter, Context, TreeWalker) ->
     VarValue = filter_ast1(Filter, VariableAst),
     {{VarValue, Info}, TreeWalker2}.
 
-filter_ast1([{identifier, _, Name} | Arg], VariableAst) ->
+filter_ast1([{identifier, _, Name}, {string_literal, _, ArgName}], VariableAst) ->
+    filter_ast2(Name, VariableAst, [erl_syntax:string(unescape_string_literal(ArgName))]);
+filter_ast1([{identifier, _, Name}, {number_literal, _, ArgName}], VariableAst) ->
+    filter_ast2(Name, VariableAst, [erl_syntax:integer(list_to_integer(ArgName))]);
+filter_ast1([{identifier, _, Name}|_], VariableAst) ->
+    filter_ast2(Name, VariableAst, []).
+
+filter_ast2(Name, VariableAst, AdditionalArgs) ->
     erl_syntax:application(erl_syntax:atom(erlydtl_filters), erl_syntax:atom(Name), 
-        [VariableAst | case Arg of 
-                [{string_literal, _, ArgName}] ->
-                    [erl_syntax:string(unescape_string_literal(ArgName))];
-                [{number_literal, _, ArgName}] ->
-                    [erl_syntax:integer(list_to_integer(ArgName))];
-                _ ->
-                    []
-            end]).
+        [VariableAst | AdditionalArgs]).
  
 search_for_escape_filter(_, _, #dtl_context{auto_escape = on}) ->
     on;

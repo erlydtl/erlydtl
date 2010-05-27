@@ -50,12 +50,14 @@ fetch_value(Key, Data) ->
             Val
     end.
 
-translate(String, Dictionary, Default) ->
-    case dict:find(String, Dictionary) of
-        {ok, Val} ->
-            Val;
-        _ ->
-            Default
+translate(_, none, Default) ->
+    Default;
+translate(String, TranslationFun, Default) when is_binary(String) ->
+    translate(binary_to_list(String), TranslationFun, Default);
+translate(String, TranslationFun, Default) when is_function(TranslationFun) ->
+    case TranslationFun(String) of
+        undefined -> Default;
+        Str -> Str
     end.
 
 are_equal(Arg1, Arg2) when Arg1 =:= Arg2 ->

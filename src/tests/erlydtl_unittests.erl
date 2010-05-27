@@ -90,11 +90,20 @@ tests() ->
 		  <<"Hello {% trans \"Hi\" %}">>, [], <<"Hello Hi">>
 		},
 		{"trans functional reverse locale",
-                    <<"Hello {% trans \"Hi\" %}">>, [], dict:new(), [{locale, "reverse"}], <<"Hello iH">>
+                    <<"Hello {% trans \"Hi\" %}">>, [], none, [{locale, "reverse"}], <<"Hello iH">>
                 },
-                {"trans run-time lookup",
-                    <<"Hello {% trans \"Hi\" %}">>, [], dict:from_list([{"Hi", "Konichiwa"}]), [],
-                    <<"Hello Konichiwa">>}
+                {"trans literal at run-time",
+                    <<"Hello {% trans \"Hi\" %}">>, [], fun("Hi") -> "Konichiwa" end, [],
+                    <<"Hello Konichiwa">>},
+                {"trans variable at run-time",
+                    <<"Hello {% trans var1 %}">>, [{var1, "Hi"}], fun("Hi") -> "Konichiwa" end, [],
+                    <<"Hello Konichiwa">>},
+                {"trans literal at run-time: No-op",
+                    <<"Hello {% trans \"Hi\" noop %}">>, [], fun("Hi") -> "Konichiwa" end, [],
+                    <<"Hello Hi">>},
+                {"trans variable at run-time: No-op",
+                    <<"Hello {% trans var1 noop %}">>, [{var1, "Hi"}], fun("Hi") -> "Konichiwa" end, [],
+                    <<"Hello Hi">>}
 	]},
         {"if", [
                 {"If/else",
@@ -556,7 +565,7 @@ run_tests() ->
                 lists:foldl(fun
                         ({Name, DTL, Vars, Output}, Acc) -> 
                             process_unit_test(erlydtl:compile(DTL, erlydtl_running_test, []),
-                                Vars, dict:new(), Output, Acc, Group, Name);
+                                Vars, none, Output, Acc, Group, Name);
                         ({Name, DTL, Vars, Dictionary, Output}, Acc) -> 
                             process_unit_test(erlydtl:compile(DTL, erlydtl_running_test, []), 
                                 Vars, Dictionary, Output, Acc, Group, Name);
