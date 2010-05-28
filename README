@@ -72,7 +72,7 @@ Usage (of a compiled template)
 
         Same as render/1, but TranslationFun is a fun/1 that will be used to 
         translate strings appearing inside {% trans %} tags. The simplest
-        TranslatioFun would be
+        TranslationFun would be
 
             fun(Val) -> Val end
 
