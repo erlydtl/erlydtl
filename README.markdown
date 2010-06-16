@@ -19,6 +19,7 @@ Four ways:
 
     erlydtl:compile("/path/to/template.dtl", my_module_name)
 
+
     erlydtl:compile("/path/to/template.dtl", my_module_name, Options)
 
     erlydtl:compile(<<"<html>{{ foo }}</html>">>, my_module_name)
@@ -41,19 +42,19 @@ will evaluate to `<b>100</b>`. Get it?
 render-time. 
 
 * `reader` - {module, function} tuple that takes a path to a template and returns
-a binary with the file contents. Defaults to {file, read_file}. Useful
+a binary with the file contents. Defaults to `{file, read_file}`. Useful
 for reading templates from a network resource.
 
-* `compiler_options` - Proplist passed directly to compiler:forms/2 
+* `compiler_options` - Proplist passed directly to `compiler:forms/2`
 
 * `force_recompile` - Recompile the module even if the source's checksum has not
 changed. Useful for debugging.
 
 * `locale` - The locale used for template compile. Requires erlang_gettext. It
-        will ask gettext_server for the string value on the provided locale.
-        For example, adding {locale, "en_US"} will call {key2str, Key, "en_US"}
-        for all string marked as trans (`{% trans "StringValue" %}` on templates).
-        See README_I18N.
+will ask gettext_server for the string value on the provided locale.
+For example, adding {locale, "en_US"} will call {key2str, Key, "en_US"}
+for all string marked as trans (`{% trans "StringValue" %}` on templates).
+See README_I18N.
 
 
 Usage (of a compiled template)
@@ -76,8 +77,8 @@ TranslationFun would be `fun(Val) -> Val end`
 
     my_compiled_template:translatable_strings() -> [String]
 
-List of strings appearing in {% trans %} tags that can be overridden 
-with a dictionary passed to render/2.
+List of strings appearing in `{% trans %}` tags that can be overridden 
+with a dictionary passed to `render/2`.
 
     my_compiled_template:source() -> {FileName, CheckSum}
 
