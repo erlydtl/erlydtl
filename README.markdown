@@ -9,7 +9,11 @@ Project homepage: <http://code.google.com/p/erlydtl/>
 Compilation
 -----------
 
-To compile ErlyDTL, type "make" in this directory.
+To compile ErlyDTL, run 
+
+    make
+    
+in this directory.
 
 
 Template compilation
@@ -18,7 +22,6 @@ Template compilation
 Four ways:
 
     erlydtl:compile("/path/to/template.dtl", my_module_name)
-
 
     erlydtl:compile("/path/to/template.dtl", my_module_name, Options)
 
