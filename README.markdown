@@ -27,32 +27,32 @@ Four ways:
 
 Options is a proplist possibly containing:
 
-    out_dir - Directory to store generated .beam files. If not specified, no
-        .beam files will be created.
+* `out_dir` - Directory to store generated .beam files. If not specified, no
+.beam files will be created.
 
-    doc_root - Included template paths will be relative to this directory;
-        defaults to the compiled template's directory.
+* `doc_root` - Included template paths will be relative to this directory;
+defaults to the compiled template's directory.
 
-    custom_tags_dir - Directory of DTL files (no extension) includable as tags.
-        E.g. if $custom_tags_dir/foo contains "<b>{{ bar }}</b>", then 
-        "{{ foo bar=100 }}" will evaluate to "<b>100</b>". Get it?
+* `custom_tags_dir` - Directory of DTL files (no extension) includable as tags.
+E.g. if $custom_tags_dir/foo contains `<b>{{ bar }}</b>`, then `{{ foo bar=100 }}` 
+will evaluate to `<b>100</b>`. Get it?
 
-    vars - Variables (and their values) to evaluate at compile-time rather than
-        render-time. 
+* `vars` - Variables (and their values) to evaluate at compile-time rather than
+render-time. 
 
-    reader - {module, function} tuple that takes a path to a template and returns
-        a binary with the file contents. Defaults to {file, read_file}. Useful
-        for reading templates from a network resource.
+* `reader` - {module, function} tuple that takes a path to a template and returns
+a binary with the file contents. Defaults to {file, read_file}. Useful
+for reading templates from a network resource.
 
-    compiler_options - Proplist passed directly to compiler:forms/2 
+* `compiler_options` - Proplist passed directly to compiler:forms/2 
 
-    force_recompile - Recompile the module even if the source's checksum has not
-        changed. Useful for debugging.
+* `force_recompile` - Recompile the module even if the source's checksum has not
+changed. Useful for debugging.
 
-    locale - The locale used for template compile. Requires erlang_gettext. It
+* `locale` - The locale used for template compile. Requires erlang_gettext. It
         will ask gettext_server for the string value on the provided locale.
         For example, adding {locale, "en_US"} will call {key2str, Key, "en_US"}
-        for all string marked as trans ({% trans "StringValue"%} on templates).
+        for all string marked as trans (`{% trans "StringValue" %}` on templates).
         See README_I18N.
 
 
@@ -70,11 +70,9 @@ IOList is the rendered template.
     my_compiled_template:render(Variables, TranslationFun) -> 
             {ok, IOList} | {error, Err}
 
-Same as render/1, but TranslationFun is a fun/1 that will be used to 
-translate strings appearing inside {% trans %} tags. The simplest
-TranslationFun would be
-
-            fun(Val) -> Val end
+Same as `render/1`, but TranslationFun is a fun/1 that will be used to 
+translate strings appearing inside `{% trans %}` tags. The simplest
+TranslationFun would be `fun(Val) -> Val end`
 
     my_compiled_template:translatable_strings() -> [String]
 
