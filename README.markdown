@@ -3,7 +3,7 @@ ErlyDTL
 
 ErlyDTL implements most but not all of the Django Template Language.
 
-Project homepage: http://code.google.com/p/erlydtl/
+Project homepage: <http://code.google.com/p/erlydtl/>
 
 
 Compilation
@@ -61,35 +61,35 @@ Usage (of a compiled template)
 
     my_compiled_template:render(Variables) -> {ok, IOList} | {error, Err}
 
-        Variables is a proplist, dict, gb_tree, or a parameterized module
-        (whose method names correspond to variable names). The variable 
-        values can be atoms, strings, binaries, or (nested) variables.
+Variables is a proplist, dict, gb_tree, or a parameterized module
+(whose method names correspond to variable names). The variable 
+values can be atoms, strings, binaries, or (nested) variables.
 
-        IOList is the rendered template.
+IOList is the rendered template.
 
     my_compiled_template:render(Variables, TranslationFun) -> 
             {ok, IOList} | {error, Err}
 
-        Same as render/1, but TranslationFun is a fun/1 that will be used to 
-        translate strings appearing inside {% trans %} tags. The simplest
-        TranslationFun would be
+Same as render/1, but TranslationFun is a fun/1 that will be used to 
+translate strings appearing inside {% trans %} tags. The simplest
+TranslationFun would be
 
             fun(Val) -> Val end
 
     my_compiled_template:translatable_strings() -> [String]
 
-        List of strings appearing in {% trans %} tags that can be overridden 
-        with a dictionary passed to render/2.
+List of strings appearing in {% trans %} tags that can be overridden 
+with a dictionary passed to render/2.
 
     my_compiled_template:source() -> {FileName, CheckSum}
 
-        Name and checksum of the original template file.
+Name and checksum of the original template file.
 
     my_compiled_template:dependencies() -> [{FileName, CheckSum}]
 
-        List of names/checksums of templates included by the original template
-        file. Useful for frameworks that recompile a template only when the
-        template's dependencies change.
+List of names/checksums of templates included by the original template
+file. Useful for frameworks that recompile a template only when the
+template's dependencies change.
 
 
 Tests
