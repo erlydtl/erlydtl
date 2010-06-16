@@ -14,7 +14,12 @@
              erlydtl_parser,
              erlydtl_runtime,
              erlydtl_scanner,
-             erlydtl_unittests
+             erlydtl_unittests,
+             erlydtl_i18n,
+             i18n_manager,
+             po_generator,
+             po_scanner,
+             sources_parser
             ]},
   {applications, [kernel, stdlib]},
   {registered, []}

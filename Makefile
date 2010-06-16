@@ -2,15 +2,10 @@ ERL=erl
 ERLC=erlc
 
 PARSER=src/erlydtl/erlydtl_parser
-APP=erlydtl.app
 
-all: $(PARSER).erl ebin/$(APP)
+all: $(PARSER).erl
 	-mkdir -p ebintest
 	$(ERL) -make 
-
-ebin/$(APP): src/erlydtl/$(APP)
-	-mkdir -p ebin
-	cp $< $@
 
 $(PARSER).erl: $(PARSER).yrl
 	$(ERLC) -o src/erlydtl src/erlydtl/erlydtl_parser.yrl
@@ -28,7 +23,6 @@ test:
 	
 clean:
 	rm -fv ebin/*.beam
-	rm -fv ebin/$(APP)
 	rm -fv ebintest/*
 	rm -fv erl_crash.dump $(PARSER).erl
 	rm -fv examples/rendered_output/*
