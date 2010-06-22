@@ -204,7 +204,7 @@ get_digit(Input, Digit) when is_integer(Input) ->
     get_digit(integer_to_list(Input), Digit);
 get_digit(Input, Digit) when is_list(Digit) ->
     get_digit(Input, list_to_integer(Digit));
-get_digit(Input, Digit) when Digit > length(Input) ->
+get_digit(Input, Digit) when Digit > erlang:length(Input) ->
     0;
 get_digit(Input, Digit) when Digit > 0 ->
     lists:nth(Digit, lists:reverse(Input)) - $0;
