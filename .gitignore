@@ -1,0 +1,2 @@
+*.beam
+src/erlydtl/erlydtl_parser.erl
