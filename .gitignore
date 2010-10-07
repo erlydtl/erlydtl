@@ -1,2 +1,5 @@
 *.beam
+*.swp
+erl_crash.dump
+examples/rendered_output
 src/erlydtl/erlydtl_parser.erl
