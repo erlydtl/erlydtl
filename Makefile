@@ -3,7 +3,7 @@ ERLC=erlc
 
 PARSER=src/erlydtl/erlydtl_parser
 
-all: $(PARSER).erl
+compile: $(PARSER).erl
 	-mkdir -p ebintest
 	$(ERL) -make 
 
@@ -14,7 +14,7 @@ run:
 	$(ERL) -pa ebin
 
 
-test:
+test: compile
 	$(ERL) -noshell -pa ebin -pa ebintest \
 		-s erlydtl_functional_tests run_tests \
 		-s erlydtl_dateformat_tests run_tests \
