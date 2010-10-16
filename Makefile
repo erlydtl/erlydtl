@@ -3,6 +3,9 @@ ERLC=erlc
 
 PARSER=src/erlydtl/erlydtl_parser
 
+
+all: compile
+
 compile: $(PARSER).erl
 	-mkdir -p ebintest
 	$(ERL) -make 
@@ -10,7 +13,7 @@ compile: $(PARSER).erl
 $(PARSER).erl: $(PARSER).yrl
 	$(ERLC) -o src/erlydtl src/erlydtl/erlydtl_parser.yrl
  
-run:
+run: compile
 	$(ERL) -pa ebin
 
 
