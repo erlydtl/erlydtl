@@ -38,7 +38,7 @@ Options is a proplist possibly containing:
 defaults to the compiled template's directory.
 
 * `custom_tags_dir` - Directory of DTL files (no extension) includable as tags.
-E.g. if $custom_tags_dir/foo contains `<b>{{ bar }}</b>`, then `{{ foo bar=100 }}` 
+E.g. if $custom_tags_dir/foo contains `<b>{{ bar }}</b>`, then `{% foo bar=100 %}` 
 will evaluate to `<b>100</b>`. Get it?
 
 * `vars` - Variables (and their values) to evaluate at compile-time rather than

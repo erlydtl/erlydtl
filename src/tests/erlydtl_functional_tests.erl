@@ -44,8 +44,7 @@ test_list() ->
         "for_tuple", "for_list_preset", "for_preset", "for_records",
         "for_records_preset", "include", "if", "if_preset", "ifequal",
         "ifequal_preset", "ifnotequal", "ifnotequal_preset", "now",
-        "var", "var_preset", "cycle", "custom_tag",
-        "custom_tag_error", "custom_call", 
+        "var", "var_preset", "cycle", "custom_tag", "custom_call", 
         "include_template", "include_path",
         "extends_path", "extends_path2", "trans" ].
 
@@ -73,9 +72,6 @@ setup_compile("ifnotequal_preset") ->
 setup_compile("var_preset") ->
     CompileVars = [{preset_var1, "preset-var1"}, {preset_var2, "preset-var2"}],
     {ok, CompileVars};
-setup_compile("custom_tag_error") ->
-    CompileVars  = [],
-    {error, CompileVars};
 setup_compile(_) ->
     {ok, []}.
 
@@ -163,9 +159,6 @@ setup("trans") ->
 %%--------------------------------------------------------------------       
 %% Custom tags
 %%--------------------------------------------------------------------
-setup("custom_tag_error") ->
-    RenderVars = [],
-    {skip, RenderVars};        
 setup("custom_call") ->
     RenderVars = [{var1, "something"}],
     {ok, RenderVars};    
@@ -265,9 +258,9 @@ test_render(Name, Module) ->
                 _ ->
                     {error, "rendering should have failed :" ++ File}
             end;
-        {'EXIT', _} ->
+        {'EXIT', Reason} ->
             io:format("~n"),
-            {error, "failed invoking render method:" ++ Module};
+            {error, lists:flatten(io_lib:format("failed invoking render method of ~p ~p", [Module, Reason]))};
         Err ->
             io:format("~n"),
             case RenderStatus of

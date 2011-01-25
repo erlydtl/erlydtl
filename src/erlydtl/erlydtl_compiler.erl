@@ -57,12 +57,14 @@
 -record(ast_info, {
     dependencies = [],
     translatable_strings = [],
+    custom_tags = [],
     var_names = [],
     pre_render_asts = []}).
     
 -record(treewalker, {
-    counter = 0,
-    custom_tags = []}).    
+%    custom_tags = [],
+    counter = 0
+}).    
 
 compile(Binary, Module) when is_binary(Binary) ->
     compile(Binary, Module, []);
@@ -120,19 +122,24 @@ compile(File, Module, Options) ->
 
 compile_to_binary(File, DjangoParseTree, Context, CheckSum) ->
     try body_ast(DjangoParseTree, Context, #treewalker{}) of
-        {{Ast, Info}, _} ->
-            case compile:forms(forms(File, Context#dtl_context.module, Ast, Info, CheckSum), 
-                    Context#dtl_context.compiler_options) of
-                {ok, Module1, Bin} -> 
-                    code:purge(Module1),
-                    case code:load_binary(Module1, atom_to_list(Module1) ++ ".erl", Bin) of
-                        {module, _} -> {ok, Module1, Bin};
-                        _ -> {error, lists:concat(["code reload failed: ", Module1])}
-                    end;
-                error ->
-                    {error, lists:concat(["compilation failed: ", File])};
-                OtherError ->
-                    OtherError
+        {{BodyAst, BodyInfo}, BodyTreeWalker} ->
+            try custom_tags_ast(BodyInfo#ast_info.custom_tags, Context, BodyTreeWalker) of
+                {{CustomTagsAst, CustomTagsInfo}, _} ->
+                    case compile:forms(forms(File, Context#dtl_context.module, {BodyAst, BodyInfo}, {CustomTagsAst, CustomTagsInfo}, CheckSum), 
+                            Context#dtl_context.compiler_options) of
+                        {ok, Module1, Bin} -> 
+                            code:purge(Module1),
+                            case code:load_binary(Module1, atom_to_list(Module1) ++ ".erl", Bin) of
+                                {module, _} -> {ok, Module1, Bin};
+                                _ -> {error, lists:concat(["code reload failed: ", Module1])}
+                            end;
+                        error ->
+                            {error, lists:concat(["compilation failed: ", File])};
+                        OtherError ->
+                            OtherError
+                    end
+            catch 
+                throw:Error -> Error
             end
     catch 
         throw:Error -> Error
@@ -146,7 +153,7 @@ init_dtl_context(File, Module, Options) ->
         parse_trail = [File], 
         module = Module,
         doc_root = proplists:get_value(doc_root, Options, filename:dirname(File)),
-        custom_tags_dir = proplists:get_value(custom_tags_dir, Options, Ctx#dtl_context.custom_tags_dir),
+        custom_tags_dir = proplists:get_value(custom_tags_dir, Options, filename:join([erlydtl_deps:get_base_dir(), "priv", "custom_tags"])),
         vars = proplists:get_value(vars, Options, Ctx#dtl_context.vars), 
         reader = proplists:get_value(reader, Options, Ctx#dtl_context.reader),
         compiler_options = proplists:get_value(compiler_options, Options, Ctx#dtl_context.compiler_options),
@@ -203,7 +210,7 @@ parse(File, Context) ->
                     Result
             end;
         _ ->
-            {error, {File, ["Failed to read file"]}}
+            {error, {File, [{0, Context#dtl_context.module, "Failed to read file"}]}}
     end.
         
 parse(CheckSum, Data, Context) ->
@@ -226,8 +233,38 @@ parse(Data) ->
         Err ->
             Err
     end.        
+
+custom_tags_ast(CustomTags, Context, TreeWalker) ->
+    {{CustomTagsClauses, CustomTagsInfo}, TreeWalker1} = custom_tags_clauses_ast(CustomTags, Context, TreeWalker),
+    {{erl_syntax:function(erl_syntax:atom(render_tag), CustomTagsClauses), CustomTagsInfo}, TreeWalker1}.
+
+custom_tags_clauses_ast(CustomTags, Context, TreeWalker) ->
+    custom_tags_clauses_ast1(CustomTags, [], [], #ast_info{}, Context, TreeWalker).
+
+custom_tags_clauses_ast1([], _ExcludeTags, ClauseAcc, InfoAcc, _Context, TreeWalker) ->
+    {{lists:reverse([erl_syntax:clause([erl_syntax:underscore(), erl_syntax:underscore(), erl_syntax:underscore()], none,
+                        [erl_syntax:list([])])|ClauseAcc]), InfoAcc}, TreeWalker};
+custom_tags_clauses_ast1([Tag|CustomTags], ExcludeTags, ClauseAcc, InfoAcc, Context, TreeWalker) ->
+    case lists:member(Tag, ExcludeTags) of
+        true ->
+            custom_tags_clauses_ast1(CustomTags, ExcludeTags, ClauseAcc, InfoAcc, Context, TreeWalker);
+        false ->
+            CustomTagFile = filename:join([Context#dtl_context.custom_tags_dir, Tag]),
+            case parse(CustomTagFile, Context) of
+                {ok, DjangoParseTree, CheckSum} ->
+                    {{BodyAst, BodyAstInfo}, TreeWalker1} = with_dependency({CustomTagFile, CheckSum}, 
+                        body_ast(DjangoParseTree, Context, TreeWalker)),
+                    Clause = erl_syntax:clause([erl_syntax:string(Tag), erl_syntax:variable("Variables"), erl_syntax:variable("TranslationFun")],
+                                none, [BodyAst]),
+                    custom_tags_clauses_ast1(CustomTags, [Tag|ExcludeTags], [Clause|ClauseAcc], merge_info(BodyAstInfo, InfoAcc), 
+                        Context, TreeWalker1);
+                Error ->
+                    throw(Error)
+            end
+    end.
   
-forms(File, Module, BodyAst, BodyInfo, CheckSum) ->
+forms(File, Module, {BodyAst, BodyInfo}, {CustomTagsFunctionAst, CustomTagsInfo}, CheckSum) ->
+    MergedInfo = merge_info(BodyInfo, CustomTagsInfo),
     Render0FunctionAst = erl_syntax:function(erl_syntax:atom(render),
         [erl_syntax:clause([], none, [erl_syntax:application(none, 
                         erl_syntax:atom(render), [erl_syntax:list([])])])]),
@@ -258,12 +295,12 @@ forms(File, Module, BodyAst, BodyInfo, CheckSum) ->
             [erl_syntax:list(lists:map(fun 
                     ({XFile, XCheckSum}) -> 
                         erl_syntax:tuple([erl_syntax:string(XFile), erl_syntax:string(XCheckSum)])
-                end, BodyInfo#ast_info.dependencies))])]),     
+                end, MergedInfo#ast_info.dependencies))])]),     
 
     TranslatableStringsAst = erl_syntax:function(
         erl_syntax:atom(translatable_strings), [erl_syntax:clause([], none,
                 [erl_syntax:list(lists:map(fun(String) -> erl_syntax:string(String) end,
-                            BodyInfo#ast_info.translatable_strings))])]),
+                            MergedInfo#ast_info.translatable_strings))])]),
 
     BodyAstTmp = erl_syntax:application(
                     erl_syntax:atom(erlydtl_runtime),
@@ -286,7 +323,7 @@ forms(File, Module, BodyAst, BodyInfo, CheckSum) ->
                     erl_syntax:arity_qualifier(erl_syntax:atom(translatable_strings), erl_syntax:integer(0))])]),
     
     [erl_syntax:revert(X) || X <- [ModuleAst, ExportAst, Render0FunctionAst, Render1FunctionAst, Render2FunctionAst,
-            SourceFunctionAst, DependenciesFunctionAst, TranslatableStringsAst, RenderInternalFunctionAst
+            SourceFunctionAst, DependenciesFunctionAst, TranslatableStringsAst, RenderInternalFunctionAst, CustomTagsFunctionAst
             | BodyInfo#ast_info.pre_render_asts]].    
 
         
@@ -370,8 +407,6 @@ body_ast(DjangoParseTree, Context, TreeWalker) ->
             ({'for', {'in', IteratorList, Variable}, Contents, EmptyPartContents}, TreeWalkerAcc) ->
                 {EmptyAstInfo, TreeWalker1} = body_ast(EmptyPartContents, Context, TreeWalkerAcc),
                 for_loop_ast(IteratorList, Variable, Contents, EmptyAstInfo, Context, TreeWalker1);
-            ({'load', Names}, TreeWalkerAcc) ->
-                load_ast(Names, Context, TreeWalkerAcc);
             ({'tag', {'identifier', _, Name}, Args}, TreeWalkerAcc) ->
                 tag_ast(Name, Args, Context, TreeWalkerAcc);            
             ({'call', {'identifier', _, Name}}, TreeWalkerAcc) ->
@@ -451,10 +486,11 @@ value_ast(ValueToken, AsString, Context, TreeWalker) ->
     end.
 
 merge_info(Info1, Info2) ->
-    #ast_info{dependencies = 
-        lists:merge(
-            lists:sort(Info1#ast_info.dependencies), 
-            lists:sort(Info2#ast_info.dependencies)),
+    #ast_info{
+        dependencies = 
+            lists:merge(
+                lists:sort(Info1#ast_info.dependencies), 
+                lists:sort(Info2#ast_info.dependencies)),
         var_names = 
             lists:merge(
                 lists:sort(Info1#ast_info.var_names), 
@@ -463,6 +499,10 @@ merge_info(Info1, Info2) ->
             lists:merge(
                 lists:sort(Info1#ast_info.translatable_strings),
                 lists:sort(Info2#ast_info.translatable_strings)),
+        custom_tags = 
+            lists:merge(
+                lists:sort(Info1#ast_info.custom_tags),
+                lists:sort(Info2#ast_info.custom_tags)),
         pre_render_asts = 
             lists:merge(
                 Info1#ast_info.pre_render_asts,
@@ -688,10 +728,6 @@ for_loop_ast(IteratorList, LoopValue, Contents, {EmptyContentsAst, EmptyContents
                     merge_info(merge_info(Info, EmptyContentsInfo), LoopValueInfo)
             }, TreeWalker2}.
 
-load_ast(Names, _Context, TreeWalker) ->
-    CustomTags = lists:merge([X || {identifier, _ , X} <- Names], TreeWalker#treewalker.custom_tags),
-    {{erl_syntax:list([]), #ast_info{}}, TreeWalker#treewalker{custom_tags = CustomTags}}.  
-
 cycle_ast(Names, Context, TreeWalker) ->
     NamesTuple = lists:map(fun({string_literal, _, Str}) ->
                                    erl_syntax:string(unescape_string_literal(Str));
@@ -753,50 +789,16 @@ full_path(File, DocRoot) ->
 %%-------------------------------------------------------------------
 
 tag_ast(Name, Args, Context, TreeWalker) ->
-    case lists:member(Name, TreeWalker#treewalker.custom_tags) of
-        true ->
-            InterpretedArgs = lists:map(fun
-                    ({{identifier, _, Key}, {string_literal, _, Value}}) ->
-                        {Key, erl_syntax:string(unescape_string_literal(Value))};
-                    ({{identifier, _, Key}, Value}) ->
-                        {Key, format(resolve_variable_ast(Value, Context), Context)}
-                end, Args),
-            DefaultFilePath = filename:join([erlydtl_deps:get_base_dir(), "priv", "custom_tags", Name]),
-            case Context#dtl_context.custom_tags_dir of
-                [] ->
-                    case parse(DefaultFilePath, Context) of
-                        {ok, TagParseTree, CheckSum} ->
-                            tag_ast2({DefaultFilePath, CheckSum}, TagParseTree, InterpretedArgs, Context, TreeWalker);
-                        _ ->
-                            Reason = lists:concat(["Loading tag source for '", Name, "' failed: ", 
-                                DefaultFilePath]),
-                            throw({error, Reason})
-                    end;
-                _ ->
-                    CustomFilePath = filename:join([Context#dtl_context.custom_tags_dir, Name]),
-                    case parse(CustomFilePath, Context) of
-                        {ok, TagParseTree, CheckSum} ->
-                            tag_ast2({CustomFilePath, CheckSum},TagParseTree, InterpretedArgs, Context, TreeWalker);
-                        _ ->
-                            case parse(DefaultFilePath, Context) of
-                                {ok, TagParseTree, CheckSum} ->
-                                    tag_ast2({DefaultFilePath, CheckSum}, TagParseTree, InterpretedArgs, Context, TreeWalker);
-                                _ ->
-                                    Reason = lists:concat(["Loading tag source for '", Name, "' failed: ", 
-                                        CustomFilePath, ", ", DefaultFilePath]),
-                                    throw({error, Reason})
-                            end
-                    end
-            end;
-        _ ->
-            throw({error, lists:concat(["Custom tag '", Name, "' not loaded"])})
-    end.
- 
-tag_ast2({Source, _} = Dep, TagParseTree, InterpretedArgs, Context, TreeWalker) ->
-    with_dependency(Dep, body_ast(TagParseTree, Context#dtl_context{
-        local_scopes = [ InterpretedArgs | Context#dtl_context.local_scopes ],
-        parse_trail = [ Source | Context#dtl_context.parse_trail ]}, TreeWalker)).
-
+    {InterpretedArgs, AstInfo} = lists:mapfoldl(fun
+                ({{identifier, _, Key}, {string_literal, _, Value}}, AstInfoAcc) ->
+                    {erl_syntax:tuple([erl_syntax:string(Key), erl_syntax:string(unescape_string_literal(Value))]), AstInfoAcc};
+                ({{identifier, _, Key}, Value}, AstInfoAcc) ->
+                    {AST, AstInfo1} = resolve_variable_ast(Value, Context),
+                    {erl_syntax:tuple([erl_syntax:string(Key), format(AST,Context)]), merge_info(AstInfo1, AstInfoAcc)}
+            end, #ast_info{}, Args),
+    RenderAst = erl_syntax:application(none, erl_syntax:atom(render_tag),
+        [erl_syntax:string(Name), erl_syntax:list(InterpretedArgs), erl_syntax:variable("TranslationFun")]),
+    {{RenderAst, AstInfo#ast_info{custom_tags = [Name]}}, TreeWalker}.
 
 call_ast(Module, TreeWalkerAcc) ->
     call_ast(Module, erl_syntax:variable("Variables"), #ast_info{}, TreeWalkerAcc).
