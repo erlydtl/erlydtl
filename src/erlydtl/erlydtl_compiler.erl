@@ -892,8 +892,8 @@ tag_ast(Name, Args, Context, TreeWalker) ->
             ({{identifier, _, Key}, {string_literal, _, Value}}, AstInfoAcc) ->
                 {erl_syntax:tuple([erl_syntax:string(Key), erl_syntax:string(unescape_string_literal(Value))]), AstInfoAcc};
             ({{identifier, _, Key}, Value}, AstInfoAcc) ->
-                {AST, AstInfo1} = resolve_variable_ast(Value, Context),
-                {erl_syntax:tuple([erl_syntax:string(Key), format(AST,Context)]), merge_info(AstInfo1, AstInfoAcc)}
+                {AST, VarName} = resolve_variable_ast(Value, Context),
+                {erl_syntax:tuple([erl_syntax:string(Key), format(AST,Context)]), merge_info(#ast_info{var_names=[VarName]}, AstInfoAcc)}
         end, #ast_info{}, Args),
 
     {RenderAst, RenderInfo} = case Context#dtl_context.custom_tags_module of
@@ -902,7 +902,7 @@ tag_ast(Name, Args, Context, TreeWalker) ->
                 [erl_syntax:string(Name), erl_syntax:list(InterpretedArgs), erl_syntax:variable("TranslationFun")]),
             AstInfo#ast_info{custom_tags = [Name]}};
         Module ->
-            {erl_syntax:application(Module, erl_syntax:atom(Name),
+            {erl_syntax:application(erl_syntax:atom(Module), erl_syntax:atom(Name),
                 [erl_syntax:list(InterpretedArgs), erl_syntax:variable("TranslationFun")]), AstInfo}
     end,
     {{RenderAst, RenderInfo}, TreeWalker}.
