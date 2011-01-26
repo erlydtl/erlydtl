@@ -41,6 +41,11 @@ defaults to the compiled template's directory.
 E.g. if $custom_tags_dir/foo contains `<b>{{ bar }}</b>`, then `{% foo bar=100 %}` 
 will evaluate to `<b>100</b>`. Get it?
 
+* `custom_tags_module` - A module to be used for handling custom tags. Each custom
+tag should correspond to an exported function, e.g.: 
+
+    some_tag(Variables, TranslationFun) -> iolist()
+
 * `vars` - Variables (and their values) to evaluate at compile-time rather than
 render-time. 
 
@@ -58,6 +63,25 @@ will ask gettext_server for the string value on the provided locale.
 For example, adding {locale, "en_US"} will call {key2str, Key, "en_US"}
 for all string marked as trans (`{% trans "StringValue" %}` on templates).
 See README_I18N.
+
+
+Helper compilation
+------------------
+
+Helpers provide additional templating functionality and can be used in
+conjunction with the `custom_tags_module` option above. They can be created
+from a directory of templates thusly:
+
+    erlydtl:compile_dir("/path/to/dir", my_helper_module_name)
+    
+    erlydtl:compile_dir("/path/to/dir", my_helper_module_name, Options)
+
+The resulting module will export a function for each template appearing
+in the specified directory. Options is the same as for compile/3.
+
+Compiling a helper module can be more efficient than using `custom_tags_dir`
+because the helper functions will be compiled only once (rather than once
+per template).
 
 
 Usage (of a compiled template)
