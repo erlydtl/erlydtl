@@ -34,6 +34,17 @@
 -module(erlydtl_filters).
 -author('rsaccon@gmail.com').
 -author('emmiller@gmail.com').
+-author('drew dot gulino at google dot com').
+ 
+-define(TEST,"").
+%-define(NOTEST,1).
+-define(NODEBUG,1).
+-include_lib("eunit/include/eunit.hrl").
+ 
+-ifdef(TEST).
+        -export([cast_to_float/1,cast_to_integer/1,stringformat_io/7,round/2,unjoin/2]).
+-endif.
+ 
 
 -export([add/2, 
         addslashes/1,
@@ -43,31 +54,59 @@
         date/2, 
         default/2,
         default_if_none/2, 
+        %dictsort/,
+        %dictsortreversed/,
         divisibleby/2,
+        %escape/,
         escapejs/1,
         filesizeformat/1,
         first/1, 
         fix_ampersands/1, 
+        floatformat/2,
         force_escape/1, 
         format_integer/1, 
         format_number/1,
         get_digit/2,
+        %iriencode/1,
         join/2, 
         last/1, 
         length/1, 
         length_is/2, 
+        linebreaks/1,
         linebreaksbr/1, 
+        linenumbers/1,
         ljust/2,
         lower/1, 
+        make_list/1, 
         phone2numeric/1,
+        pluralize/1,
+        pluralize/2,
+        %pprint/,
         random/1,
+        random_num/1,
+        random_range/1,
+        removetags/2,
         rjust/2, 
+        %safe/,
+        %safeseq/,
+        slice/2,
         slugify/1,
+        stringformat/2,
+        %striptags/,
+        time/2,
+        %timesince/,
+        %timeuntil/,
         title/1,
         truncatewords/2, 
+        %truncatewords_html/,
+        %unordered_list/,
         upper/1, 
         urlencode/1,
-        wordcount/1]).
+        %urlize/,
+        %urlizetrunc/,
+        wordcount/1,
+        wordwrap/2,
+        yesno/2]).
 
 -define(NO_ENCODE(C), ((C >= $a andalso C =< $z) orelse
         (C >= $A andalso C =< $Z) orelse
@@ -114,6 +153,8 @@ cut(Input, [Char]) when is_list(Input) ->
 %% @doc Formats a date according to the given format.
 date(Input, FormatStr) when is_binary(Input) ->
     list_to_binary(date(binary_to_list(Input), FormatStr));
+date(Input, "") ->
+    date(Input, "F j, Y");
 date({{_,_,_} = Date,{_,_,_} = Time}, FormatStr) ->
     erlydtl_dateformat:format({Date, Time}, FormatStr);
 date({_,_,_} = Date, FormatStr) ->
@@ -145,6 +186,8 @@ divisibleby(Input, Divisor) when is_list(Divisor) ->
 divisibleby(Input, Divisor) when is_integer(Input), is_integer(Divisor) ->
     Input rem Divisor =:= 0.
 
+%% @doc Escapes 
+ 
 %% @doc Escapes characters for use in JavaScript strings.
 escapejs(Input) when is_binary(Input) ->
     escapejs(binary_to_list(Input));
@@ -177,6 +220,36 @@ fix_ampersands(Input) when is_binary(Input) ->
 fix_ampersands(Input) when is_list(Input) ->
     fix_ampersands(Input, []).
 
+%% @doc When used without an argument, rounds a floating-point number to one decimal place
+%% @doc -- but only if there's a decimal part to be displayed
+floatformat(Number, Place) when is_binary(Number) ->
+    floatformat(binary_to_list(Number), Place);
+floatformat(Number, Place) ->
+    floatformat_io(Number, Place).
+
+floatformat_io(Number, []) ->
+    floatformat_io(Number, -1);
+floatformat_io(Number, Precision) when Precision > 0 ->
+    Format = lists:flatten(io_lib:format("~~.~Bf",[Precision])),
+    [Result] = io_lib:format(Format,[Number]),
+    Result;
+floatformat_io(Number, Precision) when Precision < 0 ->   
+    Round = erlang:round(Number),
+    RoundPrecision = round(Number, -Precision),
+    case RoundPrecision == Round of
+        true ->
+            %Format = lists:flatten(io_lib:format("~~~BB",[-Precision])),
+            [Result] = io_lib:format("~B",[Round]);
+        false ->
+            Format = lists:flatten(io_lib:format("~~.~Bf",[-Precision])),
+            [Result] = io_lib:format(Format,[RoundPrecision])
+    end,
+    Result.
+
+round(Number, Precision) ->
+    P = math:pow(10, Precision),
+    round(Number * P) / P.
+ 
 %% @doc Applies HTML escaping to a string.
 force_escape(Input) when is_list(Input) ->
     escape(Input, []);
@@ -239,12 +312,64 @@ length_is(Input, Number) when is_list(Input), is_integer(Number) ->
 length_is(Input, Number) when is_list(Input), is_list(Number) ->
     ?MODULE:length(Input) =:= Number.
 
+%% @doc Replaces line breaks in plain text with appropriate HTML
+linebreaks(Input) when is_binary(Input) ->
+    linebreaks(binary_to_list(Input));
+% a bit of a hack; unlikely, but could replace "</p>\z\z<p>" literal by mistake 
+linebreaks(Input) ->
+    Input1 = re:replace(Input,"\r\n"       ,"<br />", [global,{return,list}]),
+    Input2 = re:replace(Input1, "\n[\n\r]+"  ,"</p>\z\z<p>", [global,{return,list}]),
+    Input3 = re:replace(Input2,"\r[\n\r]+"  ,"</p>\z\z<p>", [global,{return,list}]),
+    Input4 = re:replace(Input3,"\n"         ,"<br />", [global,{return,list}]),
+    Input5 = re:replace(Input4,"\r"         ,"<br />", [global,{return,list}]),
+    Input6 = re:replace(Input5,"</p>\z\z<p>","</p>\n\n<p>", [global,{return,list}]),
+    lists:flatten(["<p>", Input6,"</p>"]).
+
 %% @doc Converts all newlines to HTML line breaks.
 linebreaksbr(Input) when is_binary(Input) ->
     linebreaksbr(Input, 0);
 linebreaksbr(Input) ->
     linebreaksbr(Input, []).
 
+%% @doc Displays text with line numbers.
+%% probably slow implementation
+linenumbers(Input) when is_binary(Input) ->
+         linenumbers(binary_to_list(Input));
+linenumbers(Input) when is_list(Input) ->
+         linenumbers_io(Input, [], 1).
+ 
+%linenumbers_io(Input) ->
+%         Lines = string:tokens(Input, "\n"),
+%         Numbers = lists:seq(1, erlang:length(Lines)),
+%         lists:concat(lists:zipwith(fun(Number, Line) -> erlang:integer_to_list(Number) ++ ". " ++ Line ++ "\n" end, Numbers, Lines)).
+
+%linenumbers(Input) ->
+%   linenumbers_io(Input, [], 1).
+
+linenumbers_io([], Acc, _) ->
+    lists:reverse(Acc);
+linenumbers_io(Input, [], LineNumber) ->
+    linenumbers_io(Input,
+    lists:reverse(integer_to_list(LineNumber)++". "), LineNumber + 1);
+linenumbers_io("\n"++Rest, Acc, LineNumber) ->
+    linenumbers_io(Rest, lists:reverse("\n" ++ integer_to_list(LineNumber) ++ ". ") ++ Acc, LineNumber + 1);
+linenumbers_io([H|T], Acc, LineNumber) ->
+   linenumbers_io(T, [H|Acc], LineNumber).
+ 
+%% @doc Displays text with line numbers.
+%% tail recursive implementation
+%% linenumbers(Input) when is_binary(Input) ->
+%%       linenumbers_io(binary_to_list(Input), [], 0);
+%% linenumbers(Input) when is_list(Input) ->
+%%       linenumbers_io(Input, [], 0).
+%%
+%% linenumbers([], Acc, ) ->
+%%     lists:reverse(Acc);
+%% linenumbers([Head|Rest], Acc, CountAcc) ->
+%%       Count = CountAcc + 1,
+%%       LineNumber = integer_to_list(Count) ++ ". ",
+%%     linenumbers(Rest, lists:append(LineNumber, Acc));
+ 
 %% @doc Left-aligns the value in a field of a given width.
 ljust(Input, Number) when is_binary(Input) ->
     list_to_binary(ljust(binary_to_list(Input), Number));
@@ -257,30 +382,265 @@ lower(Input) when is_binary(Input) ->
 lower(Input) ->
     string:to_lower(Input).
 
+%% @doc Returns the value turned into a list. For an integer, it's a list of digits. 
+%% @doc For a string, it's a list of characters.
+%% Added this for DTL compatibility, but since strings are lists in Erlang, no need for this.
+make_list(Input) when is_binary(Input) ->
+    make_list(binary_to_list(Input));
+make_list(Input) ->
+    unjoin(Input,"").
+ 
 %% @doc Converts a phone number (possibly containing letters) to its numerical equivalent.
 phone2numeric(Input) when is_binary(Input) ->
     phone2numeric(binary_to_list(Input));
 phone2numeric(Input) when is_list(Input) ->
     phone2numeric(Input, []).
 
+%% @doc Returns a plural suffix if the value is not 1. By default, this suffix is 's'.
+pluralize(Number, Suffix) when is_binary(Suffix) ->
+        pluralize_io(Number, binary_to_list(Suffix) );
+pluralize(Number, Suffix) when is_list(Suffix) ->
+        pluralize_io(Number, Suffix).
+ 
+pluralize(Number) ->
+        pluralize(Number, "s").
+       
+pluralize_io(Number, Suffix) ->
+%%       io:format("Number, Suffix: ~p, ~p ~n", [Number, Suffix]),
+        case lists:member($, , Suffix) of
+                true ->
+                        [Singular, Plural] = string:tokens(Suffix,","),
+                        case Number > 1 of
+                                false ->
+                                        Singular;
+                                true  ->
+                                        Plural
+                        end;
+                false ->
+                        case Number > 1 of
+                                false ->
+                                        [];
+                                true  ->
+                                        Suffix
+                        end
+        end.
+ 
 %% @doc Returns a random item from the given list.
 random(Input) when is_list(Input) ->
     lists:nth(random:uniform(erlang:length(Input)), Input);
 random(_) ->
     "".
 
+random_num(Value) ->
+    {A1,A2,A3} = now(),
+    random:seed(A1, A2, A3),
+    Rand = random:uniform(Value),
+    Rand.
+
+%% random tags to be used when using erlydtl in testing
+random_range(Range) ->
+    [Start, End] = string:tokens(Range,","),
+    %?debugFmt("Start, End: ~p,~p~n",[Start,End]),
+    random_range(cast_to_integer(Start),cast_to_integer(End)).
+
+random_range(Start, End) when End >= Start ->
+    %?debugFmt("Input, Start, End: ~p,~p,~p~n",[Input,Start,End]),
+    Range = End - Start,
+    Rand = random:uniform(Range),
+    Num = Rand + Start,
+    lists:flatten(io_lib:format("~B",[Num])).
+
+removetags(Input, Tags) when is_binary(Input), is_binary(Tags) ->
+    removetags(binary_to_list(Input), binary_to_list(Tags));
+removetags(Input, Tags) ->
+    TagList = string:tokens(Tags," "),
+    TagListString = string:join(TagList,"|"),
+    Regex = lists:flatten(io_lib:format("</?(~s)( |\n)?>",[TagListString])),
+    Result = re:replace(Input,Regex,"", [global,{return,list}]),
+    Result.
+ 
 %% @doc Right-aligns the value in a field of a given width.
 rjust(Input, Number) when is_binary(Input) ->
     list_to_binary(rjust(binary_to_list(Input), Number));
 rjust(Input, Number) ->
     string:right(Input, Number).
 
+%% @doc Returns a slice of the list.
+slice(Input, Index) when is_binary(Input) ->
+        erlydtl_slice:slice(binary_to_list(Input), Index);
+slice(Input, Index) when is_list(Input) ->
+        erlydtl_slice:slice(Input, Index).
+
+%% regex  " ^([#0-\s+].)([0-9\*]+)(\.[0-9]+)([diouxXeEfFgGcrs]) " matches ALL of "-10.0f"
+%% ([#0-\s+]?)([0-9\*]+)?(\.?)([0-9]?)([diouxXeEfFgGcrs])
+%% @doc Returns a formatted string
+stringformat(Input, Conversion) when is_binary(Input) ->
+        stringformat(binary_to_list(Input), Conversion);
+stringformat(Input, Conversion) ->
+        ParsedConversion = re:replace(Conversion, "([\-#\+ ]?)([0-9\*]+)?(\.?)([0-9]?)([diouxXeEfFgGcrs])", "\\1 ,\\2 ,\\3 ,\\4 ,\\5 ", [{return,list}]),
+        ?debugFmt("ParsedConversion: ~p~n", [ParsedConversion]),
+        ParsedConversion1 = lists:map(fun(X) -> string:strip(X) end, string:tokens(ParsedConversion, ",")),
+         [ConversionFlag, MinFieldWidth, Precision, PrecisionLength, ConversionType] = ParsedConversion1,
+        ?debugFmt("ConversionFlag, MinFieldWidth, Precision, PrecisionLength, ConversionType: ~p, ~p, ~p, ~p, ~p ~n", [ConversionFlag, cast_to_integer(MinFieldWidth), Precision, cast_to_integer(PrecisionLength), ConversionType]),
+        [String] = stringformat_io(Input, Conversion, ConversionFlag, cast_to_integer(MinFieldWidth), Precision, cast_to_integer(PrecisionLength), ConversionType),
+        lists:flatten(String).
+
+%% @doc
+%% A conversion specifier contains two or more characters and has the following components, which must occur in this order:
+%% 
+%%    1. The "%" character, which marks the start of the specifier.
+%%    2. Mapping key (optional), consisting of a parenthesised sequence of characters (for example, (somename)).
+%%    3. Conversion flags (optional), which affect the result of some conversion types.
+%%    4. Minimum field width (optional). If specified as an "*" (asterisk), the actual width is read from the next element of the tuple in values, and the object to convert comes after the minimum field width and optional precision.
+%%    5. Precision (optional), given as a "." (dot) followed by the precision. If specified as "*" (an asterisk), the actual width is read from the next element of the tuple in values, and the value to convert comes after the precision.
+%%    6. Length modifier (optional).
+%%    7. Conversion type.
+ 
+stringformat_io(Input, _Conversion, _ConversionFlag, [],
+                                _Precision, _PrecisionLength, "s") when is_list(Input) ->
+        Format = lists:flatten(io_lib:format("~~s", [])),
+       io_lib:format(Format, [Input]);
+stringformat_io(Input, _Conversion, ConversionFlag, MinFieldWidth,
+                                _Precision, _PrecisionLength, "s") when is_list(Input) ->
+        %Conversion = [ConversionFlag, MinFieldWidth, Precision, PrecisionLength, ConversionType],
+        InputLength = erlang:length(Input),
+        case erlang:abs(MinFieldWidth) < InputLength of
+            true ->
+                MFW = InputLength;
+            false ->
+                MFW = MinFieldWidth
+        end,
+        Format = lists:flatten(io_lib:format("~~~s~ps", [ConversionFlag,MFW])),
+        io_lib:format(Format, [Input]);
+stringformat_io(Input, _Conversion, _ConversionFlag, MinFieldWidth,
+                                Precision, PrecisionLength, "f") when Precision == ".", MinFieldWidth == 0 ->
+    Conversion1 = lists:concat(["","",Precision,PrecisionLength,"f"]),
+    stringformat_io(Input, Conversion1, [], [], Precision, PrecisionLength, "f");
+stringformat_io(Input, Conversion, ConversionFlag, MinFieldWidth,
+                                Precision, "", "f") when Precision == "." ->
+    Format = re:replace(Conversion, "f", "d", [{return, list}] ),
+    stringformat_io(Input, Format, ConversionFlag, MinFieldWidth,
+                                    Precision, "", "d");
+stringformat_io(Input, Conversion, _ConversionFlag, _MinFieldWidth,
+                                _Precision, _PrecisionLength, "f")->
+        %Conversion = [ConversionFlag, MinFieldWidth, Precision, PrecisionLength, ConversionType],
+        Format = "~" ++ Conversion,
+        io_lib:format(Format, [cast_to_float(Input)]);
+stringformat_io(Input, Conversion, _ConversionFlag, _MinFieldWidth,
+                                [], [], "d")->
+        %?debugMsg("plain d"),
+        %Conversion = [ConversionFlag, MinFieldWidth, Precision, PrecisionLength, ConversionType],
+        Format = "~" ++ re:replace(Conversion, "d", "B", [{return, list}] ),
+        io_lib:format(Format, [cast_to_integer(Input)]);
+stringformat_io(Input, _Conversion, "-", MinFieldWidth,
+                                _Precision, PrecisionLength, "d") when MinFieldWidth > 0 ->
+        %Format = "~" ++ re:replace(Conversion, "d", "B", [{return, list}] ),
+        DecimalFormat = "~" ++ integer_to_list(PrecisionLength) ++ "..0B", 
+        Decimal = lists:flatten( io_lib:format(DecimalFormat, [cast_to_integer(Input)]) ),
+        SpaceFormat = "~" ++ integer_to_list(MinFieldWidth - erlang:length(Decimal)) ++ "s",
+        Spaces = io_lib:format(SpaceFormat,[""]),
+        ?debugFmt("Spaces: |~s|", [Spaces]),
+        ?debugFmt("Decimal: ~s", [Decimal]),
+        [lists:flatten(Decimal  ++ Spaces)];
+stringformat_io(Input, _Conversion, _ConversionFlag, MinFieldWidth,
+                                _Precision, PrecisionLength, "d") when MinFieldWidth > 0 ->
+        %Format = "~" ++ re:replace(Conversion, "d", "B", [{return, list}] ),
+        DecimalFormat = "~" ++ integer_to_list(PrecisionLength) ++ "..0B", 
+        Decimal = lists:flatten( io_lib:format(DecimalFormat, [cast_to_integer(Input)]) ),
+        SpaceFormat = "~" ++ integer_to_list(MinFieldWidth - erlang:length(Decimal)) ++ "s",
+        Spaces = io_lib:format(SpaceFormat,[""]),
+        ?debugFmt("Spaces: |~s|", [Spaces]),
+        ?debugFmt("Decimal: ~s", [Decimal]),
+        [lists:flatten(Spaces ++ Decimal)];
+stringformat_io(Input, _Conversion, _ConversionFlag, _MinFieldWidth,
+                                _Precision, PrecisionLength, "d") ->
+        %Conversion = [ConversionFlag, MinFieldWidth, Precision, PrecisionLength, ConversionType],
+        %Format = "~" ++ PrecisionLength ++ "..0" ++ re:replace(Conversion, "d", "B", [{return, list}] ),
+        ?debugFmt("precision d, Conversion: ~p~n", [Conversion]),
+        Format = lists:flatten("~" ++ io_lib:format("~B..0B",[PrecisionLength])), 
+        ?debugFmt("Format: ~p~n",[Format]),
+        io_lib:format(Format, [cast_to_integer(Input)]);
+stringformat_io(Input, Conversion, _ConversionFlag, _MinFieldWidth,
+                                _Precision, _PrecisionLength, "i")->
+        Format = "~" ++ re:replace(Conversion, "i", "B", [{return, list}] ),
+        io_lib:format(Format, [cast_to_integer(Input)]);
+stringformat_io(Input, Conversion, _ConversionFlag, _MinFieldWidth,
+                                _Precision, _PrecisionLength, "X")->
+        Format = "~" ++ re:replace(Conversion, "X", ".16B", [{return, list}] ),
+        io_lib:format(Format, [cast_to_integer(Input)]);
+stringformat_io(Input, Conversion, _ConversionFlag, _MinFieldWidth,
+                                _Precision, _PrecisionLength, "x")->
+        Format = "~" ++ re:replace(Conversion, "x", ".16b", [{return, list}] ),
+        io_lib:format(Format, [cast_to_integer(Input)]);
+stringformat_io(Input, Conversion, _ConversionFlag, _MinFieldWidth,
+                                _Precision, _PrecisionLength, "o")->
+        Format = "~" ++ re:replace(Conversion, "o", ".8b", [{return, list}] ),
+        io_lib:format(Format, [cast_to_integer(Input)]);
+stringformat_io(Input, _Conversion, _ConversionFlag, _MinFieldWidth,
+                                Precision, PrecisionLength, "e") when is_integer(PrecisionLength), PrecisionLength >= 2->
+        ?debugFmt("PrecisionLength ~p~n", [PrecisionLength]),
+        Conversion1 = lists:concat(["","",Precision,PrecisionLength + 1,"e"]),
+        Format = "~" ++ Conversion1,
+        io_lib:format(Format, [cast_to_float(Input)]);
+stringformat_io(Input, Conversion, ConversionFlag, MinFieldWidth,
+                                "", [], "e")->
+        Format = "~" ++ re:replace(Conversion, "e", ".6e", [{return, list}] ),
+        Raw = lists:flatten(stringformat_io(Input, Format, ConversionFlag, MinFieldWidth,
+                                ".", 6, "e")
+                           ),
+        %io:format("Raw: ~p~n", [Raw]),
+        Elocate = string:rstr(Raw,"e+"),
+        %io:format("Elocate: ~p~n", [Elocate]),
+        String = [string:substr(Raw,1,Elocate-1) ++ "e+" 
+                 ++ io_lib:format("~2..0B",[list_to_integer(string:substr(Raw,Elocate+2))])], %works till +99, then outputs "**"
+        %io:format("String: ~p~n", [String]),
+        String;
+stringformat_io(Input, Conversion, ConversionFlag, MinFieldWidth,
+                                Precision, PrecisionLength, "E")->
+        Format = re:replace(Conversion, "E", "e", [{return, list}] ),
+        [Str] = stringformat_io(Input, Format, ConversionFlag, MinFieldWidth,
+                                Precision, PrecisionLength, "e"),
+        [string:to_upper(Str)].
+ 
+cast_to_float([]) ->
+    [];
+cast_to_float(Input) when is_float(Input) ->
+        Input;
+cast_to_float(Input) when is_integer(Input) ->
+        Input + 0.0;
+cast_to_float(Input) ->
+        try list_to_float(Input)
+        catch
+                error:_Reason ->
+                        list_to_integer(Input) + 0.0
+        end.
+
+cast_to_integer([]) ->
+    [];
+cast_to_integer(Input) when is_integer(Input) ->
+        Input;
+cast_to_integer(Input) when is_float(Input) ->
+        erlang:round(Input);
+cast_to_integer(Input) when is_list(Input)->
+        case lists:member($., Input) of
+                true ->
+                        erlang:round(erlang:list_to_float(Input));
+                false ->       
+                        erlang:list_to_integer(Input)
+        end.
+       
 %% @doc Converts to lowercase, removes non-word characters (alphanumerics and underscores) and converts spaces to hyphens.
 slugify(Input) when is_binary(Input) ->
     slugify(binary_to_list(Input));
 slugify(Input) when is_list(Input) ->
     slugify(Input, []).
 
+%% @doc Formats a time according to the given format.
+time(Input, "") ->
+    date(Input, "f a");
+time(Input, FormatStr) ->
+    date(Input, FormatStr).
+ 
 %% @doc Converts a string into titlecase.
 title(Input) when is_binary(Input) ->
     title(binary_to_list(Input));
@@ -313,6 +673,17 @@ wordcount(Input) when is_binary(Input) ->
 wordcount(Input) when is_list(Input) ->
     wordcount(Input, 0).
 
+%% @doc Wraps words at specified line length, uses <BR/> html tag to delimit lines
+wordwrap(Input, Number) when is_binary(Input) ->
+    wordwrap_io(binary_to_list(Input), Number);
+wordwrap(Input, Number) when is_list(Input) ->
+    wordwrap_io(Input, Number).
+ 
+%% @doc Given a string mapping values for true, false and (optionally) undefined, returns one of those strings according to the value.
+yesno(Bool, Choices) when is_binary(Choices) ->
+        yesno_io(binary_to_list(Bool), Choices);
+yesno(Bool, Choices) when is_list(Choices) ->
+        yesno_io(Bool, Choices).
 
 % internal
 
@@ -447,6 +818,8 @@ phone2numeric([H|T], Acc) when H >= $w, H =< $z; H >= $W, H =< $Z ->
 phone2numeric([H|T], Acc) ->
     phone2numeric(T, [H|Acc]).
 
+ 
+ 
 slugify([], Acc) ->
     lists:reverse(Acc);
 slugify([H|T], Acc) when H >= $A, H =< $Z ->
@@ -489,6 +862,29 @@ wordcount([C1, C2|Rest], Count) when C1 =/= $\  andalso C2 =:= $\  ->
 wordcount([_|Rest], Count) ->
     wordcount(Rest, Count).
 
+% based on: http://pragdave.pragprog.com/pragdave/2007/04/testfirst_word_.html 
+% This is the exported function: it passes the initial
+% result set to the internal versions
+wordwrap_io(Input, Number) ->
+        Words = string:tokens(Input, " "),
+    string:join(lists:reverse(wordwrap_io(Words, [""], Number)),"").
+% When we run out of words, we're done 
+wordwrap_io([], Result, _Number) ->
+    Result;
+% Adding a word to an empty line
+wordwrap_io([ NextWord | Rest ], [ "" | PreviousLines ], Number) ->
+    wordwrap_io(Rest, [ NextWord | PreviousLines ], Number);
+% Or to a line that's already partially full. There are two cases:
+% 1. The word fits
+wordwrap_io([ NextWord | Rest ], [ CurrentLine | PreviousLines ], Number)
+  when erlang:length(NextWord) + erlang:length(CurrentLine) < Number ->
+    %wordwrap_io(Rest, [ NextWord, " ", CurrentLine | PreviousLines ], Number);
+    wordwrap_io(Rest, [ lists:flatten([CurrentLine," " ,NextWord]) | PreviousLines ], Number);    
+% 2. The word doesn't fit, so we create a new line 
+wordwrap_io([ NextWord | Rest], [ CurrentLine | PreviousLines ], Number) ->
+        wordwrap_io(Rest, [ NextWord, "\n", CurrentLine | PreviousLines ], Number).
+
+
 % Taken from quote_plus of mochiweb_util
 
 urlencode(Input, Index) when is_binary(Input) ->
@@ -525,3 +921,70 @@ process_binary_match(Pre, Insertion, SizePost, Post) ->
         {_, 0} -> [Pre, Insertion];
         _ -> [Pre, Insertion, Post]
     end.
+ 
+yesno_io(Bool, Choices) ->
+%%       io:format("Bool, Choices: ~p, ~p ~n",[Bool, Choices]),
+        Terms = string:tokens(Choices, ","),
+        case Bool of
+                true ->
+                        lists:nth(1, Terms);
+                false ->
+                        lists:nth(2, Terms);
+                undefined when erlang:length(Terms) == 2 -> % (converts undefined to false if no mapping for undefined is given)
+                        lists:nth(2, Terms);
+                undefined when erlang:length(Terms) == 3 ->
+                        lists:nth(3, Terms);
+                _ ->
+                        error
+        end.
+
+%% unjoin == split in other languages; inverse of join
+%% from http://www.erlang.org/pipermail/erlang-questions/2008-October/038896.html
+unjoin(String, []) ->
+     unjoin0(String);
+unjoin(String, [Sep]) when is_integer(Sep) ->
+     unjoin1(String, Sep);
+unjoin(String, [C1,C2|L]) when is_integer(C1), is_integer(C2) ->
+     unjoin2(String, C1, C2, L).
+
+%% Split a string at "", which is deemed to occur _between_
+%% adjacent characters, but queerly, not at the beginning
+%% or the end.
+
+unjoin0([C|Cs]) ->
+     [[C] | unjoin0(Cs)];
+unjoin0([]) ->
+     [].
+
+%% Split a string at a single character separator.
+
+unjoin1(String, Sep) ->
+     unjoin1_loop(String, Sep, "").
+
+unjoin1_loop([Sep|String], Sep, Rev) ->
+     [lists:reverse(Rev) | unjoin1(String, Sep)];
+unjoin1_loop([Chr|String], Sep, Rev) ->
+     unjoin1_loop(String, Sep, [Chr|Rev]);
+unjoin1_loop([], _, Rev) ->
+     [lists:reverse(Rev)].
+
+%% Split a string at a multi-character separator
+%% [C1,C2|L].  These components are split out for
+%% a fast match.
+
+unjoin2(String, C1, C2, L) ->
+     unjoin2_loop(String, C1, C2, L, "").
+
+unjoin2_loop([C1|S = [C2|String]], C1, C2, L, Rev) ->
+     case unjoin_prefix(L, String)
+       of no   -> unjoin2_loop(S, C1, C2, L, [C1|Rev])
+        ; Rest -> [lists:reverse(Rev) | unjoin2(Rest, C1, C2, L)]
+     end;
+unjoin2_loop([Chr|String], C1, C2, L, Rev) ->
+     unjoin2_loop(String, C1, C2, L, [Chr|Rev]);
+unjoin2_loop([], _, _, _, Rev) ->
+     [lists:reverse(Rev)].
+
+unjoin_prefix([C|L], [C|S]) -> unjoin_prefix(L, S);
+unjoin_prefix([],    S)     -> S;
+unjoin_prefix(_,     _)     -> no.
