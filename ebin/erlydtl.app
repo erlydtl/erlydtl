@@ -14,6 +14,7 @@
              erlydtl_parser,
              erlydtl_runtime,
              erlydtl_scanner,
+             erlydtl_slice,
              erlydtl_unittests,
              erlydtl_i18n,
              i18n_manager,
