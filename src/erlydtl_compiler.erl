@@ -677,20 +677,23 @@ filter_ast(Variable, Filter, Context, TreeWalker) ->
 filter_ast_noescape(Variable, [{identifier, _, 'escape'}], Context, TreeWalker) ->
     value_ast(Variable, true, Context, TreeWalker);
 filter_ast_noescape(Variable, Filter, Context, TreeWalker) ->
-    {{VariableAst, Info}, TreeWalker2} = value_ast(Variable, true, Context, TreeWalker),
-    VarValue = filter_ast1(Filter, VariableAst),
-    {{VarValue, Info}, TreeWalker2}.
+    {{VariableAst, Info1}, TreeWalker2} = value_ast(Variable, true, Context, TreeWalker),
+    {VarValue, Info2} = filter_ast1(Filter, VariableAst, Context),
+    {{VarValue, merge_info(Info1, Info2)}, TreeWalker2}.
 
-filter_ast1([{identifier, _, Name}, {string_literal, _, ArgName}], VariableAst) ->
-    filter_ast2(Name, VariableAst, [erl_syntax:string(unescape_string_literal(ArgName))]);
-filter_ast1([{identifier, _, Name}, {number_literal, _, ArgName}], VariableAst) ->
-    filter_ast2(Name, VariableAst, [erl_syntax:integer(list_to_integer(ArgName))]);
-filter_ast1([{identifier, _, Name}|_], VariableAst) ->
-    filter_ast2(Name, VariableAst, []).
+filter_ast1([{identifier, _, Name}, {string_literal, _, ArgName}], VariableAst, _Context) ->
+    filter_ast2(Name, VariableAst, [erl_syntax:string(unescape_string_literal(ArgName))], []);
+filter_ast1([{identifier, _, Name}, {number_literal, _, ArgName}], VariableAst, _Context) ->
+    filter_ast2(Name, VariableAst, [erl_syntax:integer(list_to_integer(ArgName))], []);
+filter_ast1([{identifier, _, Name}, ArgVariable], VariableAst, Context) ->
+    {ArgAst, ArgVarName} = resolve_variable_ast(ArgVariable, Context),
+    filter_ast2(Name, VariableAst, [ArgAst], [ArgVarName]);
+filter_ast1([{identifier, _, Name}], VariableAst, _Context) ->
+    filter_ast2(Name, VariableAst, [], []).
 
-filter_ast2(Name, VariableAst, AdditionalArgs) ->
-    erl_syntax:application(erl_syntax:atom(erlydtl_filters), erl_syntax:atom(Name), 
-        [VariableAst | AdditionalArgs]).
+filter_ast2(Name, VariableAst, AdditionalArgs, VarNames) ->
+    {erl_syntax:application(erl_syntax:atom(erlydtl_filters), erl_syntax:atom(Name), 
+            [VariableAst | AdditionalArgs]), #ast_info{var_names = VarNames}}.
  
 search_for_escape_filter(_, _, #dtl_context{auto_escape = on}) ->
     on;
@@ -705,7 +708,6 @@ search_for_escape_filter({apply_filter, Variable, Filter}, _) ->
     search_for_escape_filter(Variable, Filter);
 search_for_escape_filter(_Variable, _Filter) ->
     off.
-
 
 
 resolve_variable_ast(VarTuple, Context) ->
@@ -724,11 +726,6 @@ resolve_variable_ast({variable, {identifier, _, VarName}}, Context, FinderFuncti
         Val ->
             Val
     end,
-    {VarValue, VarName};
-
-resolve_variable_ast({apply_filter, Variable, Filter}, Context, FinderFunction) ->
-    {VarAst, VarName} = resolve_variable_ast(Variable, Context, FinderFunction),
-    VarValue = filter_ast1(Filter, erl_syntax:list([VarAst])),
     {VarValue, VarName};
 
 resolve_variable_ast(What, _Context, _FinderFunction) ->

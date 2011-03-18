@@ -1,6 +1,6 @@
 -module(erlydtl_slice).
 
--export([slice/2]).
+-export([slice/2,slice_input_cases/7]).
 
 -define(TEST,"").
 -define(NOTEST,1).
@@ -28,21 +28,22 @@ slice_input_cases(_List,ListLength,Start,false,[],false,[]) when Start < 0, Star
     throw(indexError);
 %[-1]
 slice_input_cases(List,ListLength,Start,false,[],false,[]) when Start<0 ->
-    S = start_transform(ListLength,Start+ListLength+1), 
-    %E = end_transform(ListLength,Start+ListLength+2), 
-    Step = 1, 
+    S = start_transform(ListLength,Start+ListLength+1),   
     LowerBound = single_index_bounds(S), 
-    ?debugFmt("slice_transform exit: ~p, ~p, ~p, ~p~n",[List,S,E,Step]), 
-    [Result] = lists:sublist(List,LowerBound,Step), 
-    Result;
+    ?debugFmt("slice_transform exit: ~p, ~p, ~p~n",[List,S,LowerBound]), 
+    %[Result] = lists:sublist(List,LowerBound,Step),
+    lists:nth(LowerBound,List);
 %[1]
 slice_input_cases(List,ListLength,Start,false,[],false,[]) ->
-    S = start_transform(ListLength,Start+1), 
+    %S = start_transform(ListLength,Start+1), 
     %E = end_transform(ListLength,Start+2), 
-    Step = 1, 
-    LowerBound = single_index_bounds(S), 
-    ?debugFmt("slice_transform exit: ~p, ~p, ~p, ~p~n",[List,S,E,Step]), 
-    [Result] = lists:sublist(List,LowerBound,Step), 
+    Step = 1,
+    End = Start + 1,
+    {Start1,End1,Step1} = index_defaults(ListLength,Start,End,Step),
+    S = start_transform(ListLength,Start1), 
+    E = end_transform(ListLength,End1), 
+    ?debugFmt("slice_transform: S,E,Step1: ~p,~p,~p~n",[S,E,Step1]),
+    [Result] = slice_list(List,ListLength,S,false,E,false,Step1),
     Result;
 %slice_transform(List, ListLength, Start, C1, End, C2, Step) when End < 0, Step > 0 ->
 %    [];
@@ -79,7 +80,6 @@ slice_list(List,ListLength,Start,_C1,End,_C2,Step) when Step > 0 ->
     {LowerBound,UpperBound} = index_bounds(Step,ListLength,Start,End), 
     ?debugFmt("LowerBound+1, UpperBound+1, UpperBound - LowerBound + 1: ~p, ~p, ~p~n",[LowerBound+1,UpperBound,UpperBound-LowerBound]), 
     BoundList = lists:sublist(List,LowerBound+1,UpperBound-LowerBound), 
-    %{ok, lists:map(fun(N) -> lists:nth(N, List) end, lists:sort(BoundList)) };
     SequenceList = lists:seq(1,erlang:length(BoundList),Step), 
     lists:map(fun (N) -> lists:nth(N,BoundList) end,SequenceList);
 slice_list(List,ListLength,Start,_C1,End,_C2,Step) when Step < 0 ->    
@@ -192,10 +192,6 @@ end_transform(ListLength, End) ->
 
 cast_to_integer([]) ->
     [];
-%% cast_to_integer(Input) when is_integer(Input) ->
-%%         Input;
-%% cast_to_integer(Input) when is_float(Input) ->
-%%         erlang:round(Input);
 cast_to_integer(Input) when is_list(Input)->
         case lists:member($., Input) of
                 true ->

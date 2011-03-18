@@ -262,6 +262,7 @@ EndAutoEscapeBraced -> open_tag endautoescape_keyword close_tag.
 
 Filter -> identifier : ['$1'].
 Filter -> identifier ':' Literal : ['$1', '$3'].
+Filter -> identifier ':' Variable : ['$1', '$3'].
 
 Literal -> string_literal : '$1'.
 Literal -> number_literal : '$1'.

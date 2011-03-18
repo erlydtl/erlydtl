@@ -125,4 +125,4 @@ From a Unix shell, run:
 
     make test
 
-Note that the tests will create some output in examples/rendered_output.
+Note that the tests will create some output in tests/output.

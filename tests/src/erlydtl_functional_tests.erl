@@ -271,7 +271,7 @@ test_render(Name, Module) ->
 
 
 templates_docroot() ->
-    filename:join([erlydtl_deps:get_base_dir(), "examples", "docroot"]).
+    filename:join([erlydtl_deps:get_base_dir(), "tests", "input"]).
 
 templates_outdir() ->   
-    filename:join([erlydtl_deps:get_base_dir(), "examples", "rendered_output"]).
+    filename:join([erlydtl_deps:get_base_dir(), "tests", "output"]).

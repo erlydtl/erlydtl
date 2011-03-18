@@ -1,7 +1,7 @@
 ERL=erl
 ERLC=erlc
 
-PARSER=src/erlydtl/erlydtl_parser
+PARSER=src/erlydtl_parser
 
 
 all: compile
@@ -11,7 +11,7 @@ compile: $(PARSER).erl
 	$(ERL) -make 
 
 $(PARSER).erl: $(PARSER).yrl
-	$(ERLC) -o src/erlydtl src/erlydtl/erlydtl_parser.yrl
+	$(ERLC) -o src src/erlydtl_parser.yrl
  
 run: compile
 	$(ERL) -pa ebin
@@ -29,4 +29,4 @@ clean:
 	rm -fv ebin/*.beam
 	rm -fv ebintest/*
 	rm -fv erl_crash.dump $(PARSER).erl
-	rm -fv examples/rendered_output/*
+	rm -fv tests/output/*
