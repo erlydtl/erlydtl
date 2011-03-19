@@ -389,6 +389,8 @@ tests() ->
                     <<"{% if var1|divisibleby:\"3\" %}yay{% endif %}">>, [{var1, 21}], <<"yay">>},
                 {"|divisibleby:\"3\"",
                     <<"{% if var1|divisibleby:\"3\" %}yay{% endif %}">>, [{var1, 22}], <<"">>},
+                {"|escape",
+                    <<"{% autoescape on %}{{ var1|escape|escape|escape }}{% endautoescape %}">>, [{var1, ">&1"}], <<"&gt;&amp;1">>},
                 {"|escapejs",
                     <<"{{ var1|escapejs }}">>, [{var1, "testing\r\njavascript 'string\" <b>escaping</b>"}],
                     <<"testing\\u000D\\u000Ajavascript \\u0027string\\u0022 \\u003Cb\\u003Eescaping\\u003C/b\\u003E">>},
@@ -504,6 +506,9 @@ tests() ->
                 {"|rjust:10",
                     <<"{{ var1|rjust:10 }}">>, [{var1, "Bush"}],
                     <<"      Bush">>},
+                {"|safe",
+                    <<"{% autoescape on %}{{ var1|safe|escape }}{% endautoescape %}">>, [{var1, "&"}],
+                    <<"&">>},
                 %%python/django slice is zero based, erlang lists are 1 based
                 %%first number included, second number not
                 %%negative numbers are allowed

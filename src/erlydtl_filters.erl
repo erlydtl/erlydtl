@@ -57,7 +57,7 @@
         dictsort/2,
         dictsortreversed/2,
         divisibleby/2,
-        %escape/,
+        %escape/, - implemented in erlydtl_compiler
         escapejs/1,
         filesizeformat/1,
         first/1,
@@ -87,8 +87,8 @@
         random_range/1,
         removetags/2,
         rjust/2,
-        %safe/,
-        %safeseq/,
+        %safe/, - implemented in erlydtl_compiler
+        %safeseq/, - implemented in erlydtl_compiler
         slice/2,
         slugify/1,
         stringformat/2,
@@ -862,25 +862,23 @@ lower(Input, Index) ->
 phone2numeric([], Acc) ->
     lists:reverse(Acc);
 phone2numeric([H|T], Acc) when H >= $a, H =< $c; H >= $A, H =< $C ->
-phone2numeric(T, [$2|Acc]);
+    phone2numeric(T, [$2|Acc]);
 phone2numeric([H|T], Acc) when H >= $d, H =< $f; H >= $D, H =< $F ->
-phone2numeric(T, [$3|Acc]);
+    phone2numeric(T, [$3|Acc]);
 phone2numeric([H|T], Acc) when H >= $g, H =< $i; H >= $G, H =< $I ->
-phone2numeric(T, [$4|Acc]);
+    phone2numeric(T, [$4|Acc]);
 phone2numeric([H|T], Acc) when H >= $j, H =< $l; H >= $J, H =< $L ->
-phone2numeric(T, [$5|Acc]);
+    phone2numeric(T, [$5|Acc]);
 phone2numeric([H|T], Acc) when H >= $m, H =< $o; H >= $M, H =< $O ->
-phone2numeric(T, [$6|Acc]);
+    phone2numeric(T, [$6|Acc]);
 phone2numeric([H|T], Acc) when H >= $p, H =< $s; H >= $P, H =< $S ->
-phone2numeric(T, [$7|Acc]);
+    phone2numeric(T, [$7|Acc]);
 phone2numeric([H|T], Acc) when H >= $t, H =< $v; H >= $T, H =< $V ->
-phone2numeric(T, [$8|Acc]);
+    phone2numeric(T, [$8|Acc]);
 phone2numeric([H|T], Acc) when H >= $w, H =< $z; H >= $W, H =< $Z ->
-phone2numeric(T, [$9|Acc]);
+    phone2numeric(T, [$9|Acc]);
 phone2numeric([H|T], Acc) ->
     phone2numeric(T, [H|Acc]).
-
-
 
 slugify([], Acc) ->
     lists:reverse(Acc);
@@ -889,7 +887,7 @@ slugify([H|T], Acc) when H >= $A, H =< $Z ->
 slugify([$\ |T], Acc) ->
     slugify(T, [$-|Acc]);
 slugify([H|T], Acc) when H >= $a, H =< $z; H >= $0, H =< $9; H =:= $_ ->
-slugify(T, [H|Acc]);
+    slugify(T, [H|Acc]);
 slugify([_|T], Acc) ->
     slugify(T, Acc).
 

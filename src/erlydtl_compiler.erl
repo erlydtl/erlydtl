@@ -63,7 +63,8 @@
     pre_render_asts = []}).
     
 -record(treewalker, {
-    counter = 0
+    counter = 0,
+    safe = false
 }).    
 
 compile(Binary, Module) when is_binary(Binary) ->
@@ -520,7 +521,7 @@ body_ast(DjangoParseTree, Context, TreeWalker) ->
                 cycle_compat_ast(Names, Context, TreeWalkerAcc);
             (ValueToken, TreeWalkerAcc) -> 
                 {{ValueAst,ValueInfo},ValueTreeWalker} = value_ast(ValueToken, true, Context, TreeWalkerAcc),
-                {{format(ValueAst, Context),ValueInfo},ValueTreeWalker}
+                {{format(ValueAst, Context, ValueTreeWalker),ValueInfo},ValueTreeWalker}
         end, TreeWalker, DjangoParseTree),   
     {AstList, {Info, TreeWalker3}} = lists:mapfoldl(
         fun({Ast, Info}, {InfoAcc, TreeWalkerAcc}) -> 
@@ -567,8 +568,7 @@ value_ast(ValueToken, AsString, Context, TreeWalker) ->
                                          [Value1Ast, Value2Ast]),
             {{Ast, merge_info(InfoValue1,InfoValue2)}, TreeWalker2};
         {'string_literal', _Pos, String} ->
-            {{auto_escape(erl_syntax:string(unescape_string_literal(String)), Context), 
-                    #ast_info{}}, TreeWalker};
+            {{erl_syntax:string(unescape_string_literal(String)), #ast_info{}}, TreeWalker};
         {'number_literal', _Pos, Number} ->
             case AsString of
                 true  -> string_ast(Number, TreeWalker);
@@ -675,7 +675,11 @@ filter_ast(Variable, Filter, Context, TreeWalker) ->
     end.
 
 filter_ast_noescape(Variable, [{identifier, _, 'escape'}], Context, TreeWalker) ->
-    value_ast(Variable, true, Context, TreeWalker);
+    value_ast(Variable, true, Context, TreeWalker#treewalker{safe = true});
+filter_ast_noescape(Variable, [{identifier, _, 'safe'}], Context, TreeWalker) ->
+    value_ast(Variable, true, Context, TreeWalker#treewalker{safe = true});
+filter_ast_noescape(Variable, [{identifier, _, 'safeseq'}], Context, TreeWalker) ->
+    value_ast(Variable, true, Context, TreeWalker#treewalker{safe = true});
 filter_ast_noescape(Variable, Filter, Context, TreeWalker) ->
     {{VariableAst, Info1}, TreeWalker2} = value_ast(Variable, true, Context, TreeWalker),
     {VarValue, Info2} = filter_ast1(Filter, VariableAst, Context),
@@ -695,20 +699,25 @@ filter_ast2(Name, VariableAst, AdditionalArgs, VarNames) ->
     {erl_syntax:application(erl_syntax:atom(erlydtl_filters), erl_syntax:atom(Name), 
             [VariableAst | AdditionalArgs]), #ast_info{var_names = VarNames}}.
  
-search_for_escape_filter(_, _, #dtl_context{auto_escape = on}) ->
-    on;
+search_for_escape_filter(Variable, Filter, #dtl_context{auto_escape = on}) ->
+    search_for_safe_filter(Variable, Filter);
 search_for_escape_filter(_, _, #dtl_context{auto_escape = did}) ->
     off;
-search_for_escape_filter(Variable, Filter, _) ->
-    search_for_escape_filter(Variable, Filter).
-
-search_for_escape_filter(_, [{identifier, _, 'escape'}]) ->
-    on;
-search_for_escape_filter({apply_filter, Variable, Filter}, _) ->
-    search_for_escape_filter(Variable, Filter);
-search_for_escape_filter(_Variable, _Filter) ->
+search_for_escape_filter(Variable, [{identifier, _, 'escape'}] = Filter, _Context) ->
+    search_for_safe_filter(Variable, Filter);
+search_for_escape_filter({apply_filter, Variable, Filter}, _, Context) ->
+    search_for_escape_filter(Variable, Filter, Context);
+search_for_escape_filter(_Variable, _Filter, _Context) ->
     off.
 
+search_for_safe_filter(_, [{identifier, _, 'safe'}]) ->
+    off;
+search_for_safe_filter(_, [{identifier, _, 'safeseq'}]) ->
+    off;
+search_for_safe_filter({apply_filter, Variable, Filter}, _) ->
+    search_for_safe_filter(Variable, Filter);
+search_for_safe_filter(_Variable, _Filter) ->
+    on.
 
 resolve_variable_ast(VarTuple, Context) ->
     resolve_variable_ast(VarTuple, Context, 'find_value').
@@ -739,23 +748,20 @@ resolve_scoped_variable_ast(VarName, Context) ->
                 end
         end, undefined, Context#dtl_context.local_scopes).
 
-format(Ast, Context) ->
-    auto_escape(format_number_ast(Ast), Context).
-
+format(Ast, Context, TreeWalker) ->
+    auto_escape(format_number_ast(Ast), Context, TreeWalker).
 
 format_number_ast(Ast) ->
     erl_syntax:application(erl_syntax:atom(erlydtl_filters), erl_syntax:atom(format_number),
         [Ast]).
 
 
-auto_escape(Value, Context) ->
-    case Context#dtl_context.auto_escape of
-        on ->
-            erl_syntax:application(erl_syntax:atom(erlydtl_filters), erl_syntax:atom(force_escape),
-                [Value]);
-        _ ->
-            Value
-    end.
+auto_escape(Value, _, #treewalker{safe = true}) ->
+    Value;
+auto_escape(Value, #dtl_context{auto_escape = on}, _) ->
+    erl_syntax:application(erl_syntax:atom(erlydtl_filters), erl_syntax:atom(force_escape), [Value]);
+auto_escape(Value, _, _) ->
+    Value.
 
 firstof_ast(Vars, Context, TreeWalker) ->
 	body_ast([lists:foldl(fun
@@ -831,7 +837,7 @@ cycle_ast(Names, Context, TreeWalker) ->
                                    {V, _} = resolve_variable_ast(Var, Context),
                                    V;
                               ({number_literal, _, Num}) ->
-                                   format(erl_syntax:integer(Num), Context);
+                                   format(erl_syntax:integer(Num), Context, TreeWalker);
                               (_) ->
                                    []
                            end, Names),
@@ -890,7 +896,7 @@ tag_ast(Name, Args, Context, TreeWalker) ->
                 {erl_syntax:tuple([erl_syntax:string(Key), erl_syntax:string(unescape_string_literal(Value))]), AstInfoAcc};
             ({{identifier, _, Key}, Value}, AstInfoAcc) ->
                 {AST, VarName} = resolve_variable_ast(Value, Context),
-                {erl_syntax:tuple([erl_syntax:string(Key), format(AST,Context)]), merge_info(#ast_info{var_names=[VarName]}, AstInfoAcc)}
+                {erl_syntax:tuple([erl_syntax:string(Key), format(AST,Context, TreeWalker)]), merge_info(#ast_info{var_names=[VarName]}, AstInfoAcc)}
         end, #ast_info{}, Args),
 
     {RenderAst, RenderInfo} = case Context#dtl_context.custom_tags_module of
