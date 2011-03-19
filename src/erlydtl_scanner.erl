@@ -70,7 +70,7 @@ scan([], Scanned, _, in_text) ->
                             
                             "extends", 
 
-                            %TODO "filter", "endfilter",
+                            "filter", "endfilter",
 
                             "firstof",
 
@@ -78,7 +78,7 @@ scan([], Scanned, _, in_text) ->
 
                             "if", "else", "endif", "not", "or", "and", 
 
-                            "ifchanged", 
+                            %TODO "ifchanged", 
                             
                             "ifequal", "endifequal", 
 
@@ -92,15 +92,15 @@ scan([], Scanned, _, in_text) ->
                             
                             %TODO "spaceless", "endspaceless", 
                             
-                            %TODO "ssi", 
+                            "ssi", 
                             
-                            %TODO "templatetag",
+                            "templatetag", "openblock", "closeblock", "openvariable", "closevariable", "openbrace", "closebrace", "opencomment", "closecomment",
 
                             %TODO "url",
 
-                            %TODO "widthratio",
+                            "widthratio",
 
-                            "call", "with", %TODO "endwith",
+                            "call", "with", "endwith",
                             
                             "trans", "noop"
                         ], 

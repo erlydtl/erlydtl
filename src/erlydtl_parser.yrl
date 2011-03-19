@@ -38,9 +38,13 @@ Nonterminals
 
     ValueBraced
 
-    ExtendsTag
-    IncludeTag
-    NowTag
+    Value
+    Variable
+    Filter
+    
+    AutoEscapeBlock
+    AutoEscapeBraced
+    EndAutoEscapeBraced
 
     BlockBlock
     BlockBraced
@@ -54,9 +58,18 @@ Nonterminals
     CycleNames
     CycleNamesCompat
 
+    ExtendsTag
+    IncludeTag
+    NowTag
+
     FirstofTag
     FirstofList
     FirstofValues
+
+    FilterBlock
+    FilterBraced
+    EndFilterBraced
+    Filters
 
     ForBlock
     ForBraced
@@ -81,18 +94,21 @@ Nonterminals
     IfNotEqualExpression
     EndIfNotEqualBraced      
 
-    AutoEscapeBlock
-    AutoEscapeBraced
-    EndAutoEscapeBraced
-
-    Value
-    Variable
-    Filter
-    
     CustomTag
     Args
 
+    SSITag
+
     TransTag    
+
+    TemplatetagTag
+    Templatetag
+
+    WidthRatioTag
+
+    WithBlock
+    WithBraced
+    EndWithBraced
 
     CallTag
     CallWithTag
@@ -113,11 +129,14 @@ Terminals
     endautoescape_keyword
     endblock_keyword
     endcomment_keyword
+    endfilter_keyword
     endfor_keyword
     endif_keyword
     endifequal_keyword
     endifnotequal_keyword
+    endwith_keyword
     extends_keyword
+    filter_keyword
     firstof_keyword
     for_keyword
     identifier
@@ -133,9 +152,20 @@ Terminals
     or_keyword
     open_tag
     open_var
+    ssi_keyword
     string_literal
     string
+    templatetag_keyword
+        openblock_keyword
+        closeblock_keyword
+        openvariable_keyword
+        closevariable_keyword
+        openbrace_keyword
+        closebrace_keyword
+        opencomment_keyword
+        closecomment_keyword
     trans_keyword
+    widthratio_keyword
     with_keyword
     ',' '|' '=' ':' '.'
     '==' '!='
@@ -154,23 +184,28 @@ Unary 600 Unot.
 
 Elements -> '$empty' : [].
 Elements -> Elements string : '$1' ++ ['$2'].
-Elements -> Elements TransTag : '$1' ++ ['$2'].
-Elements -> Elements ValueBraced : '$1' ++ ['$2'].
-Elements -> Elements ExtendsTag : '$1' ++ ['$2'].
-Elements -> Elements IncludeTag : '$1' ++ ['$2'].
-Elements -> Elements NowTag : '$1' ++ ['$2'].
-Elements -> Elements CycleTag : '$1' ++ ['$2'].
+Elements -> Elements AutoEscapeBlock : '$1' ++ ['$2'].
 Elements -> Elements BlockBlock : '$1' ++ ['$2'].
+Elements -> Elements CallTag : '$1' ++ ['$2'].
+Elements -> Elements CallWithTag : '$1' ++ ['$2'].
+Elements -> Elements CommentBlock : '$1' ++ ['$2'].
+Elements -> Elements CustomTag : '$1' ++ ['$2'].
+Elements -> Elements CycleTag : '$1' ++ ['$2'].
+Elements -> Elements ExtendsTag : '$1' ++ ['$2'].
+Elements -> Elements FilterBlock : '$1' ++ ['$2'].
 Elements -> Elements FirstofTag : '$1' ++ ['$2'].
 Elements -> Elements ForBlock : '$1' ++ ['$2'].
 Elements -> Elements IfBlock : '$1' ++ ['$2'].
 Elements -> Elements IfEqualBlock : '$1' ++ ['$2'].
 Elements -> Elements IfNotEqualBlock : '$1' ++ ['$2'].
-Elements -> Elements AutoEscapeBlock : '$1' ++ ['$2'].
-Elements -> Elements CommentBlock : '$1' ++ ['$2'].
-Elements -> Elements CustomTag : '$1' ++ ['$2'].
-Elements -> Elements CallTag : '$1' ++ ['$2'].
-Elements -> Elements CallWithTag : '$1' ++ ['$2'].
+Elements -> Elements IncludeTag : '$1' ++ ['$2'].
+Elements -> Elements NowTag : '$1' ++ ['$2'].
+Elements -> Elements SSITag : '$1' ++ ['$2'].
+Elements -> Elements TemplatetagTag : '$1' ++ ['$2'].
+Elements -> Elements TransTag : '$1' ++ ['$2'].
+Elements -> Elements ValueBraced : '$1' ++ ['$2'].
+Elements -> Elements WidthRatioTag : '$1' ++ ['$2'].
+Elements -> Elements WithBlock : '$1' ++ ['$2'].
 
 ValueBraced -> open_var Value close_var : '$2'.
 
@@ -181,18 +216,17 @@ Value -> Literal : '$1'.
 Variable -> identifier : {variable, '$1'}.
 Variable -> Variable '.' identifier : {attribute, {'$3', '$1'}}.
 
-TransTag -> open_tag trans_keyword string_literal close_tag : {trans, '$3'}.
-TransTag -> open_tag trans_keyword Variable close_tag : {trans, '$3'}.
-TransTag -> open_tag trans_keyword string_literal noop_keyword close_tag : '$3'.
-TransTag -> open_tag trans_keyword Variable noop_keyword close_tag : '$3'.
-
-ExtendsTag -> open_tag extends_keyword string_literal close_tag : {extends, '$3'}.
-IncludeTag -> open_tag include_keyword string_literal close_tag : {include, '$3'}.
-NowTag -> open_tag now_keyword string_literal close_tag : {date, now, '$3'}.
+AutoEscapeBlock -> AutoEscapeBraced Elements EndAutoEscapeBraced : {autoescape, '$1', '$2'}.
+AutoEscapeBraced -> open_tag autoescape_keyword identifier close_tag : '$3'.
+EndAutoEscapeBraced -> open_tag endautoescape_keyword close_tag.
 
 BlockBlock -> BlockBraced Elements EndBlockBraced : {block, '$1', '$2'}.
 BlockBraced -> open_tag block_keyword identifier close_tag : '$3'.
 EndBlockBraced -> open_tag endblock_keyword close_tag.
+
+ExtendsTag -> open_tag extends_keyword string_literal close_tag : {extends, '$3'}.
+IncludeTag -> open_tag include_keyword string_literal close_tag : {include, '$3'}.
+NowTag -> open_tag now_keyword string_literal close_tag : {date, now, '$3'}.
 
 CommentBlock -> CommentBraced Elements EndCommentBraced : {comment, '$2'}.
 CommentBraced -> open_tag comment_keyword close_tag.
@@ -207,6 +241,13 @@ CycleNames -> CycleNames Value : '$1' ++ ['$2'].
 CycleNamesCompat -> identifier ',' : ['$1'].
 CycleNamesCompat -> CycleNamesCompat identifier ',' : '$1' ++ ['$2'].
 CycleNamesCompat -> CycleNamesCompat identifier : '$1' ++ ['$2'].
+
+FilterBlock -> FilterBraced Elements EndFilterBraced : {filter, '$1', '$2'}.
+FilterBraced -> open_tag filter_keyword Filters close_tag : '$3'.
+EndFilterBraced -> open_tag endfilter_keyword close_tag.
+
+Filters -> Filter : ['$1'].
+Filters -> Filters '|' Filter : '$1' ++ ['$3'].
 
 FirstofTag -> open_tag firstof_keyword FirstofList close_tag : '$3'.
 FirstofList -> FirstofValues : {firstof, '$1'}.
@@ -256,9 +297,29 @@ IfNotEqualBraced -> open_tag ifnotequal_keyword IfNotEqualExpression Value close
 IfNotEqualExpression -> Value : '$1'.
 EndIfNotEqualBraced -> open_tag endifnotequal_keyword close_tag.
 
-AutoEscapeBlock -> AutoEscapeBraced Elements EndAutoEscapeBraced : {autoescape, '$1', '$2'}.
-AutoEscapeBraced -> open_tag autoescape_keyword identifier close_tag : '$3'.
-EndAutoEscapeBraced -> open_tag endautoescape_keyword close_tag.
+SSITag -> open_tag ssi_keyword Value close_tag : {ssi, '$3'}.
+
+TemplatetagTag -> open_tag templatetag_keyword Templatetag close_tag : {templatetag, '$3'}.
+
+Templatetag -> openblock_keyword : '$1'.
+Templatetag -> closeblock_keyword : '$1'.
+Templatetag -> openvariable_keyword : '$1'.
+Templatetag -> closevariable_keyword : '$1'.
+Templatetag -> openbrace_keyword : '$1'.
+Templatetag -> closebrace_keyword : '$1'.
+Templatetag -> opencomment_keyword : '$1'.
+Templatetag -> closecomment_keyword : '$1'.
+
+TransTag -> open_tag trans_keyword string_literal close_tag : {trans, '$3'}.
+TransTag -> open_tag trans_keyword Variable close_tag : {trans, '$3'}.
+TransTag -> open_tag trans_keyword string_literal noop_keyword close_tag : '$3'.
+TransTag -> open_tag trans_keyword Variable noop_keyword close_tag : '$3'.
+
+WidthRatioTag -> open_tag widthratio_keyword Value Value number_literal close_tag : {widthratio, '$3', '$4', '$5'}.
+
+WithBlock -> WithBraced Elements EndWithBraced : {with, '$1', '$2'}.
+WithBraced -> open_tag with_keyword Args close_tag : '$3'.
+EndWithBraced -> open_tag endwith_keyword close_tag.
 
 Filter -> identifier : ['$1'].
 Filter -> identifier ':' Literal : ['$1', '$3'].

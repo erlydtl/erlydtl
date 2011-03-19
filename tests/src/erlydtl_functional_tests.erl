@@ -45,7 +45,7 @@ test_list() ->
         "for_records_preset", "include", "if", "if_preset", "ifequal",
         "ifequal_preset", "ifnotequal", "ifnotequal_preset", "now",
         "var", "var_preset", "cycle", "custom_tag", "custom_call", 
-        "include_template", "include_path",
+        "include_template", "include_path", "ssi",
         "extends_path", "extends_path2", "trans" ].
 
 setup_compile("for_list_preset") ->
@@ -153,6 +153,9 @@ setup("extends_path2") ->
     {ok, RenderVars};
 setup("trans") ->
     RenderVars = [{locale, "reverse"}],
+    {ok, RenderVars};
+setup("ssi") ->
+    RenderVars = [{path, filename:absname(filename:join(["tests", "input", "ssi_include.html"]))}],
     {ok, RenderVars};
 
 

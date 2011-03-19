@@ -3,9 +3,9 @@ ErlyDTL
 
 ErlyDTL implements most but not all of the Django Template Language.
 
-*Supported tags*: autoescape, block, comment, cycle, extends, firstof, for, if, ifchanged, ifequal, ifnotequal, include, now, trans
+*Supported tags*: autoescape, block, comment, cycle, extends, filter, firstof, for, if, ifequal, ifnotequal, include, now, ssi, templatetag, trans, widthratio, with
 
-_Unsupported tags_: csrf_token, filter, regroup, spaceless, ssi, templatetag, url, widthratio
+_Unsupported tags_: csrf_token, ifchanged, regroup, spaceless, url
 
 *Supported filters*: add, addslashes, capfirst, center, cut, date, default, default_if_none, dictsort, dictsortreversed, divisibleby, escape, escapejs, filesizeformat, first, fix_ampersands, floatformat, force_escape, format_integer, format_number, get_digit, join, last, length, length_is, linebreaks, linebreaksbr, linenumbers, ljust, lower, make_list, phonenumeric, pluralize, pprint, random, random_num, random_range, removetags, rjust, safe, safeseq, slice, slugify, stringformat, striptags, time, timesince, timeuntil, title, truncatewords, truncatewords_html, unordered_list, upper, urlencode, urlize, urlizetrunc, wordcount, wordwrap, yesno
 

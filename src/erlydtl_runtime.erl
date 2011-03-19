@@ -189,3 +189,11 @@ increment_counter_stats([{counter, Counter}, {counter0, Counter0}, {revcounter, 
 
 cycle(NamesTuple, Counters) when is_tuple(NamesTuple) ->
     element(fetch_value(counter0, Counters) rem size(NamesTuple) + 1, NamesTuple).
+
+widthratio(Numerator, Denominator, Scale) ->
+    round(Numerator / Denominator * Scale).
+
+read_file(Module, Function, FileName) ->
+    FileName = filename:absname(FileName),
+    {ok, Binary} = Module:Function(FileName),
+    binary_to_list(Binary).

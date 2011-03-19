@@ -84,27 +84,6 @@ tests() ->
                {"now functional",
                   <<"It is the {% now \"jS o\\f F Y\" %}.">>, [{var1, ""}], generate_test_date()}
             ]},
-        {"trans",
-                [
-                {"trans functional default locale",
-                  <<"Hello {% trans \"Hi\" %}">>, [], <<"Hello Hi">>
-                },
-                {"trans functional reverse locale",
-                    <<"Hello {% trans \"Hi\" %}">>, [], none, [{locale, "reverse"}], <<"Hello iH">>
-                },
-                {"trans literal at run-time",
-                    <<"Hello {% trans \"Hi\" %}">>, [], fun("Hi") -> "Konichiwa" end, [],
-                    <<"Hello Konichiwa">>},
-                {"trans variable at run-time",
-                    <<"Hello {% trans var1 %}">>, [{var1, "Hi"}], fun("Hi") -> "Konichiwa" end, [],
-                    <<"Hello Konichiwa">>},
-                {"trans literal at run-time: No-op",
-                    <<"Hello {% trans \"Hi\" noop %}">>, [], fun("Hi") -> "Konichiwa" end, [],
-                    <<"Hello Hi">>},
-                {"trans variable at run-time: No-op",
-                    <<"Hello {% trans var1 noop %}">>, [{var1, "Hi"}], fun("Hi") -> "Konichiwa" end, [],
-                    <<"Hello Hi">>}
-        ]},
         {"if", [
                 {"If/else",
                     <<"{% if var1 %}boo{% else %}yay{% endif %}">>, [{var1, ""}], <<"yay">>},
@@ -339,7 +318,13 @@ tests() ->
                     <<"{% ifnotequal \"foo\" var1 %}yay{% else %}boo{% endifnotequal %}">>,
                     [{var1, "bar"}], <<"yay">>}
             ]},
-       {"filters", [
+        {"filter tag", [
+                {"Apply a filter",
+                    <<"{% filter escape %}&{% endfilter %}">>, [], <<"&amp;">>},
+                {"Chained filters",
+                    <<"{% filter linebreaksbr|escape %}\n{% endfilter %}">>, [], <<"&lt;br /&gt;">>}
+            ]},
+        {"filters", [
                {"Filter a literal",
                     <<"{{ \"pop\"|capfirst }}">>, [],
                     <<"Pop">>},
@@ -903,6 +888,49 @@ tests() ->
                 <<"{% firstof foo bar \"baz\" %}">>,
                 [],
                 <<"baz">>}
+        ]},
+    {"templatetag", [
+            {"openblock", <<"{% templatetag openblock %}">>, [], <<"{%">>},
+            {"closeblock", <<"{% templatetag closeblock %}">>, [], <<"%}">>},
+            {"openvariable", <<"{% templatetag openvariable %}">>, [], <<"{{">>},
+            {"closevariable", <<"{% templatetag closevariable %}">>, [], <<"}}">>},
+            {"openbrace", <<"{% templatetag openbrace %}">>, [], <<"{">>},
+            {"closebrace", <<"{% templatetag closebrace %}">>, [], <<"}">>},
+            {"opencomment", <<"{% templatetag opencomment %}">>, [], <<"{#">>},
+            {"closecomment", <<"{% templatetag closecomment %}">>, [], <<"#}">>}
+        ]},
+    {"trans",
+        [
+            {"trans functional default locale",
+                <<"Hello {% trans \"Hi\" %}">>, [], <<"Hello Hi">>
+            },
+            {"trans functional reverse locale",
+                <<"Hello {% trans \"Hi\" %}">>, [], none, [{locale, "reverse"}], <<"Hello iH">>
+            },
+            {"trans literal at run-time",
+                <<"Hello {% trans \"Hi\" %}">>, [], fun("Hi") -> "Konichiwa" end, [],
+                <<"Hello Konichiwa">>},
+            {"trans variable at run-time",
+                <<"Hello {% trans var1 %}">>, [{var1, "Hi"}], fun("Hi") -> "Konichiwa" end, [],
+                <<"Hello Konichiwa">>},
+            {"trans literal at run-time: No-op",
+                <<"Hello {% trans \"Hi\" noop %}">>, [], fun("Hi") -> "Konichiwa" end, [],
+                <<"Hello Hi">>},
+            {"trans variable at run-time: No-op",
+                <<"Hello {% trans var1 noop %}">>, [{var1, "Hi"}], fun("Hi") -> "Konichiwa" end, [],
+                <<"Hello Hi">>}
+        ]},
+    {"widthratio", [
+            {"Literals", <<"{% widthratio 5 10 100 %}">>, [], <<"50">>},
+            {"Rounds up", <<"{% widthratio a b 100 %}">>, [{a, 175}, {b, 200}], <<"88">>}
+        ]},
+    {"with", [
+            {"Cache literal",
+                <<"{% with a=1 %}{{ a }}{% endwith %}">>, [], <<"1">>},
+            {"Cache variable",
+                <<"{% with a=b %}{{ a }}{% endwith %}">>, [{b, "foo"}], <<"foo">>},
+            {"Cache multiple",
+                <<"{% with alpha=1 beta=b %}{{ alpha }}/{{ beta }}{% endwith %}">>, [{b, 2}], <<"1/2">>}
         ]}
     ].
  
