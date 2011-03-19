@@ -92,7 +92,7 @@ scan([], Scanned, _, in_text) ->
                             
                             "spaceless", "endspaceless", 
                             
-                            "ssi", 
+                            "ssi", "parsed",
                             
                             "templatetag", "openblock", "closeblock", "openvariable", "closevariable", "openbrace", "closebrace", "opencomment", "closecomment",
 

@@ -200,7 +200,10 @@ spaceless(Contents) ->
     Contents4 = re:replace(Contents3, ">\s+<", "><", [global, {return,list}]),
     Contents4.
 
-read_file(Module, Function, FileName) ->
-    FileName = filename:absname(FileName),
-    {ok, Binary} = Module:Function(FileName),
+read_file(Module, Function, DocRoot, FileName) ->
+    AbsName = case filename:absname(FileName) of
+        FileName -> FileName;
+        _ -> filename:join([DocRoot, FileName])
+    end,
+    {ok, Binary} = Module:Function(AbsName),
     binary_to_list(Binary).

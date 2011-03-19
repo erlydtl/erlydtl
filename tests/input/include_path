@@ -1,5 +1,5 @@
 main file
 
-{% include "path1/template1" %}
+{% ssi "path1/template1" parsed %}
 
 {{ base_var }}

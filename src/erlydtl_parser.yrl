@@ -154,6 +154,7 @@ Terminals
     or_keyword
     open_tag
     open_var
+    parsed_keyword
     spaceless_keyword
     ssi_keyword
     string_literal
@@ -232,7 +233,10 @@ BlockBraced -> open_tag block_keyword identifier close_tag : '$3'.
 EndBlockBraced -> open_tag endblock_keyword close_tag.
 
 ExtendsTag -> open_tag extends_keyword string_literal close_tag : {extends, '$3'}.
-IncludeTag -> open_tag include_keyword string_literal close_tag : {include, '$3'}.
+
+IncludeTag -> open_tag include_keyword string_literal close_tag : {include, '$3', []}.
+IncludeTag -> open_tag include_keyword string_literal with_keyword Args close_tag : {include, '$3', '$5'}.
+
 NowTag -> open_tag now_keyword string_literal close_tag : {date, now, '$3'}.
 
 CommentBlock -> CommentBraced Elements EndCommentBraced : {comment, '$2'}.
@@ -304,6 +308,7 @@ EndIfNotEqualBraced -> open_tag endifnotequal_keyword close_tag.
 SpacelessBlock -> open_tag spaceless_keyword close_tag Elements open_tag endspaceless_keyword close_tag : {spaceless, '$4'}.
 
 SSITag -> open_tag ssi_keyword Value close_tag : {ssi, '$3'}.
+SSITag -> open_tag ssi_keyword string_literal parsed_keyword close_tag : {ssi_parsed, '$3'}.
 
 TemplatetagTag -> open_tag templatetag_keyword Templatetag close_tag : {templatetag, '$3'}.
 

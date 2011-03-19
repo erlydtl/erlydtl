@@ -511,12 +511,14 @@ body_ast(DjangoParseTree, Context, TreeWalker) ->
                 {IfAstInfo, TreeWalker1} = body_ast(IfContents, Context, TreeWalkerAcc),
                 {ElseAstInfo, TreeWalker2} = body_ast(ElseContents, Context, TreeWalker1),
                 ifelse_ast({'expr', "ne", Arg1, Arg2}, IfAstInfo, ElseAstInfo, Context, TreeWalker2);                    
-            ({'include', {string_literal, _, File}}, TreeWalkerAcc) ->
-                include_ast(unescape_string_literal(File), Context, TreeWalkerAcc);
+            ({'include', {string_literal, _, File}, Args}, TreeWalkerAcc) ->
+                include_ast(unescape_string_literal(File), Args, Context, TreeWalkerAcc);
             ({'spaceless', Contents}, TreeWalkerAcc) ->
                 spaceless_ast(Contents, Context, TreeWalkerAcc);
             ({'ssi', Arg}, TreeWalkerAcc) ->
                 ssi_ast(Arg, Context, TreeWalkerAcc);
+            ({'ssi_parsed', {string_literal, _, FileName}}, TreeWalkerAcc) ->
+                ssi_parsed_ast(unescape_string_literal(FileName), Context, TreeWalkerAcc);
             ({'string', _Pos, String}, TreeWalkerAcc) -> 
                 string_ast(String, TreeWalkerAcc);
             ({'tag', {'identifier', _, Name}, Args}, TreeWalkerAcc) ->
@@ -685,7 +687,29 @@ string_ast(String, TreeWalker) ->
     % {{erl_syntax:binary([erl_syntax:binary_field(erl_syntax:integer(X)) || X <- String]), #ast_info{}}, TreeWalker}.       
 
 
-include_ast(File, Context, TreeWalker) ->
+include_ast(File, ArgList, Context, TreeWalker) ->
+    FilePath = full_path(File, Context#dtl_context.doc_root),
+    case parse(FilePath, Context) of
+        {ok, InclusionParseTree, CheckSum} ->
+            {NewScope, {ArgInfo, TreeWalker1}} = lists:mapfoldl(fun
+                    ({{identifier, _, LocalVarName}, Value}, {AstInfo1, TreeWalker1}) ->
+                        {{Ast, Info}, TreeWalker2} = value_ast(Value, false, Context, TreeWalker1),
+                        {{LocalVarName, Ast}, {merge_info(AstInfo1, Info), TreeWalker2}}
+                end, {#ast_info{}, TreeWalker}, ArgList),
+
+            {{BodyAst, BodyInfo}, TreeWalker2} = with_dependency({FilePath, CheckSum}, 
+                body_ast(InclusionParseTree, Context#dtl_context{
+                        parse_trail = [FilePath | Context#dtl_context.parse_trail],
+                        local_scopes = [NewScope]
+                    }, TreeWalker1)),
+
+            {{BodyAst, merge_info(BodyInfo, ArgInfo)}, TreeWalker2};
+        Err ->
+            throw(Err)
+    end.
+    
+% include at compile-time
+ssi_parsed_ast(File, Context, TreeWalker) ->
     FilePath = full_path(File, Context#dtl_context.doc_root),
     case parse(FilePath, Context) of
         {ok, InclusionParseTree, CheckSum} ->
@@ -694,7 +718,15 @@ include_ast(File, Context, TreeWalker) ->
         Err ->
             throw(Err)
     end.
-    
+
+% include at run-time
+ssi_ast(FileName, Context, TreeWalker) ->
+    {{Ast, Info}, TreeWalker1} = value_ast(FileName, true, Context, TreeWalker),
+    {Mod, Fun} = Context#dtl_context.reader,
+    {{erl_syntax:application(
+                erl_syntax:atom(erlydtl_runtime),
+                erl_syntax:atom(read_file),
+                [erl_syntax:atom(Mod), erl_syntax:atom(Fun), erl_syntax:string(Context#dtl_context.doc_root), Ast]), Info}, TreeWalker1}.
 
 filter_tag_ast(FilterList, Contents, Context, TreeWalker) ->
     {{InnerAst, Info}, TreeWalker1} = body_ast(Contents, Context#dtl_context{auto_escape = did}, TreeWalker),
@@ -970,14 +1002,6 @@ now_ast(FormatString, _Context, TreeWalker) ->
         [erl_syntax:string(UnescapeOuter)]),
         #ast_info{}}, TreeWalker}.
 
-ssi_ast(FileName, Context, TreeWalker) ->
-    {{Ast, Info}, TreeWalker1} = value_ast(FileName, true, Context, TreeWalker),
-    {Mod, Fun} = Context#dtl_context.reader,
-    {{erl_syntax:application(
-                erl_syntax:atom(erlydtl_runtime),
-                erl_syntax:atom(read_file),
-                [erl_syntax:atom(Mod), erl_syntax:atom(Fun), Ast]), Info}, TreeWalker1}.
-
 spaceless_ast(Contents, Context, TreeWalker) ->
     {{Ast, Info}, TreeWalker1} = body_ast(Contents, Context, TreeWalker),
     {{erl_syntax:application(
@@ -1005,7 +1029,10 @@ unescape_string_literal([C | Rest], Acc, slash) ->
 
 
 full_path(File, DocRoot) ->
-    filename:join([DocRoot, File]).
+    case filename:absname(File) of
+        File -> File;
+        _ -> filename:join([DocRoot, File])
+    end.
         
 %%-------------------------------------------------------------------
 %% Custom tags
