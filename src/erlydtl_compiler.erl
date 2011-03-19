@@ -513,6 +513,8 @@ body_ast(DjangoParseTree, Context, TreeWalker) ->
                 ifelse_ast({'expr', "ne", Arg1, Arg2}, IfAstInfo, ElseAstInfo, Context, TreeWalker2);                    
             ({'include', {string_literal, _, File}}, TreeWalkerAcc) ->
                 include_ast(unescape_string_literal(File), Context, TreeWalkerAcc);
+            ({'spaceless', Contents}, TreeWalkerAcc) ->
+                spaceless_ast(Contents, Context, TreeWalkerAcc);
             ({'ssi', Arg}, TreeWalkerAcc) ->
                 ssi_ast(Arg, Context, TreeWalkerAcc);
             ({'string', _Pos, String}, TreeWalkerAcc) -> 
@@ -975,6 +977,13 @@ ssi_ast(FileName, Context, TreeWalker) ->
                 erl_syntax:atom(erlydtl_runtime),
                 erl_syntax:atom(read_file),
                 [erl_syntax:atom(Mod), erl_syntax:atom(Fun), Ast]), Info}, TreeWalker1}.
+
+spaceless_ast(Contents, Context, TreeWalker) ->
+    {{Ast, Info}, TreeWalker1} = body_ast(Contents, Context, TreeWalker),
+    {{erl_syntax:application(
+                erl_syntax:atom(erlydtl_runtime),
+                erl_syntax:atom(spaceless),
+                [Ast]), Info}, TreeWalker1}.
 
 unescape_string_literal(String) ->
     unescape_string_literal(string:strip(String, both, 34), [], noslash).

@@ -193,6 +193,13 @@ cycle(NamesTuple, Counters) when is_tuple(NamesTuple) ->
 widthratio(Numerator, Denominator, Scale) ->
     round(Numerator / Denominator * Scale).
 
+spaceless(Contents) ->
+    Contents1 = lists:flatten(Contents),
+    Contents2 = re:replace(Contents1, "^\s+<", "<", [{return,list}]),
+    Contents3 = re:replace(Contents2, ">\s+$", ">", [{return,list}]),
+    Contents4 = re:replace(Contents3, ">\s+<", "><", [global, {return,list}]),
+    Contents4.
+
 read_file(Module, Function, FileName) ->
     FileName = filename:absname(FileName),
     {ok, Binary} = Module:Function(FileName),

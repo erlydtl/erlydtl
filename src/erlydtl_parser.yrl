@@ -97,6 +97,8 @@ Nonterminals
     CustomTag
     Args
 
+    SpacelessBlock
+
     SSITag
 
     TransTag    
@@ -134,6 +136,7 @@ Terminals
     endif_keyword
     endifequal_keyword
     endifnotequal_keyword
+    endspaceless_keyword
     endwith_keyword
     extends_keyword
     filter_keyword
@@ -152,6 +155,7 @@ Terminals
     or_keyword
     open_tag
     open_var
+    spaceless_keyword
     ssi_keyword
     string_literal
     string
@@ -200,6 +204,7 @@ Elements -> Elements IfEqualBlock : '$1' ++ ['$2'].
 Elements -> Elements IfNotEqualBlock : '$1' ++ ['$2'].
 Elements -> Elements IncludeTag : '$1' ++ ['$2'].
 Elements -> Elements NowTag : '$1' ++ ['$2'].
+Elements -> Elements SpacelessBlock : '$1' ++ ['$2'].
 Elements -> Elements SSITag : '$1' ++ ['$2'].
 Elements -> Elements TemplatetagTag : '$1' ++ ['$2'].
 Elements -> Elements TransTag : '$1' ++ ['$2'].
@@ -296,6 +301,8 @@ IfNotEqualBlock -> IfNotEqualBraced Elements EndIfNotEqualBraced : {ifnotequal, 
 IfNotEqualBraced -> open_tag ifnotequal_keyword IfNotEqualExpression Value close_tag : ['$3', '$4'].
 IfNotEqualExpression -> Value : '$1'.
 EndIfNotEqualBraced -> open_tag endifnotequal_keyword close_tag.
+
+SpacelessBlock -> open_tag spaceless_keyword close_tag Elements open_tag endspaceless_keyword close_tag : {spaceless, '$4'}.
 
 SSITag -> open_tag ssi_keyword Value close_tag : {ssi, '$3'}.
 

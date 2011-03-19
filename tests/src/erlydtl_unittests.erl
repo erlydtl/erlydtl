@@ -889,6 +889,11 @@ tests() ->
                 [],
                 <<"baz">>}
         ]},
+    {"spaceless", [
+            {"Beginning", <<"{% spaceless %}    <b>foo</b>{% endspaceless %}">>, [], <<"<b>foo</b>">>},
+            {"Middle", <<"{% spaceless %}<b>foo</b>  <b>bar</b>{% endspaceless %}">>, [], <<"<b>foo</b><b>bar</b>">>},
+            {"End", <<"{% spaceless %}<b>foo</b>  {% endspaceless %}">>, [], <<"<b>foo</b>">>}
+        ]},
     {"templatetag", [
             {"openblock", <<"{% templatetag openblock %}">>, [], <<"{%">>},
             {"closeblock", <<"{% templatetag closeblock %}">>, [], <<"%}">>},

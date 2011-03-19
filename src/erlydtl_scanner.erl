@@ -90,7 +90,7 @@ scan([], Scanned, _, in_text) ->
 
                             %TODO "regroup", 
                             
-                            %TODO "spaceless", "endspaceless", 
+                            "spaceless", "endspaceless", 
                             
                             "ssi", 
                             
