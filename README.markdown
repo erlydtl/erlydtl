@@ -3,11 +3,11 @@ ErlyDTL
 
 ErlyDTL implements most but not all of the Django Template Language.
 
-_Supported tags_: autoescape, block, comment, cycle, extends, firstof, for, if, ifchanged, ifequal, ifnotequal, include, now, trans
+*Supported tags*: autoescape, block, comment, cycle, extends, firstof, for, if, ifchanged, ifequal, ifnotequal, include, now, trans
 
 _Unsupported tags_: csrf_token, filter, regroup, spaceless, ssi, templatetag, url, widthratio
 
-_Supported filters_: add, addslashes, capfirst, center, cut, date, default, default_if_none, dictsort, dictsortreversed, divisibleby, escape, escapejs, filesizeformat, first, fix_ampersands, floatformat, force_escape, format_integer, format_number, get_digit, join, last, length, length_is, linebreaks, linebreaksbr, linenumbers, ljust, lower, make_list, phonenumeric, pluralize, pluralize, pprint, random, random_num, random_range, removetags, rjust, safe, safeseq, slice, slugify, stringformat, striptags, time, time, timesince, timesince, timeuntil, timeuntil, title, truncatewords, truncatewords_html, unordered_list, upper, urlencode, urlize, urlize, urlizetrunc, wordcount, wordwrap, yesno
+*Supported filters*: add, addslashes, capfirst, center, cut, date, default, default_if_none, dictsort, dictsortreversed, divisibleby, escape, escapejs, filesizeformat, first, fix_ampersands, floatformat, force_escape, format_integer, format_number, get_digit, join, last, length, length_is, linebreaks, linebreaksbr, linenumbers, ljust, lower, make_list, phonenumeric, pluralize, pprint, random, random_num, random_range, removetags, rjust, safe, safeseq, slice, slugify, stringformat, striptags, time, timesince, timeuntil, title, truncatewords, truncatewords_html, unordered_list, upper, urlencode, urlize, urlizetrunc, wordcount, wordwrap, yesno
 
 _Unsupported filter_: iriencode
 
