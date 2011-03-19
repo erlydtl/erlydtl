@@ -102,7 +102,7 @@
         title/1,
         truncatewords/2,
         %truncatewords_html/,
-        %unordered_list/1,
+        unordered_list/1,
         upper/1,
         urlencode/1,
         urlize/1,
@@ -706,26 +706,16 @@ truncatewords(Input, Max) ->
     truncatewords(Input, Max, []).
 
 %% @doc Recursively takes a self-nested list and returns an HTML unordered list -- WITHOUT opening and closing <ul> tags. 
-%%TODO: finish unordered_list
-%% unordered_list(List) ->
-%%         lists:reverse(unordered_list(List, [])).
-%%  
-%% unordered_list([], Acc) ->
-%%         Acc;
-%% unordered_list(List, Acc) ->   
-%%         [First|Rest] = List,
-%%         io:format("First is_list: ~p, ~p~n", [First, is_list(First)]),
-%%         case is_list(First) of
-%%             true ->
-%%                 [First|Rest] = First,
-%%                 Return = [First | Acc],
-%%                 "<ul>" ++ unordered_list(Rest,Return) + "</ul>";
-%%             false ->
-%%                 Return = [First | Acc],
-%%                 "<li>" ++ unordered_list(Rest,Return) + "</li>"
-%%         end.
-
-
+unordered_list(List) ->
+    String = lists:flatten(unordered_list(List, [])),
+    string:substr(String, 5, erlang:length(String) - 9).
+  
+unordered_list([], Acc) ->
+    ["<ul>", lists:reverse(Acc), "</ul>"];
+unordered_list([First|_] = List, []) when is_integer(First) ->
+    "<li>"++List;
+unordered_list([First|Rest], Acc) when is_list(First) ->
+    unordered_list(Rest, [unordered_list(First, [])|Acc]).
 
 %% @doc Converts a string into all uppercase.
 upper(Input) when is_binary(Input) ->
