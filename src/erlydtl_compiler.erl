@@ -852,7 +852,7 @@ auto_escape(Value, _, _) ->
     Value.
 
 firstof_ast(Vars, Context, TreeWalker) ->
-	body_ast([lists:foldl(fun
+	body_ast([lists:foldr(fun
         ({L, _, _}=Var, []) when L=:=string_literal;L=:=number_literal ->
             Var;
         ({L, _, _}, _) when L=:=string_literal;L=:=number_literal ->

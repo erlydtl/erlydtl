@@ -39,6 +39,7 @@ Nonterminals
     ValueBraced
 
     Value
+    Values
     Variable
     Filter
     
@@ -63,8 +64,6 @@ Nonterminals
     NowTag
 
     FirstofTag
-    FirstofList
-    FirstofValues
 
     FilterBlock
     FilterBraced
@@ -218,6 +217,9 @@ Value -> Value '|' Filter : {apply_filter, '$1', '$3'}.
 Value -> Variable : '$1'.
 Value -> Literal : '$1'.
 
+Values -> Value : ['$1'].
+Values -> Values Value : '$1' ++ ['$2'].
+
 Variable -> identifier : {variable, '$1'}.
 Variable -> Variable '.' identifier : {attribute, {'$3', '$1'}}.
 
@@ -254,10 +256,7 @@ EndFilterBraced -> open_tag endfilter_keyword close_tag.
 Filters -> Filter : ['$1'].
 Filters -> Filters '|' Filter : '$1' ++ ['$3'].
 
-FirstofTag -> open_tag firstof_keyword FirstofList close_tag : '$3'.
-FirstofList -> FirstofValues : {firstof, '$1'}.
-FirstofValues -> FirstofValues Value : ['$2'|'$1'].
-FirstofValues -> Value : ['$1'].
+FirstofTag -> open_tag firstof_keyword Values close_tag : {firstof, '$3'}.
 
 ForBlock -> ForBraced Elements EndForBraced : {for, '$1', '$2'}.
 ForBlock -> ForBraced Elements EmptyBraced Elements EndForBraced : {for, '$1', '$2', '$4'}.

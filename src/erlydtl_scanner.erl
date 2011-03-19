@@ -96,7 +96,7 @@ scan([], Scanned, _, in_text) ->
                             
                             "templatetag", "openblock", "closeblock", "openvariable", "closevariable", "openbrace", "closebrace", "opencomment", "closecomment",
 
-                            %TODO "url",
+                            % "url", - implemented as custom tag
 
                             "widthratio",
 

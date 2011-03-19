@@ -67,7 +67,7 @@
         format_integer/1,
         format_number/1,
         get_digit/2,
-        %iriencode/1,
+        iriencode/1,
         join/2,
         last/1,
         length/1,
@@ -117,6 +117,27 @@
         (C >= $0 andalso C =< $9) orelse
         (C =:= $\. orelse C =:= $-
         orelse C =:= $~ orelse C =:= $_))).
+
+-define(NO_IRI_ENCODE(C), (?NO_ENCODE(C) orelse (
+            C =:= $/ orelse 
+            C =:= $# orelse 
+            C =:= $[ orelse
+            C =:= $] orelse
+            C =:= $= orelse
+            C =:= $: orelse
+            C =:= $; orelse
+            C =:= $$ orelse
+            C =:= $& orelse
+            C =:= $( orelse
+            C =:= $) orelse
+            C =:= $+ orelse
+            C =:= $, orelse
+            C =:= $! orelse
+            C =:= $? orelse
+            C =:= $* orelse
+            C =:= $@ orelse
+            C =:= $' orelse
+            C =:= $~))).
  
 -define(KILOBYTE, 1024).
 -define(MEGABYTE, (1024 * ?KILOBYTE)).
@@ -307,6 +328,9 @@ get_digit(Input, Digit) when Digit > 0 ->
     lists:nth(Digit, lists:reverse(Input)) - $0;
 get_digit(Input, _) ->
     Input.
+
+iriencode(Input) ->
+    iriencode(unicode:characters_to_list(Input), []).
 
 %% @doc Joins a list with a given separator.
 join(Input, Separator) when is_list(Input) ->
@@ -831,6 +855,16 @@ fix_ampersands("&" ++ Rest, Acc) ->
     fix_ampersands(Rest, lists:reverse("&amp;", Acc));
 fix_ampersands([C | Rest], Acc) ->
     fix_ampersands(Rest, [C | Acc]).
+
+iriencode([], Acc) ->
+    lists:reverse(Acc);
+iriencode([C | Rest], Acc) when ?NO_IRI_ENCODE(C) ->
+    iriencode(Rest, [C | Acc]);
+iriencode([$\s | Rest], Acc) ->
+    iriencode(Rest, [$+ | Acc]);
+iriencode([C | Rest], Acc) ->
+    <<Hi:4, Lo:4>> = <<C>>,
+    iriencode(Rest, [hexdigit(Lo), hexdigit(Hi), $\% | Acc]).
 
 join_io([], _Sep) -> [];
 join_io([_] = X, _Sep) -> X;

@@ -1,15 +1,15 @@
 ErlyDTL
 =======
 
-ErlyDTL implements most but not all of the Django Template Language.
+ErlyDTL compiles Django Template Language to Erlang bytecode.
 
 *Supported tags*: autoescape, block, comment, cycle, extends, filter, firstof, for, if, ifequal, ifnotequal, include, now, spaceless, ssi, templatetag, trans, widthratio, with
 
 _Unsupported tags_: csrf_token, ifchanged, regroup, url
 
-*Supported filters*: add, addslashes, capfirst, center, cut, date, default, default_if_none, dictsort, dictsortreversed, divisibleby, escape, escapejs, filesizeformat, first, fix_ampersands, floatformat, force_escape, format_integer, format_number, get_digit, join, last, length, length_is, linebreaks, linebreaksbr, linenumbers, ljust, lower, make_list, phonenumeric, pluralize, pprint, random, random_num, random_range, removetags, rjust, safe, safeseq, slice, slugify, stringformat, striptags, time, timesince, timeuntil, title, truncatewords, truncatewords_html, unordered_list, upper, urlencode, urlize, urlizetrunc, wordcount, wordwrap, yesno
+*Supported filters*: add, addslashes, capfirst, center, cut, date, default, default_if_none, dictsort, dictsortreversed, divisibleby, escape, escapejs, filesizeformat, first, fix_ampersands, floatformat, force_escape, format_integer, format_number, get_digit, iriencode, join, last, length, length_is, linebreaks, linebreaksbr, linenumbers, ljust, lower, make_list, phonenumeric, pluralize, pprint, random, random_num, random_range, removetags, rjust, safe, safeseq, slice, slugify, stringformat, striptags, time, timesince, timeuntil, title, truncatewords, truncatewords_html, unordered_list, upper, urlencode, urlize, urlizetrunc, wordcount, wordwrap, yesno
 
-_Unsupported filter_: iriencode
+_Unsupported filters_: _none_
 
 Project homepage: <http://code.google.com/p/erlydtl/>
 

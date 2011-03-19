@@ -425,6 +425,8 @@ tests() ->
                     <<"{{ var1|format_number }}">>, [{var1, fun() -> fun() -> 31 end end}], <<"31">>},
                 {"|get_digit:\"2\"",
                     <<"{{ var1|get_digit:\"2\" }}">>, [{var1, 42}], <<"4">>},
+                {"|iriencode",
+                    <<"{{ url|iriencode }}">>, [{url, "You #$*@!!"}], <<"You+#$*@!!">>},
                 {"|join:\", \" (list)",
                     <<"{{ var1|join:\", \" }}">>, [{var1, ["Liberte", "Egalite", "Fraternite"]}],
                     <<"Liberte, Egalite, Fraternite">>},
