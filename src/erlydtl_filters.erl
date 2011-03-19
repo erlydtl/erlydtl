@@ -101,7 +101,7 @@
         timeuntil/2,
         title/1,
         truncatewords/2,
-        %truncatewords_html/,
+        truncatewords_html/2,
         unordered_list/1,
         upper/1,
         urlencode/1,
@@ -698,12 +698,20 @@ title(Input) when is_list(Input) ->
     title(Input, []).
 
 %% @doc Truncates a string after a certain number of words.
-truncatewords(Input, Max) when is_binary(Input) ->
-    list_to_binary(truncatewords(binary_to_list(Input), Max));
 truncatewords(_Input, Max) when Max =< 0 ->
     "";
+truncatewords(Input, Max) when is_binary(Input) ->
+    list_to_binary(truncatewords(binary_to_list(Input), Max));
 truncatewords(Input, Max) ->
     truncatewords(Input, Max, []).
+
+%% @doc Similar to truncatewords, except that it is aware of HTML tags.
+truncatewords_html(_Input, Max) when Max =< 0 ->
+    "";
+truncatewords_html(Input, Max) when is_binary(Input) ->
+    truncatewords_html(binary_to_list(Input), Max);
+truncatewords_html(Input, Max) ->
+    truncatewords_html(Input, Max, [], [], text).
 
 %% @doc Recursively takes a self-nested list and returns an HTML unordered list -- WITHOUT opening and closing <ul> tags. 
 unordered_list(List) ->
@@ -908,6 +916,35 @@ truncatewords([C1, C2|Rest], WordsLeft, Acc) when C1 =/= $\  andalso C2 =:= $\  
     truncatewords([C2|Rest], WordsLeft - 1, [C1|Acc]);
 truncatewords([C1|Rest], WordsLeft, Acc) ->
     truncatewords(Rest, WordsLeft, [C1|Acc]).
+
+truncatewords_html([], _WordsLeft, Acc, [], _) ->
+    lists:reverse(Acc);
+truncatewords_html(_Input, 0, Acc, [], _) ->
+    lists:reverse(Acc);
+truncatewords_html(Input, 0, Acc, [Tag|RestOfTags], done) ->
+    truncatewords_html(Input, 0, ">"++Tag++"/<" ++ Acc, RestOfTags, done);
+truncatewords_html(Input, 0, Acc, [Tag|RestOfTags], _) ->
+    truncatewords_html(Input, 0, "...>"++Tag++"/<" ++ Acc, RestOfTags, done);
+truncatewords_html([], WordsLeft, Acc, [Tag|RestOfTags], _) ->
+    truncatewords_html([], WordsLeft, ">"++Tag++"/<" ++ Acc, RestOfTags, text);
+truncatewords_html([C|Rest], WordsLeft, Acc, Tags, text) when C =:= $< ->
+    truncatewords_html(Rest, WordsLeft, [C|Acc], [""|Tags], tag);
+truncatewords_html([C1, C2|Rest], WordsLeft, Acc, Tags, text) when C1 =/= $\ , C2 =:= $\ ; C1 =/= $\ , C2 =:= $< ->
+    truncatewords_html([C2|Rest], WordsLeft - 1, [C1|Acc], Tags, text);
+truncatewords_html([C|Rest], WordsLeft, Acc, Tags, text) ->
+    truncatewords_html(Rest, WordsLeft, [C|Acc], Tags, text);
+truncatewords_html([C|Rest], WordsLeft, Acc, [""|Tags], tag) when C =:= $/ ->
+    truncatewords_html(Rest, WordsLeft, [C|Acc], Tags, close_tag);
+truncatewords_html([C|Rest], WordsLeft, Acc, [Tag|RestOfTags], tag) when C >= $a, C =< $z; C >= $A, C =< $Z ->
+    truncatewords_html(Rest, WordsLeft, [C|Acc], [[C|Tag]|RestOfTags], tag);
+truncatewords_html([C|Rest], WordsLeft, Acc, Tags, tag) when C =:= $> ->
+    truncatewords_html(Rest, WordsLeft, [C|Acc], Tags, text);
+truncatewords_html([C|Rest], WordsLeft, Acc, Tags, tag) ->
+    truncatewords_html(Rest, WordsLeft, [C|Acc], Tags, attrs);
+truncatewords_html([C|Rest], WordsLeft, Acc, Tags, attrs) when C =:= $> ->
+    truncatewords_html(Rest, WordsLeft, [C|Acc], Tags, text);
+truncatewords_html([C|Rest], WordsLeft, Acc, [_Tag|RestOfTags], close_tag) when C =:= $> ->
+    truncatewords_html(Rest, WordsLeft, [C|Acc], RestOfTags, text).
 
 wordcount([], Count) ->
     Count;
