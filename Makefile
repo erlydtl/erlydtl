@@ -1,23 +1,17 @@
 ERL=erl
-ERLC=erlc
-
-PARSER=src/erlydtl_parser
+REBAR=./rebar
 
 
 all: compile
 
-compile: $(PARSER).erl
+compile: 
+	@$(REBAR) compile
+
+compile_test:
 	-mkdir -p ebintest
 	$(ERL) -make 
 
-$(PARSER).erl: $(PARSER).yrl
-	$(ERLC) -o src src/erlydtl_parser.yrl
- 
-run: compile
-	$(ERL) -pa ebin
-
-
-test: compile
+test: compile compile_test
 	$(ERL) -noshell -pa ebin -pa ebintest \
 		-s erlydtl_functional_tests run_tests \
 		-s erlydtl_dateformat_tests run_tests \
@@ -26,7 +20,7 @@ test: compile
 		-s init stop
 	
 clean:
-	rm -fv ebin/*.beam
+	@$(REBAR) clean
 	rm -fv ebintest/*
-	rm -fv erl_crash.dump $(PARSER).erl
+	rm -fv erl_crash.dump
 	rm -fv tests/output/*
