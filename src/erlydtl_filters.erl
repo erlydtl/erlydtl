@@ -362,16 +362,26 @@ length_is(Input, Number) when is_list(Input), is_list(Number) ->
 
 %% @doc Replaces line breaks in plain text with appropriate HTML
 linebreaks(Input) when is_binary(Input) ->
-    linebreaks(binary_to_list(Input));
-% a bit of a hack; unlikely, but could replace "</p>\z\z<p>" literal by mistake 
+    linebreaks(binary_to_list(Input),[]);
 linebreaks(Input) ->
-    Input1 = re:replace(Input,"\r\n"       ,"<br />", [global,{return,list}]),
-    Input2 = re:replace(Input1, "\n[\n\r]+"  ,"</p>\z\z<p>", [global,{return,list}]),
-    Input3 = re:replace(Input2,"\r[\n\r]+"  ,"</p>\z\z<p>", [global,{return,list}]),
-    Input4 = re:replace(Input3,"\n"         ,"<br />", [global,{return,list}]),
-    Input5 = re:replace(Input4,"\r"         ,"<br />", [global,{return,list}]),
-    Input6 = re:replace(Input5,"</p>\z\z<p>","</p>\n\n<p>", [global,{return,list}]),
-    lists:flatten(["<p>", Input6,"</p>"]).
+    linebreaks(Input,[]).
+
+linebreaks([],Acc) ->
+    "<p>" ++ lists:reverse(Acc) ++ "</p>";
+linebreaks([$\n|T], ">p<"++_ = Acc) ->
+    linebreaks(T, Acc);
+linebreaks([$\r|T], ">p<"++_ = Acc) ->
+    linebreaks(T, Acc);
+linebreaks([$\n, $\n|T],Acc) ->
+    linebreaks(T, lists:reverse("</p><p>", Acc));
+linebreaks([$\r, $\n, $\r, $\n|T],Acc) ->
+    linebreaks(T, lists:reverse("</p><p>", Acc));
+linebreaks([$\r, $\n|T], Acc) ->
+    linebreaks(T, lists:reverse("<br />", Acc));
+linebreaks([$\n|T], Acc) ->
+    linebreaks(T, lists:reverse("<br />", Acc));
+linebreaks([C|T], Acc) ->
+    linebreaks(T, [C|Acc]).
 
 %% @doc Converts all newlines to HTML line breaks.
 linebreaksbr(Input) when is_binary(Input) ->
