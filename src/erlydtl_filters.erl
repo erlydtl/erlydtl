@@ -51,6 +51,7 @@
         capfirst/1,
         center/2,
         cut/2,
+        date/1,
         date/2,
         default/2,
         default_if_none/2,
@@ -186,11 +187,13 @@ cut(Input, Arg) when is_binary(Input) ->
 cut(Input, [Char]) when is_list(Input) ->
     cut(Input, Char, []).
  
+%% @doc Formats a date according to the default format.
+date(Input) ->
+    date(Input, "F j, Y").
+
 %% @doc Formats a date according to the given format.
 date(Input, FormatStr) when is_binary(Input) ->
     list_to_binary(date(binary_to_list(Input), FormatStr));
-date(Input, "") ->
-    date(Input, "F j, Y");
 date({{_,_,_} = Date,{_,_,_} = Time}, FormatStr) ->
     erlydtl_dateformat:format({Date, Time}, FormatStr);
 date({_,_,_} = Date, FormatStr) ->
