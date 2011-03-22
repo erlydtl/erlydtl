@@ -759,6 +759,10 @@ unordered_list([], Acc) ->
     ["<ul>", lists:reverse(Acc), "</ul>"];
 unordered_list([First|_] = List, []) when is_integer(First) ->
     "<li>"++List;
+unordered_list([First|Rest], Acc) when is_list(First), Rest == [] ->
+    unordered_list(Rest, ["</li>"] ++ [unordered_list(First, []) |  Acc ])  ;
+unordered_list([First|Rest], Acc) when is_list(First), is_integer(hd(hd(Rest))) ->
+    unordered_list(Rest, [unordered_list(First, []) ++ "</li>" |Acc]);
 unordered_list([First|Rest], Acc) when is_list(First) ->
     unordered_list(Rest, [unordered_list(First, [])|Acc]).
 

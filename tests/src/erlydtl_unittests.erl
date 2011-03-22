@@ -780,7 +780,7 @@ tests() ->
                     <<"<p>The <strong>Long and <em>Winding</em>...</strong></p>">>},
                 {"|unordered_list",
                     <<"{{ var1|unordered_list }}">>, [{var1, ["States", ["Kansas", ["Lawrence", "Topeka"], "Illinois"]]}],
-                    <<"<li>States<ul><li>Kansas<ul><li>Lawrence<li>Topeka</ul><li>Illinois</ul>">>},
+                    <<"<li>States<ul><li>Kansas<ul><li>Lawrence</li><li>Topeka</li></ul></li><li>Illinois</li></ul></li>">>},
                 {"|upper",
                     <<"{{ message|upper }}">>, [{message, "That man has a gun."}],
                     <<"THAT MAN HAS A GUN.">>},
