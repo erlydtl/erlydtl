@@ -200,14 +200,14 @@ scan([H | T], Scanned, {Row, Column}, {in_single_quote, Closer}) ->
 
 scan("}}-->" ++ T, Scanned, {Row, Column}, {_, "}}-->"}) ->
     scan(T, [{close_var, {Row, Column}, '}}-->'} | Scanned], 
-        {Row, Column + 2}, in_text);
+        {Row, Column + length("}}-->")}, in_text);
 
 scan("}}" ++ T, Scanned, {Row, Column}, {_, "}}"}) ->
     scan(T, [{close_var, {Row, Column}, '}}'} | Scanned], {Row, Column + 2}, in_text);
 
 scan("%}-->" ++ T, Scanned, {Row, Column}, {_, "%}-->"}) ->
     scan(T, [{close_tag, {Row, Column}, '%}-->'} | Scanned], 
-        {Row, Column + 2}, in_text);
+        {Row, Column + length("%}-->")}, in_text);
 
 scan("%}" ++ T, Scanned, {Row, Column}, {_, "%}"}) ->
     scan(T, [{close_tag, {Row, Column}, '%}'} | Scanned], 
