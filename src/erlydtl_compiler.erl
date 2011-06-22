@@ -119,10 +119,15 @@ compile_dir(Dir, Module, Options) ->
             ("."++_, Acc) -> Acc;
             (File, {ResultAcc, ErrorAcc}) ->
                 FilePath = filename:join([Dir, File]),
-                case parse(FilePath, Context) of
-                    ok -> {ResultAcc, ErrorAcc};
-                    {ok, DjangoParseTree, CheckSum} -> {[{File, DjangoParseTree, CheckSum}|ResultAcc], ErrorAcc};
-                    Err -> {ResultAcc, [Err|ErrorAcc]}
+                case filelib:is_dir(FilePath) of
+                    true ->
+                        {ResultAcc, ErrorAcc};
+                    false ->
+                        case parse(FilePath, Context) of
+                            ok -> {ResultAcc, ErrorAcc};
+                            {ok, DjangoParseTree, CheckSum} -> {[{File, DjangoParseTree, CheckSum}|ResultAcc], ErrorAcc};
+                            Err -> {ResultAcc, [Err|ErrorAcc]}
+                        end
                 end
         end, {[], []}, Files),
     case ParserErrors of
