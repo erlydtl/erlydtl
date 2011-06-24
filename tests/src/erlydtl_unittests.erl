@@ -922,20 +922,28 @@ tests() ->
                 <<"Hello {% trans \"Hi\" %}">>, [], <<"Hello Hi">>
             },
             {"trans functional reverse locale",
-                <<"Hello {% trans \"Hi\" %}">>, [], none, [{locale, "reverse"}], <<"Hello iH">>
+                <<"Hello {% trans \"Hi\" %}">>, [], [], [{locale, "reverse"}], <<"Hello iH">>
             },
             {"trans literal at run-time",
-                <<"Hello {% trans \"Hi\" %}">>, [], fun("Hi") -> "Konichiwa" end, [],
+                <<"Hello {% trans \"Hi\" %}">>, [], [{translation_fun, fun("Hi") -> "Konichiwa" end}], [],
                 <<"Hello Konichiwa">>},
             {"trans variable at run-time",
-                <<"Hello {% trans var1 %}">>, [{var1, "Hi"}], fun("Hi") -> "Konichiwa" end, [],
+                <<"Hello {% trans var1 %}">>, [{var1, "Hi"}], [{translation_fun, fun("Hi") -> "Konichiwa" end}], [],
                 <<"Hello Konichiwa">>},
             {"trans literal at run-time: No-op",
-                <<"Hello {% trans \"Hi\" noop %}">>, [], fun("Hi") -> "Konichiwa" end, [],
+                <<"Hello {% trans \"Hi\" noop %}">>, [], [{translation_fun, fun("Hi") -> "Konichiwa" end}], [],
                 <<"Hello Hi">>},
             {"trans variable at run-time: No-op",
-                <<"Hello {% trans var1 noop %}">>, [{var1, "Hi"}], fun("Hi") -> "Konichiwa" end, [],
+                <<"Hello {% trans var1 noop %}">>, [{var1, "Hi"}], [{translation_fun, fun("Hi") -> "Konichiwa" end}], [],
                 <<"Hello Hi">>}
+        ]},
+    {"blocktrans",
+        [
+            {"blocktrans default locale",
+                <<"{% blocktrans foo %}Hello{% endblocktrans %}">>, [], <<"Hello">>},
+            {"blocktrans choose locale",
+                <<"{% blocktrans hello %}Hello, {{ name }}{% endblocktrans %}">>, [{name, "Mr. President"}], [{locale, "de"}],
+                [{blocktrans_locales, ["de"]}, {blocktrans_fun, fun(hello, "de") -> <<"Guten tag, {{ name }}">> end}], <<"Guten tag, Mr. President">>}
         ]},
     {"widthratio", [
             {"Literals", <<"{% widthratio 5 10 100 %}">>, [], <<"50">>},
@@ -959,23 +967,23 @@ run_tests() ->
                 lists:foldl(fun
                         ({Name, DTL, Vars, Output}, Acc) ->
                             process_unit_test(erlydtl:compile(DTL, erlydtl_running_test, []),
-                                Vars, none, Output, Acc, Group, Name);
-                        ({Name, DTL, Vars, Dictionary, Output}, Acc) ->
+                                Vars, [], Output, Acc, Group, Name);
+                        ({Name, DTL, Vars, RenderOpts, Output}, Acc) ->
                             process_unit_test(erlydtl:compile(DTL, erlydtl_running_test, []),
-                                Vars, Dictionary, Output, Acc, Group, Name);
-                        ({Name, DTL, Vars, Dictionary, CompilerOpts, Output}, Acc) ->
+                                Vars, RenderOpts, Output, Acc, Group, Name);
+                        ({Name, DTL, Vars, RenderOpts, CompilerOpts, Output}, Acc) ->
                             process_unit_test(erlydtl:compile(DTL, erlydtl_running_test, CompilerOpts),
-                                Vars, Dictionary, Output, Acc, Group, Name)
+                                Vars, RenderOpts, Output, Acc, Group, Name)
                             end, GroupAcc, Assertions)
         end, [], tests()),
  
     io:format("Unit test failures: ~p~n", [lists:reverse(Failures)]).
  
-process_unit_test(CompiledTemplate, Vars, Dictionary, Output,Acc, Group, Name) ->
+process_unit_test(CompiledTemplate, Vars, RenderOpts, Output,Acc, Group, Name) ->
         case CompiledTemplate of
              {ok, _} ->
-                   {ok, IOList} = erlydtl_running_test:render(Vars, Dictionary),
-                   {ok, IOListBin} = erlydtl_running_test:render(vars_to_binary(Vars), Dictionary),
+                   {ok, IOList} = erlydtl_running_test:render(Vars, RenderOpts),
+                   {ok, IOListBin} = erlydtl_running_test:render(vars_to_binary(Vars), RenderOpts),
                    case {iolist_to_binary(IOList), iolist_to_binary(IOListBin)} of
                         {Output, Output} ->
                                   Acc;

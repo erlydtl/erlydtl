@@ -102,7 +102,7 @@ scan([], Scanned, _, in_text) ->
 
                             "call", "with", "endwith",
                             
-                            "trans", "noop"
+                            "trans", "blocktrans", "endblocktrans", "noop"
                         ], 
                         Type = case lists:member(RevString, Keywords) of
                             true ->
@@ -251,6 +251,9 @@ scan(":" ++ T, Scanned, {Row, Column}, {_, Closer}) ->
 
 scan("." ++ T, Scanned, {Row, Column}, {_, Closer}) ->
     scan(T, [{'.', {Row, Column}} | Scanned], {Row, Column + 1}, {in_code, Closer});
+
+scan("_(" ++ T, Scanned, {Row, Column}, {in_code, Closer}) ->
+    scan(T, lists:reverse([{'_', {Row, Column}}, {'(', {Row, Column + 1}}], Scanned), {Row, Column + 2}, {in_code, Closer});
 
 scan(" " ++ T, Scanned, {Row, Column}, {_, Closer}) ->
     scan(T, Scanned, {Row, Column + 1}, {in_code, Closer});

@@ -3,7 +3,7 @@ ErlyDTL
 
 ErlyDTL compiles Django Template Language to Erlang bytecode.
 
-*Supported tags*: autoescape, block, comment, cycle, extends, filter, firstof, for, if, ifequal, ifnotequal, include, now, spaceless, ssi, templatetag, trans, widthratio, with
+*Supported tags*: autoescape, block, blocktrans, comment, cycle, extends, filter, firstof, for, if, ifequal, ifnotequal, include, now, spaceless, ssi, templatetag, trans, widthratio, with
 
 _Unsupported tags_: csrf_token, ifchanged, regroup, url
 
@@ -74,6 +74,15 @@ For example, adding {locale, "en_US"} will call {key2str, Key, "en_US"}
 for all string marked as trans (`{% trans "StringValue" %}` on templates).
 See README_I18N.
 
+* `blocktrans_fun` - A two-argument fun to use for translating `blocktrans`
+blocks. This will be called once for each pair of `blocktrans` block and locale
+specified in `blocktrans_locales`. The fun should take the form:
+
+   Fun(BlockName, Locale) -> <<"ErlyDTL code">> | default
+
+* `blocktrans_locales` - A list of locales to be passed to `blocktrans_fun`.
+Defaults to [].
+
 
 Helper compilation
 ------------------
@@ -105,12 +114,17 @@ values can be atoms, strings, binaries, or (nested) variables.
 
 IOList is the rendered template.
 
-    my_compiled_template:render(Variables, TranslationFun) -> 
+    my_compiled_template:render(Variables, Options) -> 
             {ok, IOList} | {error, Err}
 
-Same as `render/1`, but TranslationFun is a fun/1 that will be used to 
-translate strings appearing inside `{% trans %}` tags. The simplest
-TranslationFun would be `fun(Val) -> Val end`
+Same as `render/1`, but with the following options:
+
+* `translation_fun` - A fun/1 that will be used to translate strings appearing
+inside `{% trans %}` tags. The simplest TranslationFun would be `fun(Val) ->
+Val end`
+
+* `locale` - A string specifying the current locale, for use with the
+`blocktrans_fun` compile-time option.
 
     my_compiled_template:translatable_strings() -> [String]
 
