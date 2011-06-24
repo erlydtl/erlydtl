@@ -943,7 +943,9 @@ tests() ->
                 <<"{% blocktrans foo %}Hello{% endblocktrans %}">>, [], <<"Hello">>},
             {"blocktrans choose locale",
                 <<"{% blocktrans hello %}Hello, {{ name }}{% endblocktrans %}">>, [{name, "Mr. President"}], [{locale, "de"}],
-                [{blocktrans_locales, ["de"]}, {blocktrans_fun, fun(hello, "de") -> <<"Guten tag, {{ name }}">> end}], <<"Guten tag, Mr. President">>}
+                [{blocktrans_locales, ["de"]}, {blocktrans_fun, fun(hello, "de") -> <<"Guten tag, {{ name }}">> end}], <<"Guten tag, Mr. President">>},
+            {"blocktrans with args",
+                <<"{% blocktrans foo with var1=foo %}{{ var1 }}{% endblocktrans %}">>, [{foo, "Hello"}], <<"Hello">>}
         ]},
     {"widthratio", [
             {"Literals", <<"{% widthratio 5 10 100 %}">>, [], <<"50">>},
