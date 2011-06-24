@@ -78,7 +78,7 @@ See README_I18N.
 blocks. This will be called once for each pair of `blocktrans` block and locale
 specified in `blocktrans_locales`. The fun should take the form:
 
-   Fun(BlockName, Locale) -> <<"ErlyDTL code">> | default
+    Fun(BlockName, Locale) -> <<"ErlyDTL code">> | default
 
 * `blocktrans_locales` - A list of locales to be passed to `blocktrans_fun`.
 Defaults to [].
