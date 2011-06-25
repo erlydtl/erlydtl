@@ -54,7 +54,7 @@ will evaluate to `<b>100</b>`. Get it?
 * `custom_tags_module` - A module to be used for handling custom tags. Each custom
 tag should correspond to an exported function, e.g.: 
 
-    some_tag(Variables, TranslationFun) -> iolist()
+    some_tag(Variables, RenderOptions) -> iolist()
 
 * `vars` - Variables (and their values) to evaluate at compile-time rather than
 render-time. 
