@@ -958,6 +958,10 @@ tests() ->
                 <<"{% with a=b %}{{ a }}{% endwith %}">>, [{b, "foo"}], <<"foo">>},
             {"Cache multiple",
                 <<"{% with alpha=1 beta=b %}{{ alpha }}/{{ beta }}{% endwith %}">>, [{b, 2}], <<"1/2">>}
+        ]},
+     {"unicode", [
+             {"(tm) somewhere",
+                 <<"™">>, [], <<"™">>}
         ]}
     ].
  

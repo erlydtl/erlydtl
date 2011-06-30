@@ -308,7 +308,7 @@ parse(CheckSum, Data, Context) ->
     end.
 
 parse(Data) ->
-    case erlydtl_scanner:scan(unicode:characters_to_list(Data)) of
+    case erlydtl_scanner:scan(binary_to_list(Data)) of
         {ok, Tokens} ->
             erlydtl_parser:parse(Tokens);
         Err ->
