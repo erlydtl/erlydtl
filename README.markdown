@@ -51,10 +51,14 @@ defaults to the compiled template's directory.
 E.g. if $custom_tags_dir/foo contains `<b>{{ bar }}</b>`, then `{% foo bar=100 %}` 
 will evaluate to `<b>100</b>`. Get it?
 
-* `custom_tags_module` - A module to be used for handling custom tags. Each custom
-tag should correspond to an exported function, e.g.: 
+* `custom_tags_modules` - A list of modules to be used for handling custom
+tags. The modules will be searched in order and take precedence over
+`custom_tags_dir`. Each custom tag should correspond to an exported function,
+e.g.: 
 
-    some_tag(Variables, RenderOptions) -> iolist()
+    some_tag(Variables, Context) -> iolist()
+
+The `Context` is specified at render-time with the `custom_tags_context` option.
 
 * `vars` - Variables (and their values) to evaluate at compile-time rather than
 render-time. 
@@ -125,6 +129,8 @@ Val end`
 
 * `locale` - A string specifying the current locale, for use with the
 `blocktrans_fun` compile-time option.
+
+* `custom_tags_context` - A value that will be passed to custom tags.
 
     my_compiled_template:translatable_strings() -> [String]
 

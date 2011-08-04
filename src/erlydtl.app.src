@@ -4,6 +4,6 @@
   {vsn, "0.7.0"},
   {modules, [
             ]},
-  {applications, [kernel, stdlib]},
+  {applications, [kernel, stdlib, compiler, syntax_tools]},
   {registered, []}
  ]}.
