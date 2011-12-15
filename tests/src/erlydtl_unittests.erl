@@ -928,13 +928,13 @@ tests() ->
                 <<"Hello {% trans \"Hi\" %}">>, [], [{translation_fun, fun("Hi") -> "Konichiwa" end}], [],
                 <<"Hello Konichiwa">>},
             {"trans variable at run-time",
-                <<"Hello {% trans var1 %}">>, [{var1, "Hi"}], [{translation_fun, fun("Hi") -> "Konichiwa" end}], [],
+                <<"Hello {% trans var1 %}">>, [{var1, <<"Hi">>}], [{translation_fun, fun(<<"Hi">>) -> <<"Konichiwa">> end}], [],
                 <<"Hello Konichiwa">>},
             {"trans literal at run-time: No-op",
-                <<"Hello {% trans \"Hi\" noop %}">>, [], [{translation_fun, fun("Hi") -> "Konichiwa" end}], [],
+                <<"Hello {% trans \"Hi\" noop %}">>, [], [{translation_fun, fun("Hi") -> <<"Konichiwa">> end}], [],
                 <<"Hello Hi">>},
             {"trans variable at run-time: No-op",
-                <<"Hello {% trans var1 noop %}">>, [{var1, "Hi"}], [{translation_fun, fun("Hi") -> "Konichiwa" end}], [],
+                <<"Hello {% trans var1 noop %}">>, [{var1, <<"Hi">>}], [{translation_fun, fun(<<"Hi">>) -> <<"Konichiwa">> end}], [],
                 <<"Hello Hi">>}
         ]},
     {"blocktrans",
@@ -967,18 +967,19 @@ tests() ->
  
 run_tests() ->
     io:format("Running unit tests...~n"),
+    DefaultOptions = [],
     Failures = lists:foldl(
         fun({Group, Assertions}, GroupAcc) ->
                 io:format(" Test group ~p...~n", [Group]),
                 lists:foldl(fun
                         ({Name, DTL, Vars, Output}, Acc) ->
-                            process_unit_test(erlydtl:compile(DTL, erlydtl_running_test, []),
+                            process_unit_test(erlydtl:compile(DTL, erlydtl_running_test, DefaultOptions),
                                 Vars, [], Output, Acc, Group, Name);
                         ({Name, DTL, Vars, RenderOpts, Output}, Acc) ->
-                            process_unit_test(erlydtl:compile(DTL, erlydtl_running_test, []),
+                            process_unit_test(erlydtl:compile(DTL, erlydtl_running_test, DefaultOptions),
                                 Vars, RenderOpts, Output, Acc, Group, Name);
                         ({Name, DTL, Vars, RenderOpts, CompilerOpts, Output}, Acc) ->
-                            process_unit_test(erlydtl:compile(DTL, erlydtl_running_test, CompilerOpts),
+                            process_unit_test(erlydtl:compile(DTL, erlydtl_running_test, CompilerOpts ++ DefaultOptions),
                                 Vars, RenderOpts, Output, Acc, Group, Name)
                             end, GroupAcc, Assertions)
         end, [], tests()),

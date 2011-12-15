@@ -87,6 +87,9 @@ specified in `blocktrans_locales`. The fun should take the form:
 * `blocktrans_locales` - A list of locales to be passed to `blocktrans_fun`.
 Defaults to [].
 
+* `binary_strings` - Whether to compile strings as binary terms (rather than
+lists). Defaults to `true`.
+
 
 Helper compilation
 ------------------
