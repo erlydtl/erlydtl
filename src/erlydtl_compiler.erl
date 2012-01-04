@@ -1120,11 +1120,11 @@ tag_ast(Name, Args, Context, TreeWalker) ->
 
 custom_tags_modules_ast(Name, InterpretedArgs, #dtl_context{ custom_tags_modules = [], is_compiling_dir = false }) ->
     {erl_syntax:application(none, erl_syntax:atom(render_tag),
-            [erl_syntax:string(Name), erl_syntax:list(InterpretedArgs), erl_syntax:variable("CustomTagsContext")]),
+            [erl_syntax:string(Name), erl_syntax:list(InterpretedArgs), options_ast()]),
         #ast_info{custom_tags = [Name]}};
 custom_tags_modules_ast(Name, InterpretedArgs, #dtl_context{ custom_tags_modules = [], is_compiling_dir = true, module = Module }) ->
     {erl_syntax:application(erl_syntax:atom(Module), erl_syntax:atom(Name),
-            [erl_syntax:list(InterpretedArgs), erl_syntax:variable("CustomTagsContext")]), #ast_info{ custom_tags = [Name] }};
+            [erl_syntax:list(InterpretedArgs), options_ast()]), #ast_info{ custom_tags = [Name] }};
 custom_tags_modules_ast(Name, InterpretedArgs, #dtl_context{ custom_tags_modules = [Module|Rest] } = Context) ->
     case lists:member({Name, 2}, Module:module_info(exports)) of
         true ->
@@ -1137,7 +1137,8 @@ custom_tags_modules_ast(Name, InterpretedArgs, #dtl_context{ custom_tags_modules
 options_ast() ->
     erl_syntax:list([
             erl_syntax:tuple([erl_syntax:atom(translation_fun), erl_syntax:variable("TranslationFun")]),
-            erl_syntax:tuple([erl_syntax:atom(locale), erl_syntax:variable("CurrentLocale")])
+            erl_syntax:tuple([erl_syntax:atom(locale), erl_syntax:variable("CurrentLocale")]),
+            erl_syntax:tuple([erl_syntax:atom(custom_tags_context), erl_syntax:variable("CustomTagsContext")])
         ]).
 
 call_ast(Module, TreeWalkerAcc) ->
