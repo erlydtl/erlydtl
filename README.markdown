@@ -82,7 +82,7 @@ See README_I18N.
 blocks. This will be called once for each pair of `blocktrans` block and locale
 specified in `blocktrans_locales`. The fun should take the form:
 
-    Fun(BlockName, Locale) -> <<"ErlyDTL code">> | default
+    Fun(Block::string(), Locale::string()) -> <<"ErlyDTL code">> | default
 
 * `blocktrans_locales` - A list of locales to be passed to `blocktrans_fun`.
 Defaults to [].
@@ -137,8 +137,15 @@ Val end`
 
     my_compiled_template:translatable_strings() -> [String]
 
-List of strings appearing in `{% trans %}` tags that can be overridden 
-with a dictionary passed to `render/2`.
+List of strings appearing in `{% trans %}` tags that can be overridden with
+a dictionary passed to `render/2`.
+
+    my_compiled_template:translated_blocks() -> [String]
+
+List of strings appearing in `{% blocktrans %}...{% endblocktrans %}` blocks;
+the translations (which can contain ErlyDTL code) are hard-coded into the
+module and appear at render-time. To get a list of translatable blocks before
+compile-time, use the provided `blocktrans_extractor` module.
 
     my_compiled_template:source() -> {FileName, CheckSum}
 

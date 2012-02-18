@@ -137,7 +137,7 @@ append_text(" ", _Pos, [{open_blocktrans, BPos, ""}|Rest]) ->
 append_text([C], _Pos, [{open_blocktrans, BPos, Name}|Rest]) when ((C >= $a) and (C =< $z)) or ((C >= $A) and (C =< $Z)) or (C =:= $_) orelse (C >= $0 andalso C =< $9) ->
     [{open_blocktrans, BPos, [C|Name]}|Rest];
 append_text(" ", _Pos, [{open_blocktrans, BPos, Name}|Rest]) when is_list(Name) ->
-    [{open_blocktrans, BPos, list_to_atom(lists:reverse(Name))}|Rest];
+    [{open_blocktrans, BPos, lists:reverse(Name)}|Rest];
 append_text("%}", {Row, Column}, [{open_blocktrans, _BPos, _Name}|_] = Scanned) ->
     [{text, {Row, Column + 2}, ""}|Scanned];
 append_text(_Chars, _Pos, [{open_blocktrans, _BPos, _Name}|_] = Scanned) ->

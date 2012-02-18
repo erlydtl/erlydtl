@@ -62,7 +62,7 @@
 -record(ast_info, {
     dependencies = [],
     translatable_strings = [],
-    translatable_blocks= [],
+    translated_blocks= [],
     custom_tags = [],
     var_names = [],
     pre_render_asts = []}).
@@ -372,6 +372,14 @@ translatable_strings_function(TranslatableStrings) ->
                             end,
                             TranslatableStrings))])]).
 
+translated_blocks_function(TranslatedBlocks) ->
+        erl_syntax:function(
+        erl_syntax:atom(translated_blocks), [erl_syntax:clause([], none,
+                [erl_syntax:list(lists:map(fun(String) -> 
+                                    erl_syntax:string(String) 
+                            end,
+                            TranslatedBlocks))])]).
+
 custom_forms(Dir, Module, Functions, AstInfo) ->
     ModuleAst = erl_syntax:attribute(erl_syntax:atom(module), [erl_syntax:atom(Module)]),
     ExportAst = erl_syntax:attribute(erl_syntax:atom(export),
@@ -438,6 +446,8 @@ forms(File, Module, {BodyAst, BodyInfo}, {CustomTagsFunctionAst, CustomTagsInfo}
 
     TranslatableStringsAst = translatable_strings_function(MergedInfo#ast_info.translatable_strings),
 
+    TranslatedBlocksAst = translated_blocks_function(MergedInfo#ast_info.translated_blocks),
+
     BodyAstTmp = erl_syntax:application(
                     erl_syntax:atom(erlydtl_runtime),
                     erl_syntax:atom(stringify_final),
@@ -457,15 +467,17 @@ forms(File, Module, {BodyAst, BodyInfo}, {CustomTagsFunctionAst, CustomTagsInfo}
                     erl_syntax:arity_qualifier(erl_syntax:atom(render), erl_syntax:integer(2)),
                     erl_syntax:arity_qualifier(erl_syntax:atom(source), erl_syntax:integer(0)),
                     erl_syntax:arity_qualifier(erl_syntax:atom(dependencies), erl_syntax:integer(0)),
-                    erl_syntax:arity_qualifier(erl_syntax:atom(translatable_strings), erl_syntax:integer(0))])]),
+                    erl_syntax:arity_qualifier(erl_syntax:atom(translatable_strings), erl_syntax:integer(0)),
+                    erl_syntax:arity_qualifier(erl_syntax:atom(translated_blocks), erl_syntax:integer(0))
+                ])]),
     
     [erl_syntax:revert(X) || X <- [ModuleAst, ExportAst, Render0FunctionAst, Render1FunctionAst, Render2FunctionAst,
-            SourceFunctionAst, DependenciesFunctionAst, TranslatableStringsAst, RenderInternalFunctionAst, CustomTagsFunctionAst
-            | BodyInfo#ast_info.pre_render_asts]].    
+            SourceFunctionAst, DependenciesFunctionAst, TranslatableStringsAst, TranslatedBlocksAst, RenderInternalFunctionAst, 
+            CustomTagsFunctionAst | BodyInfo#ast_info.pre_render_asts]].    
 
         
 % child templates should only consist of blocks at the top level
-body_ast([{extends, {string_literal, _Pos, String}} | ThisParseTree], Context, TreeWalker) ->
+body_ast([{'extends', {string_literal, _Pos, String}} | ThisParseTree], Context, TreeWalker) ->
     File = full_path(unescape_string_literal(String), Context#dtl_context.doc_root),
     case lists:member(File, Context#dtl_context.parse_trail) of
         true ->
@@ -502,11 +514,11 @@ body_ast(DjangoParseTree, Context, TreeWalker) ->
                     _ -> Contents
                 end,
                 body_ast(Block, Context, TreeWalkerAcc);
-            ({'blocktrans', {identifier, _, Name}, Args, Contents}, TreeWalkerAcc) ->
-                blocktrans_ast(Name, Args, Contents, Context, TreeWalkerAcc);
-            ({'call', {'identifier', _, Name}}, TreeWalkerAcc) ->
+            ({'blocktrans', Args, Contents}, TreeWalkerAcc) ->
+                blocktrans_ast(Args, Contents, Context, TreeWalkerAcc);
+            ({'call', {identifier, _, Name}}, TreeWalkerAcc) ->
             	call_ast(Name, TreeWalkerAcc);
-            ({'call', {'identifier', _, Name}, With}, TreeWalkerAcc) ->
+            ({'call', {identifier, _, Name}, With}, TreeWalkerAcc) ->
             	call_with_ast(Name, With, Context, TreeWalkerAcc);
             ({'comment', _Contents}, TreeWalkerAcc) ->
                 empty_ast(TreeWalkerAcc);
@@ -562,7 +574,7 @@ body_ast(DjangoParseTree, Context, TreeWalker) ->
                 include_ast(unescape_string_literal(FileName), [], Context#dtl_context.local_scopes, Context, TreeWalkerAcc);
             ({'string', _Pos, String}, TreeWalkerAcc) -> 
                 string_ast(String, Context, TreeWalkerAcc);
-            ({'tag', {'identifier', _, Name}, Args}, TreeWalkerAcc) ->
+            ({'tag', {identifier, _, Name}, Args}, TreeWalkerAcc) ->
                 tag_ast(Name, Args, Context, TreeWalkerAcc);            
             ({'templatetag', {_, _, TagName}}, TreeWalkerAcc) ->
                 templatetag_ast(TagName, Context, TreeWalkerAcc);
@@ -651,6 +663,10 @@ merge_info(Info1, Info2) ->
             lists:merge(
                 lists:sort(Info1#ast_info.translatable_strings),
                 lists:sort(Info2#ast_info.translatable_strings)),
+        translated_blocks =
+            lists:merge(
+                lists:sort(Info1#ast_info.translated_blocks),
+                lists:sort(Info2#ast_info.translated_blocks)),
         custom_tags = 
             lists:merge(
                 lists:sort(Info1#ast_info.custom_tags),
@@ -673,13 +689,14 @@ with_dependency(FilePath, {{Ast, Info}, TreeWalker}) ->
 empty_ast(TreeWalker) ->
     {{erl_syntax:list([]), #ast_info{}}, TreeWalker}.
 
-blocktrans_ast(Name, ArgList, Contents, Context, TreeWalker) ->
+blocktrans_ast(ArgList, Contents, Context, TreeWalker) ->
     {NewScope, {ArgInfo, TreeWalker1}} = lists:mapfoldl(fun
             ({{identifier, _, LocalVarName}, Value}, {AstInfo1, TreeWalker1}) ->
                 {{Ast, Info}, TreeWalker2} = value_ast(Value, false, Context, TreeWalker1),
                 {{LocalVarName, Ast}, {merge_info(AstInfo1, Info), TreeWalker2}}
         end, {#ast_info{}, TreeWalker}, ArgList),
     NewContext = Context#dtl_context{ local_scopes = [NewScope|Context#dtl_context.local_scopes] },
+    SourceText = lists:flatten(erlydtl_unparser:unparse(Contents)),
     {{DefaultAst, AstInfo}, TreeWalker2} = body_ast(Contents, NewContext, TreeWalker1),
     MergedInfo = merge_info(AstInfo, ArgInfo),
     case Context#dtl_context.blocktrans_fun of
@@ -687,7 +704,7 @@ blocktrans_ast(Name, ArgList, Contents, Context, TreeWalker) ->
             {{DefaultAst, MergedInfo}, TreeWalker2};
         BlockTransFun when is_function(BlockTransFun) ->
             {FinalAstInfo, FinalTreeWalker, Clauses} = lists:foldr(fun(Locale, {AstInfoAcc, ThisTreeWalker, ClauseAcc}) ->
-                        case BlockTransFun(Name, Locale) of
+                        case BlockTransFun(SourceText, Locale) of
                             default ->
                                 {AstInfoAcc, ThisTreeWalker, ClauseAcc};
                             Body ->
@@ -699,7 +716,7 @@ blocktrans_ast(Name, ArgList, Contents, Context, TreeWalker) ->
                 end, {MergedInfo, TreeWalker2, []}, Context#dtl_context.blocktrans_locales),
             Ast = erl_syntax:case_expr(erl_syntax:variable("CurrentLocale"),
                 Clauses ++ [erl_syntax:clause([erl_syntax:underscore()], none, [DefaultAst])]),
-            {{Ast, FinalAstInfo}, FinalTreeWalker}
+            {{Ast, FinalAstInfo#ast_info{ translated_blocks = [SourceText] }}, FinalTreeWalker}
     end.
 
 translated_ast({string_literal, _, String}, Context, TreeWalker) ->
