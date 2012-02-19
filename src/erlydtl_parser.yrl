@@ -83,6 +83,10 @@ Nonterminals
     ElseBraced
     EndIfBraced
     
+    IfChangedBlock
+    IfChangedBraced
+    EndIfChangedBraced
+
     IfEqualBlock
     IfEqualBraced
     IfEqualExpression
@@ -136,6 +140,7 @@ Terminals
     endfilter_keyword
     endfor_keyword
     endif_keyword
+    endifchanged_keyword
     endifequal_keyword
     endifnotequal_keyword
     endspaceless_keyword
@@ -146,6 +151,7 @@ Terminals
     for_keyword
     identifier
     if_keyword
+    ifchanged_keyword
     ifequal_keyword
     ifnotequal_keyword
     in_keyword
@@ -208,6 +214,7 @@ Elements -> Elements ForBlock : '$1' ++ ['$2'].
 Elements -> Elements IfBlock : '$1' ++ ['$2'].
 Elements -> Elements IfEqualBlock : '$1' ++ ['$2'].
 Elements -> Elements IfNotEqualBlock : '$1' ++ ['$2'].
+Elements -> Elements IfChangedBlock : '$1' ++ ['$2'].
 Elements -> Elements IncludeTag : '$1' ++ ['$2'].
 Elements -> Elements NowTag : '$1' ++ ['$2'].
 Elements -> Elements SpacelessBlock : '$1' ++ ['$2'].
@@ -300,6 +307,11 @@ Unot -> not_keyword IfExpression : {expr, "not", '$2'}.
 
 ElseBraced -> open_tag else_keyword close_tag.
 EndIfBraced -> open_tag endif_keyword close_tag.
+
+IfChangedBlock -> IfChangedBraced Elements ElseBraced Elements EndIfChangedBraced : {ifchangedelse, '$2', '$4'}.
+IfChangedBlock -> IfChangedBraced Elements EndIfChangedBraced : {ifchanged, '$2'}.
+IfChangedBraced -> open_tag ifchanged_keyword close_tag.
+EndIfChangedBraced -> open_tag endifchanged_keyword close_tag.
 
 IfEqualBlock -> IfEqualBraced Elements ElseBraced Elements EndIfEqualBraced : {ifequalelse, '$1', '$2', '$4'}.
 IfEqualBlock -> IfEqualBraced Elements EndIfEqualBraced : {ifequal, '$1', '$2'}.

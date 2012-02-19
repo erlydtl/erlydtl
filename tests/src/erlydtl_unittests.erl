@@ -237,7 +237,13 @@ tests() ->
                     <<"Al\nAlbert\nJo\nJoseph\n">>},
                 {"Access parent loop counters",
                     <<"{% for outer in list %}{% for inner in outer %}({{ forloop.parentloop.counter0 }}, {{ forloop.counter0 }})\n{% endfor %}{% endfor %}">>,
-                    [{'list', [["One", "two"], ["One", "two"]]}], <<"(0, 0)\n(0, 1)\n(1, 0)\n(1, 1)\n">>}
+                    [{'list', [["One", "two"], ["One", "two"]]}], <<"(0, 0)\n(0, 1)\n(1, 0)\n(1, 1)\n">>},
+                {"If changed",
+                    <<"{% for x in list %}{% ifchanged %}{{ x }}\n{% endifchanged %}{% endfor %}">>,
+                    [{'list', ["one", "two", "two", "three", "three", "three"]}], <<"one\ntwo\nthree\n">>},
+                {"If changed/else",
+                    <<"{% for x in list %}{% ifchanged %}{{ x }}\n{% else %}foo\n{% endifchanged %}{% endfor %}">>,
+                    [{'list', ["one", "two", "two", "three", "three", "three"]}], <<"one\ntwo\nfoo\nthree\nfoo\nfoo\n">>}
             ]},
         {"for/empty", [
                 {"Simple loop",

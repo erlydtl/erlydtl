@@ -542,6 +542,14 @@ body_ast(DjangoParseTree, Context, TreeWalker) ->
                 {IfAstInfo, TreeWalker1} = body_ast(Contents, Context, TreeWalkerAcc),
                 {ElseAstInfo, TreeWalker2} = empty_ast(TreeWalker1),
                 ifelse_ast(Expression, IfAstInfo, ElseAstInfo, Context, TreeWalker2);
+            ({'ifchanged', Contents}, TreeWalkerAcc) ->
+                {IfAstInfo, TreeWalker1} = body_ast(Contents, Context, TreeWalkerAcc),
+                {ElseAstInfo, TreeWalker2} = empty_ast(TreeWalker1),
+                ifchanged_ast(Contents, IfAstInfo, ElseAstInfo, Context, TreeWalker2);
+            ({'ifchangedelse', IfContents, ElseContents}, TreeWalkerAcc) ->
+                {IfAstInfo, TreeWalker1} = body_ast(IfContents, Context, TreeWalkerAcc),
+                {ElseAstInfo, TreeWalker2} = body_ast(ElseContents, Context, TreeWalker1),
+                ifchanged_ast(IfContents, IfAstInfo, ElseAstInfo, Context, TreeWalker2);
             ({'ifelse', Expression, IfContents, ElseContents}, TreeWalkerAcc) ->
                 {IfAstInfo, TreeWalker1} = body_ast(IfContents, Context, TreeWalkerAcc),
                 {ElseAstInfo, TreeWalker2} = body_ast(ElseContents, Context, TreeWalker1),
@@ -1026,27 +1034,33 @@ for_loop_ast(IteratorList, LoopValue, Contents, {EmptyContentsAst, EmptyContents
             erl_syntax:application(erl_syntax:atom(erlydtl_runtime), erl_syntax:atom(init_counter_stats), [LoopValueAst, Value])
     end,
     {{erl_syntax:case_expr(
-                    erl_syntax:application(
-                            erl_syntax:atom('lists'), erl_syntax:atom('mapfoldl'),
-                            [erl_syntax:fun_expr([
-                                        erl_syntax:clause([erl_syntax:tuple(Vars), erl_syntax:variable("Counters")], none, 
-                                            [erl_syntax:tuple([InnerAst, CounterAst])]),
-                                        erl_syntax:clause(case Vars of [H] -> [H, erl_syntax:variable("Counters")];
-                                                _ -> [erl_syntax:list(Vars), erl_syntax:variable("Counters")] end, none, 
-                                            [erl_syntax:tuple([InnerAst, CounterAst])])
-                                    ]),
-                                CounterVars0, LoopValueAst]),
-                        [erl_syntax:clause(
-                                [erl_syntax:tuple([erl_syntax:underscore(), 
+                erl_syntax:application(
+                    erl_syntax:atom('erlydtl_runtime'), erl_syntax:atom('forloop'),
+                    [erl_syntax:fun_expr([
+                                erl_syntax:clause([erl_syntax:tuple(Vars), erl_syntax:variable("Counters")], none, 
+                                    [erl_syntax:tuple([InnerAst, CounterAst])]),
+                                erl_syntax:clause(case Vars of [H] -> [H, erl_syntax:variable("Counters")];
+                                        _ -> [erl_syntax:list(Vars), erl_syntax:variable("Counters")] end, none, 
+                                    [erl_syntax:tuple([InnerAst, CounterAst])])
+                            ]),
+                        CounterVars0, LoopValueAst]),
+                [erl_syntax:clause(
+                        [erl_syntax:tuple([erl_syntax:underscore(), 
                                     erl_syntax:list([erl_syntax:tuple([erl_syntax:atom(counter), erl_syntax:integer(1)])], 
                                         erl_syntax:underscore())])],
-                                none, [EmptyContentsAst]),
-                            erl_syntax:clause(
-                                [erl_syntax:tuple([erl_syntax:variable("L"), erl_syntax:underscore()])],
-                                none, [erl_syntax:variable("L")])]
-                    ),
-                    merge_info(merge_info(Info, EmptyContentsInfo), LoopValueInfo)
-            }, TreeWalker2}.
+                        none, [EmptyContentsAst]),
+                    erl_syntax:clause(
+                        [erl_syntax:tuple([erl_syntax:variable("L"), erl_syntax:underscore()])],
+                        none, [erl_syntax:variable("L")])]
+            ),
+            merge_info(merge_info(Info, EmptyContentsInfo), LoopValueInfo)
+        }, TreeWalker2}.
+
+ifchanged_ast(ParseTree, {IfContentsAst, IfContentsInfo}, {ElseContentsAst, ElseContentsInfo}, _Context, TreeWalker) ->
+    SourceText = lists:flatten(erlydtl_unparser:unparse(ParseTree)),
+    {{erl_syntax:application(erl_syntax:atom(erlydtl_runtime), erl_syntax:atom(ifchanged), 
+                [erl_syntax:string(SourceText), IfContentsAst, ElseContentsAst]),
+            merge_info(IfContentsInfo, ElseContentsInfo)}, TreeWalker}.
 
 cycle_ast(Names, Context, TreeWalker) ->
     NamesTuple = lists:map(fun
