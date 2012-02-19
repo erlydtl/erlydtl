@@ -88,7 +88,7 @@ scan([], Scanned, _, in_text) ->
 
                             "now", 
 
-                            %TODO "regroup", 
+                            "regroup", "endregroup", "as", "by",
                             
                             "spaceless", "endspaceless", 
                             

@@ -100,6 +100,10 @@ Nonterminals
     CustomTag
     Args
 
+    RegroupBlock
+    RegroupBraced
+    EndRegroupBraced
+
     SpacelessBlock
 
     SSITag
@@ -123,9 +127,11 @@ Nonterminals
 
 Terminals
     and_keyword
+    as_keyword
     autoescape_keyword
     block_keyword
     blocktrans_keyword
+    by_keyword
     call_keyword
     close_tag
     close_var
@@ -143,6 +149,7 @@ Terminals
     endifchanged_keyword
     endifequal_keyword
     endifnotequal_keyword
+    endregroup_keyword
     endspaceless_keyword
     endwith_keyword
     extends_keyword
@@ -165,6 +172,7 @@ Terminals
     open_tag
     open_var
     parsed_keyword
+    regroup_keyword
     spaceless_keyword
     ssi_keyword
     string_literal
@@ -217,6 +225,7 @@ Elements -> Elements IfNotEqualBlock : '$1' ++ ['$2'].
 Elements -> Elements IfChangedBlock : '$1' ++ ['$2'].
 Elements -> Elements IncludeTag : '$1' ++ ['$2'].
 Elements -> Elements NowTag : '$1' ++ ['$2'].
+Elements -> Elements RegroupBlock : '$1' ++ ['$2'].
 Elements -> Elements SpacelessBlock : '$1' ++ ['$2'].
 Elements -> Elements SSITag : '$1' ++ ['$2'].
 Elements -> Elements TemplatetagTag : '$1' ++ ['$2'].
@@ -324,6 +333,10 @@ IfNotEqualBlock -> IfNotEqualBraced Elements EndIfNotEqualBraced : {ifnotequal, 
 IfNotEqualBraced -> open_tag ifnotequal_keyword IfNotEqualExpression Value close_tag : ['$3', '$4'].
 IfNotEqualExpression -> Value : '$1'.
 EndIfNotEqualBraced -> open_tag endifnotequal_keyword close_tag.
+
+RegroupBlock -> RegroupBraced Elements EndRegroupBraced : {regroup, '$1', '$2'}.
+RegroupBraced -> open_tag regroup_keyword Value by_keyword identifier as_keyword identifier close_tag : {'$3', '$5', '$7'}.
+EndRegroupBraced -> open_tag endregroup_keyword close_tag.
 
 SpacelessBlock -> open_tag spaceless_keyword close_tag Elements open_tag endspaceless_keyword close_tag : {spaceless, '$4'}.
 

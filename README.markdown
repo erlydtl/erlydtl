@@ -3,9 +3,9 @@ ErlyDTL
 
 ErlyDTL compiles Django Template Language to Erlang bytecode.
 
-*Supported tags*: autoescape, block, blocktrans, comment, cycle, extends, filter, firstof, for, if, ifchanged, ifequal, ifnotequal, include, now, spaceless, ssi, templatetag, trans, widthratio, with
+*Supported tags*: autoescape, block, blocktrans, comment, cycle, extends, filter, firstof, for, if, ifchanged, ifequal, ifnotequal, include, now, regroup, spaceless, ssi, templatetag, trans, widthratio, with
 
-_Unsupported tags_: csrf_token, regroup, url
+_Unsupported tags_: csrf_token, url
 
 *Supported filters*: add, addslashes, capfirst, center, cut, date, default, default_if_none, dictsort, dictsortreversed, divisibleby, escape, escapejs, filesizeformat, first, fix_ampersands, floatformat, force_escape, format_integer, format_number, get_digit, iriencode, join, last, length, length_is, linebreaks, linebreaksbr, linenumbers, ljust, lower, make_list, phonenumeric, pluralize, pprint, random, random_num, random_range, removetags, rjust, safe, safeseq, slice, slugify, stringformat, striptags, time, timesince, timeuntil, title, truncatechars, truncatewords, truncatewords_html, unordered_list, upper, urlencode, urlize, urlizetrunc, wordcount, wordwrap, yesno
 
@@ -156,6 +156,14 @@ Name and checksum of the original template file.
 List of names/checksums of templates included by the original template
 file. Useful for frameworks that recompile a template only when the
 template's dependencies change.
+
+
+Differences from standard Django Template Language
+--------------------------------------------------
+
+The "regroup" tag must have an ending "endregroup" tag.
+
+The "ifchanged" tag cannot take arguments.
 
 
 Tests

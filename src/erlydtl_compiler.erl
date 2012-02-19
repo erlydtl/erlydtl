@@ -574,6 +574,8 @@ body_ast(DjangoParseTree, Context, TreeWalker) ->
                 include_ast(unescape_string_literal(File), Args, Context#dtl_context.local_scopes, Context, TreeWalkerAcc);
             ({'include_only', {string_literal, _, File}, Args}, TreeWalkerAcc) ->
                 include_ast(unescape_string_literal(File), Args, [], Context, TreeWalkerAcc);
+            ({'regroup', {ListVariable, {identifier, _, Attribute}, {identifier, _, NewVariable}}, Contents}, TreeWalkerAcc) ->
+                regroup_ast(ListVariable, Attribute, NewVariable, Contents, Context, TreeWalkerAcc);
             ({'spaceless', Contents}, TreeWalkerAcc) ->
                 spaceless_ast(Contents, Context, TreeWalkerAcc);
             ({'ssi', Arg}, TreeWalkerAcc) ->
@@ -1009,8 +1011,23 @@ with_ast(ArgList, Contents, Context, TreeWalker) ->
 
     {{erl_syntax:application(
                 erl_syntax:fun_expr([
-            erl_syntax:clause(lists:map(fun({_, Var}) -> Var end, NewScope), none,
-                [InnerAst])]), ArgAstList), merge_info(ArgInfo, InnerInfo)}, TreeWalker2}.
+                        erl_syntax:clause(lists:map(fun({_, Var}) -> Var end, NewScope), none,
+                            [InnerAst])]), ArgAstList), merge_info(ArgInfo, InnerInfo)}, TreeWalker2}.
+
+regroup_ast(ListVariable, AttributeName, LocalVarName, Contents, Context, TreeWalker) ->
+    {{ListAst, ListInfo}, TreeWalker1} = value_ast(ListVariable, false, Context, TreeWalker),
+    NewScope = [{LocalVarName, erl_syntax:variable(lists:concat(["Var_", LocalVarName]))}],
+
+    {{InnerAst, InnerInfo}, TreeWalker2} = body_ast(Contents, 
+        Context#dtl_context{ local_scopes = [NewScope|Context#dtl_context.local_scopes] }, TreeWalker1),
+
+    {{erl_syntax:application(
+                erl_syntax:fun_expr([
+                        erl_syntax:clause([erl_syntax:variable(lists:concat(["Var_", LocalVarName]))], none,
+                            [InnerAst])]), 
+                [erl_syntax:application(erl_syntax:atom(erlydtl_runtime), erl_syntax:atom(regroup),
+                        [ListAst, erl_syntax:atom(AttributeName)])]), merge_info(ListInfo, InnerInfo)},
+        TreeWalker2}.
 
 for_loop_ast(IteratorList, LoopValue, Contents, {EmptyContentsAst, EmptyContentsInfo}, Context, TreeWalker) ->
     Vars = lists:map(fun({identifier, _, Iterator}) -> 
@@ -1063,21 +1080,21 @@ ifchanged_ast(ParseTree, {IfContentsAst, IfContentsInfo}, {ElseContentsAst, Else
             merge_info(IfContentsInfo, ElseContentsInfo)}, TreeWalker}.
 
 cycle_ast(Names, Context, TreeWalker) ->
-    NamesTuple = lists:map(fun
-            ({string_literal, _, Str}) ->
+    {NamesTuple, VarNames} = lists:mapfoldl(fun
+            ({string_literal, _, Str}, VarNamesAcc) ->
                 {{S, _}, _} = string_ast(unescape_string_literal(Str), Context, TreeWalker),
-                S;
-            ({variable, _}=Var) ->
-                {V, _} = resolve_variable_ast(Var, Context),
-                V;
-            ({number_literal, _, Num}) ->
-                format(erl_syntax:integer(Num), Context, TreeWalker);
-            (_) ->
-                []
-        end, Names),
+                {S, VarNamesAcc};
+            ({variable, _}=Var, VarNamesAcc) ->
+                {V, VarName} = resolve_variable_ast(Var, Context),
+                {V, [VarName|VarNamesAcc]};
+            ({number_literal, _, Num}, VarNamesAcc) ->
+                {format(erl_syntax:integer(Num), Context, TreeWalker), VarNamesAcc};
+            (_, VarNamesAcc) ->
+                {[], VarNamesAcc}
+        end, [], Names),
     {{erl_syntax:application(
         erl_syntax:atom('erlydtl_runtime'), erl_syntax:atom('cycle'),
-        [erl_syntax:tuple(NamesTuple), erl_syntax:variable("Counters")]), #ast_info{}}, TreeWalker}.
+        [erl_syntax:tuple(NamesTuple), erl_syntax:variable("Counters")]), #ast_info{ var_names = VarNames }}, TreeWalker}.
 
 %% Older Django templates treat cycle with comma-delimited elements as strings
 cycle_compat_ast(Names, Context, TreeWalker) ->

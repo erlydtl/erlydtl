@@ -916,6 +916,19 @@ tests() ->
                 [],
                 <<"baz">>}
         ]},
+    {"regroup", [
+            {"Ordered", <<"{% regroup people by gender as gender_list %}{% for gender in gender_list %}{{ gender.grouper }}\n{% for item in gender.list %}{{ item.first_name }}\n{% endfor %}{% endfor %}{% endregroup %}">>, 
+                [{people, [[{first_name, "George"}, {gender, "Male"}], [{first_name, "Bill"}, {gender, "Male"}],
+                            [{first_name, "Margaret"}, {gender, "Female"}], [{first_name, "Condi"}, {gender, "Female"}]]}],
+                <<"Male\nGeorge\nBill\nFemale\nMargaret\nCondi\n">>},
+            {"Unordered", <<"{% regroup people by gender as gender_list %}{% for gender in gender_list %}{{ gender.grouper }}\n{% for item in gender.list %}{{ item.first_name }}\n{% endfor %}{% endfor %}{% endregroup %}">>, 
+                [{people, [[{first_name, "George"}, {gender, "Male"}], 
+                            [{first_name, "Margaret"}, {gender, "Female"}], 
+                            [{first_name, "Condi"}, {gender, "Female"}],
+                            [{first_name, "Bill"}, {gender, "Male"}]
+                        ]}],
+                <<"Male\nGeorge\nFemale\nMargaret\nCondi\nMale\nBill\n">>}
+        ]},
     {"spaceless", [
             {"Beginning", <<"{% spaceless %}    <b>foo</b>{% endspaceless %}">>, [], <<"<b>foo</b>">>},
             {"Middle", <<"{% spaceless %}<b>foo</b>  <b>bar</b>{% endspaceless %}">>, [], <<"<b>foo</b><b>bar</b>">>},

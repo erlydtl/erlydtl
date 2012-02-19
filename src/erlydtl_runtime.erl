@@ -52,6 +52,23 @@ fetch_value(Key, Data) ->
             Val
     end.
 
+regroup(List, Attribute) ->
+    regroup(List, Attribute, []).
+
+regroup([], _, []) ->
+    [];
+regroup([], _, [[{grouper, LastGrouper}, {list, LastList}]|Acc]) ->
+    lists:reverse([[{grouper, LastGrouper}, {list, lists:reverse(LastList)}]|Acc]);
+regroup([Item|Rest], Attribute, []) ->
+    regroup(Rest, Attribute, [[{grouper, find_value(Attribute, Item)}, {list, [Item]}]]);
+regroup([Item|Rest], Attribute, [[{grouper, PrevGrouper}, {list, PrevList}]|Acc]) ->
+    case find_value(Attribute, Item) of
+        Value when Value =:= PrevGrouper ->
+            regroup(Rest, Attribute, [[{grouper, PrevGrouper}, {list, [Item|PrevList]}]|Acc]);
+        Value ->
+            regroup(Rest, Attribute, [[{grouper, Value}, {list, [Item]}], [{grouper, PrevGrouper}, {list, lists:reverse(PrevList)}]|Acc])
+    end.
+
 translate(_, none, Default) ->
     Default;
 translate(String, TranslationFun, Default) when is_function(TranslationFun) ->

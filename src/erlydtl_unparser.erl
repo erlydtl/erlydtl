@@ -90,6 +90,10 @@ unparse([{'include_only', Value, []}|Rest], Acc) ->
     unparse(Rest, [["{% include ", unparse_value(Value), " only %}"]|Acc]);
 unparse([{'include_only', Value, Args}|Rest], Acc) ->
     unparse(Rest, [["{% include ", unparse_value(Value), " with ", unparse_args(Args), " only %}"]|Acc]);
+unparse([{'regroup', {Variable, Identifier1, Identifier2}, Contents}|Rest], Acc) ->
+    unparse(Rest, [["{% regroup ", unparse_value(Variable), " by ", unparse_identifier(Identifier1), " as ", unparse_identifier(Identifier2), " %}",
+                unparse(Contents),
+                "{% endregroup %}"]|Acc]);
 unparse([{'spaceless', Contents}|Rest], Acc) ->
     unparse(Rest, [["{% spaceless %}", unparse(Contents), "{% endspaceless %}"]|Acc]);
 unparse([{'ssi', Arg}|Rest], Acc) ->
