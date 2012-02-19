@@ -49,6 +49,7 @@
     doc_root = "", 
     parse_trail = [],
     vars = [],
+    filter_modules = [],
     custom_tags_dir = [],
     custom_tags_modules = [],
     reader = {file, read_file},
@@ -221,6 +222,7 @@ init_dtl_context(File, Module, Options) ->
         parse_trail = [File], 
         module = Module,
         doc_root = proplists:get_value(doc_root, Options, filename:dirname(File)),
+        filter_modules = proplists:get_value(custom_filters_modules, Options, Ctx#dtl_context.filter_modules) ++ [erlydtl_filters],
         custom_tags_dir = proplists:get_value(custom_tags_dir, Options, filename:join([erlydtl_deps:get_base_dir(), "priv", "custom_tags"])),
         custom_tags_modules = proplists:get_value(custom_tags_modules, Options, Ctx#dtl_context.custom_tags_modules),
         blocktrans_fun = proplists:get_value(blocktrans_fun, Options, Ctx#dtl_context.blocktrans_fun),
@@ -241,6 +243,7 @@ init_dtl_context_dir(Dir, Module, Options) ->
         parse_trail = [], 
         module = Module,
         doc_root = proplists:get_value(doc_root, Options, Dir),
+        filter_modules = proplists:get_value(custom_filters_modules, Options, Ctx#dtl_context.filter_modules) ++ [erlydtl_filters],
         custom_tags_dir = proplists:get_value(custom_tags_dir, Options, filename:join([erlydtl_deps:get_base_dir(), "priv", "custom_tags"])),
         custom_tags_modules = proplists:get_value(custom_tags_modules, Options, Ctx#dtl_context.custom_tags_modules),
         blocktrans_fun = proplists:get_value(blocktrans_fun, Options, Ctx#dtl_context.blocktrans_fun),
@@ -893,21 +896,34 @@ filter_ast_noescape(Variable, Filter, Context, TreeWalker) ->
     {VarValue, Info2} = filter_ast1(Filter, VariableAst, Context),
     {{VarValue, merge_info(Info1, Info2)}, TreeWalker2}.
 
-filter_ast1([{identifier, _, Name}, {string_literal, _, ArgName}], VariableAst, #dtl_context{ binary_strings = true }) ->
-    filter_ast2(Name, VariableAst, [binary_string(unescape_string_literal(ArgName))], []);
-filter_ast1([{identifier, _, Name}, {string_literal, _, ArgName}], VariableAst, #dtl_context{ binary_strings = false }) ->
-    filter_ast2(Name, VariableAst, [erl_syntax:string(unescape_string_literal(ArgName))], []);
-filter_ast1([{identifier, _, Name}, {number_literal, _, ArgName}], VariableAst, _Context) ->
-    filter_ast2(Name, VariableAst, [erl_syntax:integer(list_to_integer(ArgName))], []);
+filter_ast1([{identifier, _, Name}, {string_literal, _, ArgName}], VariableAst, #dtl_context{ binary_strings = true } = Context) ->
+    filter_ast2(Name, VariableAst, [binary_string(unescape_string_literal(ArgName))], [], Context);
+filter_ast1([{identifier, _, Name}, {string_literal, _, ArgName}], VariableAst, #dtl_context{ binary_strings = false } = Context) ->
+    filter_ast2(Name, VariableAst, [erl_syntax:string(unescape_string_literal(ArgName))], [], Context);
+filter_ast1([{identifier, _, Name}, {number_literal, _, ArgName}], VariableAst, Context) ->
+    filter_ast2(Name, VariableAst, [erl_syntax:integer(list_to_integer(ArgName))], [], Context);
 filter_ast1([{identifier, _, Name}, ArgVariable], VariableAst, Context) ->
     {ArgAst, ArgVarName} = resolve_variable_ast(ArgVariable, Context),
-    filter_ast2(Name, VariableAst, [ArgAst], [ArgVarName]);
-filter_ast1([{identifier, _, Name}], VariableAst, _Context) ->
-    filter_ast2(Name, VariableAst, [], []).
+    filter_ast2(Name, VariableAst, [ArgAst], [ArgVarName], Context);
+filter_ast1([{identifier, _, Name}], VariableAst, Context) ->
+    filter_ast2(Name, VariableAst, [], [], Context).
 
-filter_ast2(Name, VariableAst, AdditionalArgs, VarNames) ->
-    {erl_syntax:application(erl_syntax:atom(erlydtl_filters), erl_syntax:atom(Name), 
-            [VariableAst | AdditionalArgs]), #ast_info{var_names = VarNames}}.
+filter_ast2(Name, VariableAst, [], VarNames, #dtl_context{ filter_modules = [Module|Rest] } = Context) ->
+    case lists:member({Name, 1}, Module:module_info(exports)) of
+        true ->
+            {erl_syntax:application(erl_syntax:atom(Module), erl_syntax:atom(Name), 
+                    [VariableAst]), #ast_info{var_names = VarNames}};
+        false ->
+            filter_ast2(Name, VariableAst, [], VarNames, Context#dtl_context{ filter_modules = Rest })
+    end;
+filter_ast2(Name, VariableAst, [Arg], VarNames, #dtl_context{ filter_modules = [Module|Rest] } = Context) ->
+    case lists:member({Name, 2}, Module:module_info(exports)) of
+        true ->
+            {erl_syntax:application(erl_syntax:atom(Module), erl_syntax:atom(Name),
+                    [VariableAst, Arg]), #ast_info{var_names = VarNames}};
+        false ->
+            filter_ast2(Name, VariableAst, [Arg], VarNames, Context#dtl_context{ filter_modules = Rest })
+    end.
  
 search_for_escape_filter(Variable, Filter, #dtl_context{auto_escape = on}) ->
     search_for_safe_filter(Variable, Filter);
@@ -1184,7 +1200,13 @@ custom_tags_modules_ast(Name, InterpretedArgs, #dtl_context{ custom_tags_modules
             {erl_syntax:application(erl_syntax:atom(Module), erl_syntax:atom(Name),
                     [erl_syntax:list(InterpretedArgs), erl_syntax:variable("CustomTagsContext")]), #ast_info{}};
         false ->
-            custom_tags_modules_ast(Name, InterpretedArgs, Context#dtl_context{ custom_tags_modules = Rest })
+            case lists:member({Name, 1}, Module:module_info(exports)) of
+                true ->
+                    {erl_syntax:application(erl_syntax:atom(Module), erl_syntax:atom(Name),
+                            [erl_syntax:list(InterpretedArgs)]), #ast_info{}};
+                false ->
+                    custom_tags_modules_ast(Name, InterpretedArgs, Context#dtl_context{ custom_tags_modules = Rest })
+            end
     end.
 
 options_ast() ->

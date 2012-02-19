@@ -60,6 +60,18 @@ e.g.:
 
 The `Context` is specified at render-time with the `custom_tags_context` option.
 
+* `custom_filters_modules` - A list of modules to be used for handling custom
+filters. The modules will be searched in order and take precedence over the
+built-in filters. Each custom filter should correspond to an exported filter,
+e.g.
+
+    some_filter(Value) -> iolist()
+
+If the filter takes an argument (e.g. "foo:2"), the argument will be also be
+passed in:
+
+    some_filter(Value, Arg) -> iolist()
+
 * `vars` - Variables (and their values) to evaluate at compile-time rather than
 render-time. 
 
