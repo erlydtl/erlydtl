@@ -46,16 +46,16 @@ unparse([{'if', Expression, Contents}|Rest], Acc) ->
     unparse(Rest, [["{% if ", unparse_expression(Expression), " %}",
                 unparse(Contents),
                 "{% endif %}"]|Acc]);
-unparse([{'ifchanged', IfContents}|Rest], Acc) ->
-    unparse(Rest, [["{% ifchanged %}",
+unparse([{'ifchanged', Expression, IfContents}|Rest], Acc) ->
+    unparse(Rest, [["{% ifchanged ", unparse_expression(Expression), " %}",
                 unparse(IfContents),
-                "{% endif %}"]|Acc]);
-unparse([{'ifchangedelse', IfContents, ElseContents}|Rest], Acc) ->
-    unparse(Rest, [["{% ifchanged %}",
+                "{% endifchanged %}"]|Acc]);
+unparse([{'ifchangedelse', Expression, IfContents, ElseContents}|Rest], Acc) ->
+    unparse(Rest, [["{% ifchanged ", unparse_expression(Expression), " %}",
                 unparse(IfContents),
                 "{% else %}",
                 unparse(ElseContents),
-                "{% endif %}"]|Acc]);
+                "{% endifchanged %}"]|Acc]);
 unparse([{'ifelse', Expression, IfContents, ElseContents}|Rest], Acc) ->
     unparse(Rest, [["{% if ", unparse_expression(Expression), " %}",
                 unparse(IfContents),
