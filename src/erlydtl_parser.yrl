@@ -85,6 +85,11 @@ Nonterminals
     
     IfChangedBlock
     IfChangedBraced
+    IfChangedExpression
+    IfChangedExpression1
+    IfChangedExpression2
+    IfChangedExpression3
+    IfChangedExpression4
     EndIfChangedBraced
 
     IfEqualBlock
@@ -317,9 +322,18 @@ Unot -> not_keyword IfExpression : {expr, "not", '$2'}.
 ElseBraced -> open_tag else_keyword close_tag.
 EndIfBraced -> open_tag endif_keyword close_tag.
 
-IfChangedBlock -> IfChangedBraced Elements ElseBraced Elements EndIfChangedBraced : {ifchangedelse, '$2', '$4'}.
-IfChangedBlock -> IfChangedBraced Elements EndIfChangedBraced : {ifchanged, '$2'}.
+IfChangedBlock -> IfChangedBraced Elements ElseBraced Elements EndIfChangedBraced : {ifchangedelse, '$1', '$2', '$4'}.
+IfChangedBlock -> IfChangedBraced Elements EndIfChangedBraced : {ifchanged, '$1', '$2'}.
 IfChangedBraced -> open_tag ifchanged_keyword close_tag.
+IfChangedBraced -> open_tag ifchanged_keyword IfChangedExpression close_tag : '$3'.
+IfChangedExpression -> IfChangedExpression1 IfChangedExpression2 : ['$1', '$2'].
+IfChangedExpression -> IfChangedExpression1 IfChangedExpression2 IfChangedExpression3 : ['$1', '$2', '$3'].
+IfChangedExpression -> IfChangedExpression1 IfChangedExpression2 IfChangedExpression3 IfChangedExpression4: ['$1', '$2', '$3', '$4'].
+IfChangedExpression -> Value : ['$1'].
+IfChangedExpression1 -> Value : '$1'.
+IfChangedExpression2 -> Value : '$1'.
+IfChangedExpression3 -> Value : '$1'.
+IfChangedExpression4 -> Value : '$1'.
 EndIfChangedBraced -> open_tag endifchanged_keyword close_tag.
 
 IfEqualBlock -> IfEqualBraced Elements ElseBraced Elements EndIfEqualBraced : {ifequalelse, '$1', '$2', '$4'}.

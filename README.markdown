@@ -175,8 +175,6 @@ Differences from standard Django Template Language
 
 The "regroup" tag must have an ending "endregroup" tag.
 
-The "ifchanged" tag cannot take arguments.
-
 
 Tests
 -----
