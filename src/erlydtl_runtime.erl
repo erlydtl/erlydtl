@@ -228,16 +228,25 @@ pop_ifchanged_context() ->
     [_|Rest] = get(?IFCHANGED_CONTEXT_VARIABLE),
     put(?IFCHANGED_CONTEXT_VARIABLE, Rest).
 
-ifchanged(SourceText, EvaluatedText, AlternativeText) ->
+ifchanged(Expressions) ->
     [IfChangedContext|Rest] = get(?IFCHANGED_CONTEXT_VARIABLE),
-    PreviousText = proplists:get_value(SourceText, IfChangedContext),
+    {Result, NewContext} = lists:foldl(fun (Expr, {ProvResult, Context}) when ProvResult == true ->
+                                               {_, NContext} = ifchanged2(Expr, Context),
+                                               {true, NContext};
+                                           (Expr, {_ProvResult, Context}) ->
+                                               ifchanged2(Expr, Context)
+                                       end, {false, IfChangedContext}, Expressions),
+    put(?IFCHANGED_CONTEXT_VARIABLE, [NewContext|Rest]),
+    Result.
+
+ifchanged2({Key, Value}, IfChangedContext) ->
+    PreviousValue = proplists:get_value(Key, IfChangedContext),
     if
-        PreviousText =:= EvaluatedText ->
-            AlternativeText;
+        PreviousValue =:= Value ->
+            {false, IfChangedContext};
         true ->
-            NewContext = [{SourceText, EvaluatedText}|proplists:delete(SourceText, IfChangedContext)],
-            put(?IFCHANGED_CONTEXT_VARIABLE, [NewContext|Rest]),
-            EvaluatedText
+            NewContext = [{Key, Value}|proplists:delete(Key, IfChangedContext)],
+            {true, NewContext}
     end.
 
 cycle(NamesTuple, Counters) when is_tuple(NamesTuple) ->
