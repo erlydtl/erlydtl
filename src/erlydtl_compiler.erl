@@ -545,24 +545,22 @@ body_ast(DjangoParseTree, Context, TreeWalker) ->
                 {IfAstInfo, TreeWalker1} = body_ast(Contents, Context, TreeWalkerAcc),
                 {ElseAstInfo, TreeWalker2} = empty_ast(TreeWalker1),
                 ifelse_ast(Expression, IfAstInfo, ElseAstInfo, Context, TreeWalker2);
-            ({'ifchanged', Expression, Contents}, TreeWalkerAcc) ->
+            ({'ifchanged', '$undefined', Contents}, TreeWalkerAcc) ->
                 {IfAstInfo, TreeWalker1} = body_ast(Contents, Context, TreeWalkerAcc),
                 {ElseAstInfo, TreeWalker2} = empty_ast(TreeWalker1),
-                case Expression of
-                    '$undefined' ->
-                        ifchanged_ast(Contents, IfAstInfo, ElseAstInfo, Context, TreeWalker2);
-                    _ ->
-                        ifchanged_ast({expr, Expression}, IfAstInfo, ElseAstInfo, Context, TreeWalker2)
-                end;
-            ({'ifchangedelse', Expression, IfContents, ElseContents}, TreeWalkerAcc) ->
+                ifchanged_contents_ast(Contents, IfAstInfo, ElseAstInfo, Context, TreeWalker2);
+            ({'ifchanged', Values, Contents}, TreeWalkerAcc) ->
+                {IfAstInfo, TreeWalker1} = body_ast(Contents, Context, TreeWalkerAcc),
+                {ElseAstInfo, TreeWalker2} = empty_ast(TreeWalker1),
+                ifchanged_values_ast(Values, IfAstInfo, ElseAstInfo, Context, TreeWalker2);
+            ({'ifchangedelse', '$undefined', IfContents, ElseContents}, TreeWalkerAcc) ->
                 {IfAstInfo, TreeWalker1} = body_ast(IfContents, Context, TreeWalkerAcc),
                 {ElseAstInfo, TreeWalker2} = body_ast(ElseContents, Context, TreeWalker1),
-                case Expression of
-                    '$undefined' ->
-                        ifchanged_ast(IfContents, IfAstInfo, ElseAstInfo, Context, TreeWalker2);
-                    _ ->
-                        ifchanged_ast({expr, Expression}, IfAstInfo, ElseAstInfo, Context, TreeWalker2)
-                end;
+                ifchanged_contents_ast(IfContents, IfAstInfo, ElseAstInfo, Context, TreeWalker2);
+            ({'ifchangedelse', Values, IfContents, ElseContents}, TreeWalkerAcc) ->
+                {IfAstInfo, TreeWalker1} = body_ast(IfContents, Context, TreeWalkerAcc),
+                {ElseAstInfo, TreeWalker2} = body_ast(ElseContents, Context, TreeWalker1),
+                ifchanged_values_ast(Values, IfAstInfo, ElseAstInfo, Context, TreeWalker2);
             ({'ifelse', Expression, IfContents, ElseContents}, TreeWalkerAcc) ->
                 {IfAstInfo, TreeWalker1} = body_ast(IfContents, Context, TreeWalkerAcc),
                 {ElseAstInfo, TreeWalker2} = body_ast(ElseContents, Context, TreeWalker1),
@@ -1099,19 +1097,20 @@ for_loop_ast(IteratorList, LoopValue, Contents, {EmptyContentsAst, EmptyContents
             merge_info(merge_info(Info, EmptyContentsInfo), LoopValueInfo)
         }, TreeWalker2}.
 
-ifchanged_ast({expr, Expressions}, {IfContentsAst, IfContentsInfo}, {ElseContentsAst, ElseContentsInfo}, Context, TreeWalker) ->
+ifchanged_values_ast(Values, {IfContentsAst, IfContentsInfo}, {ElseContentsAst, ElseContentsInfo}, Context, TreeWalker) ->
     Info = merge_info(IfContentsInfo, ElseContentsInfo),
     ValueAstFun = fun(Expr, {LTreeWalker, LInfo, Acc}) ->
                           {{EAst, EInfo}, ETw} = value_ast(Expr, false, Context, LTreeWalker),
                           {ETw, merge_info(LInfo, EInfo), [erl_syntax:tuple([erl_syntax:integer(erlang:phash2(Expr)), EAst])|Acc]} end,
-    {TreeWalker1, MergedInfo, Changed} = lists:foldl(ValueAstFun, {TreeWalker, Info,  []}, Expressions),
+    {TreeWalker1, MergedInfo, Changed} = lists:foldl(ValueAstFun, {TreeWalker, Info,  []}, Values),
     {{erl_syntax:case_expr(erl_syntax:application(erl_syntax:atom(erlydtl_runtime), erl_syntax:atom(ifchanged), [erl_syntax:list(Changed)]),
         [erl_syntax:clause([erl_syntax:atom(true)], none,
                 [IfContentsAst]),
             erl_syntax:clause([erl_syntax:underscore()], none,
                 [ElseContentsAst])
-        ]), MergedInfo}, TreeWalker1};
-ifchanged_ast(Contents, {IfContentsAst, IfContentsInfo}, {ElseContentsAst, ElseContentsInfo}, _Context, TreeWalker) ->
+        ]), MergedInfo}, TreeWalker1}.
+
+ifchanged_contents_ast(Contents, {IfContentsAst, IfContentsInfo}, {ElseContentsAst, ElseContentsInfo}, _Context, TreeWalker) ->
     Info = merge_info(IfContentsInfo, ElseContentsInfo),
     Key = erl_syntax:integer(erlang:phash2(Contents)),
     {{erl_syntax:case_expr(erl_syntax:application(erl_syntax:atom(erlydtl_runtime), erl_syntax:atom(ifchanged), [erl_syntax:list([erl_syntax:tuple([Key, IfContentsAst])])]),
