@@ -336,7 +336,7 @@ IfNotEqualExpression -> Value : '$1'.
 EndIfNotEqualBraced -> open_tag endifnotequal_keyword close_tag.
 
 RegroupBlock -> RegroupBraced Elements EndRegroupBraced : {regroup, '$1', '$2'}.
-RegroupBraced -> open_tag regroup_keyword Value by_keyword identifier as_keyword identifier close_tag : {'$3', '$5', '$7'}.
+RegroupBraced -> open_tag regroup_keyword Value by_keyword Value as_keyword identifier close_tag : {'$3', '$5', '$7'}.
 EndRegroupBraced -> open_tag endregroup_keyword close_tag.
 
 SpacelessBlock -> open_tag spaceless_keyword close_tag Elements open_tag endspaceless_keyword close_tag : {spaceless, '$4'}.

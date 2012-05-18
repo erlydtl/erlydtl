@@ -585,8 +585,8 @@ body_ast(DjangoParseTree, Context, TreeWalker) ->
                 include_ast(unescape_string_literal(File), Args, Context#dtl_context.local_scopes, Context, TreeWalkerAcc);
             ({'include_only', {string_literal, _, File}, Args}, TreeWalkerAcc) ->
                 include_ast(unescape_string_literal(File), Args, [], Context, TreeWalkerAcc);
-            ({'regroup', {ListVariable, {identifier, _, Attribute}, {identifier, _, NewVariable}}, Contents}, TreeWalkerAcc) ->
-                regroup_ast(ListVariable, Attribute, NewVariable, Contents, Context, TreeWalkerAcc);
+            ({'regroup', {ListVariable, Grouper, {identifier, _, NewVariable}}, Contents}, TreeWalkerAcc) ->
+                regroup_ast(ListVariable, Grouper, NewVariable, Contents, Context, TreeWalkerAcc);
             ({'spaceless', Contents}, TreeWalkerAcc) ->
                 spaceless_ast(Contents, Context, TreeWalkerAcc);
             ({'ssi', Arg}, TreeWalkerAcc) ->
@@ -1038,20 +1038,26 @@ with_ast(ArgList, Contents, Context, TreeWalker) ->
                         erl_syntax:clause(lists:map(fun({_, Var}) -> Var end, NewScope), none,
                             [InnerAst])]), ArgAstList), merge_info(ArgInfo, InnerInfo)}, TreeWalker2}.
 
-regroup_ast(ListVariable, AttributeName, LocalVarName, Contents, Context, TreeWalker) ->
+regroup_ast(ListVariable, GrouperVariable, LocalVarName, Contents, Context, TreeWalker) ->
     {{ListAst, ListInfo}, TreeWalker1} = value_ast(ListVariable, false, Context, TreeWalker),
     NewScope = [{LocalVarName, erl_syntax:variable(lists:concat(["Var_", LocalVarName]))}],
 
     {{InnerAst, InnerInfo}, TreeWalker2} = body_ast(Contents, 
         Context#dtl_context{ local_scopes = [NewScope|Context#dtl_context.local_scopes] }, TreeWalker1),
 
-    {{erl_syntax:application(
+    Ast = {erl_syntax:application(
                 erl_syntax:fun_expr([
                         erl_syntax:clause([erl_syntax:variable(lists:concat(["Var_", LocalVarName]))], none,
                             [InnerAst])]), 
                 [erl_syntax:application(erl_syntax:atom(erlydtl_runtime), erl_syntax:atom(regroup),
-                        [ListAst, erl_syntax:atom(AttributeName)])]), merge_info(ListInfo, InnerInfo)},
-        TreeWalker2}.
+                        [ListAst, regroup_filter(GrouperVariable,[])])]), merge_info(ListInfo, InnerInfo)},
+    {Ast,TreeWalker2}.
+
+regroup_filter({attribute,{{identifier,_,Ident},Next}},Acc) ->
+    regroup_filter(Next,[erl_syntax:atom(Ident)|Acc]);
+regroup_filter({variable,{identifier,_,Var}},Acc) ->
+    erl_syntax:list([erl_syntax:atom(Var)|Acc]).
+
 
 for_loop_ast(IteratorList, LoopValue, Contents, {EmptyContentsAst, EmptyContentsInfo}, Context, TreeWalker) ->
     Vars = lists:map(fun({identifier, _, Iterator}) -> 
