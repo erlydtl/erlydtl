@@ -752,6 +752,10 @@ title(Input) when is_list(Input) ->
 %% @doc Truncates a string after a certain number of characters.
 truncatechars(_Input, Max) when Max =< 0 ->
     "";
+truncatechars(null, Max) ->
+    truncatechars("null", Max);
+truncatechars(Input, Max) when is_integer(Input) ->
+    truncatechars(integer_to_list(Input), Max);
 truncatechars(Input, Max) when is_binary(Input) ->
     list_to_binary(truncatechars(binary_to_list(Input), Max));
 truncatechars(Input, Max) ->
@@ -760,6 +764,10 @@ truncatechars(Input, Max) ->
 %% @doc Truncates a string after a certain number of words.
 truncatewords(_Input, Max) when Max =< 0 ->
     "";
+truncatewords(null, Max) ->
+    truncatewords("null", Max);
+truncatewords(Input, Max) when is_integer(Input) ->
+    truncatewords(integer_to_list(Input), Max);
 truncatewords(Input, Max) when is_binary(Input) ->
     list_to_binary(truncatewords(binary_to_list(Input), Max));
 truncatewords(Input, Max) ->
