@@ -132,7 +132,7 @@ tag_to_value($G, _, {H,_,_}) ->
 
 % Hour, 12-hour format; i.e. '01' to '12'
 tag_to_value($h, _, {H,_,_}) ->
-   integer_to_list_zerofill(integer_to_list(hour_24to12(H)));
+   integer_to_list_zerofill(hour_24to12(H));
 
 % Hour, 24-hour format; i.e. '00' to '23'
 tag_to_value($H, _, {H,_,_}) ->
