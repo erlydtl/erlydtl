@@ -374,6 +374,7 @@ Filter -> identifier ':' Literal : ['$1', '$3'].
 Filter -> identifier ':' Variable : ['$1', '$3'].
 
 Literal -> '_' '(' string_literal ')' : {trans, '$3'}.
+Literal -> '_' '(' Variable ')' : {trans, '$3'}.
 Literal -> string_literal : '$1'.
 Literal -> number_literal : '$1'.
 
