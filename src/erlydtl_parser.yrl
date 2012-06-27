@@ -237,6 +237,7 @@ Elements -> Elements WithBlock : '$1' ++ ['$2'].
 ValueBraced -> open_var Value close_var : '$2'.
 
 Value -> Value '|' Filter : {apply_filter, '$1', '$3'}.
+Value -> '_' '(' Value ')' : {trans, '$3'}.
 Value -> Variable : '$1'.
 Value -> Literal : '$1'.
 
@@ -373,7 +374,6 @@ Filter -> identifier : ['$1'].
 Filter -> identifier ':' Literal : ['$1', '$3'].
 Filter -> identifier ':' Variable : ['$1', '$3'].
 
-Literal -> '_' '(' string_literal ')' : {trans, '$3'}.
 Literal -> string_literal : '$1'.
 Literal -> number_literal : '$1'.
 
