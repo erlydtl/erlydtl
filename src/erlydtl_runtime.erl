@@ -49,6 +49,13 @@ find_value(Key, Tuple) when is_tuple(Tuple) ->
             end
     end.
 
+find_deep_value([Key|Rest],Item) ->
+    case find_value(Key,Item) of
+	undefined -> undefined;
+	NewItem -> find_deep_value(Rest,NewItem)
+    end;
+find_deep_value([],Item) -> Item.
+
 fetch_value(Key, Data) ->
     case find_value(Key, Data) of
         undefined ->
@@ -65,9 +72,9 @@ regroup([], _, []) ->
 regroup([], _, [[{grouper, LastGrouper}, {list, LastList}]|Acc]) ->
     lists:reverse([[{grouper, LastGrouper}, {list, lists:reverse(LastList)}]|Acc]);
 regroup([Item|Rest], Attribute, []) ->
-    regroup(Rest, Attribute, [[{grouper, find_value(Attribute, Item)}, {list, [Item]}]]);
+    regroup(Rest, Attribute, [[{grouper, find_deep_value(Attribute, Item)}, {list, [Item]}]]);
 regroup([Item|Rest], Attribute, [[{grouper, PrevGrouper}, {list, PrevList}]|Acc]) ->
-    case find_value(Attribute, Item) of
+    case find_deep_value(Attribute, Item) of
         Value when Value =:= PrevGrouper ->
             regroup(Rest, Attribute, [[{grouper, PrevGrouper}, {list, [Item|PrevList]}]|Acc]);
         Value ->
