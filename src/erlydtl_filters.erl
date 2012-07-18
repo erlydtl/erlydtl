@@ -218,10 +218,21 @@ default_if_none(undefined, Default) ->
 default_if_none(Input, _) ->
     Input.
 
-%% @doc Takes a list of dictionaries and returns that list sorted by the key given in the argument.
+%% @doc Takes a list of dictionaries or proplists and returns that list sorted by the key given in the argument.
+dictsort(DictList, Key) when is_binary(Key) ->
+    dictsort(DictList, [binary_to_atom(B,latin1) ||
+			   B <- binary:split(Key,<<".">>)]);
 dictsort(DictList, Key) ->
-    case lists:all(fun(Dict) -> dict:is_key(Key, Dict) end, DictList) of
-        true -> lists:sort(fun(K1,K2) -> dict:find(Key,K1) =< dict:find(Key,K2) end, DictList);
+    case lists:all(
+	   fun(Dict) ->
+		   erlydtl_runtime:find_deep_value(Key, Dict) /= undefined
+	   end, DictList) of
+        true ->
+	    lists:sort(
+	      fun(K1,K2) ->
+		      erlydtl_runtime:find_deep_value(Key,K1) =<
+			  erlydtl_runtime:find_deep_value(Key,K2)
+	      end, DictList);
         false -> error
     end.
 
