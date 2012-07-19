@@ -79,6 +79,8 @@ Nonterminals
 
     IfBlock
     IfBraced
+    ElifBlock
+    ElifBraced
     IfExpression
     ElseBraced
     EndIfBraced
@@ -137,6 +139,7 @@ Terminals
     close_var
     comment_keyword
     cycle_keyword
+    elif_keyword
     else_keyword
     empty_keyword
     endautoescape_keyword
@@ -296,9 +299,14 @@ ForExpression -> ForGroup in_keyword Variable : {'in', '$1', '$3'}.
 ForGroup -> identifier : ['$1'].
 ForGroup -> ForGroup ',' identifier : '$1' ++ ['$3'].
 
-IfBlock -> IfBraced Elements ElseBraced Elements EndIfBraced : {ifelse, '$1', '$2', '$4'}.
+IfBlock -> IfBraced Elements ElseBraced Elements EndIfBraced : {'ifelse', '$1', '$2', '$4'}.
 IfBlock -> IfBraced Elements EndIfBraced : {'if', '$1', '$2'}.
+IfBlock -> IfBraced Elements ElifBlock : {'if', '$1', '$2', ['$3']}.
+ElifBlock -> ElifBraced Elements ElseBraced Elements EndIfBraced : {'ifelse', '$1', '$2', '$4'}.
+ElifBlock -> ElifBraced Elements EndIfBraced : {'if', '$1', '$2'}.
+ElifBlock -> ElifBraced Elements ElifBlock : {'if', '$1', '$2', ['$3']}.
 IfBraced -> open_tag if_keyword IfExpression close_tag : '$3'.
+ElifBraced -> open_tag elif_keyword IfExpression close_tag : '$3'.
 IfExpression -> Value in_keyword Value : {'expr', "in", '$1', '$3'}.
 IfExpression -> Value not_keyword in_keyword Value : {'expr', "not", {'expr', "in", '$1', '$4'}}.
 IfExpression -> Value '==' Value : {'expr', "eq", '$1', '$3'}.
@@ -384,3 +392,5 @@ Args -> Args identifier '=' Value : '$1' ++ [{'$2', '$4'}].
 
 CallTag -> open_tag call_keyword identifier close_tag : {call, '$3'}.
 CallWithTag -> open_tag call_keyword identifier with_keyword Value close_tag : {call, '$3', '$5'}.
+
+%% vim: syntax=erlang

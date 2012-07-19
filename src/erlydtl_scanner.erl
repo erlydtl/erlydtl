@@ -76,7 +76,7 @@ scan([], Scanned, _, in_text) ->
 
                             "for", "in", "empty", "endfor", 
 
-                            "if", "else", "endif", "not", "or", "and", 
+                            "if", "elif", "else", "endif", "not", "or", "and", 
 
                             "ifchanged", "endifchanged",
                             
