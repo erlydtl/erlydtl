@@ -87,6 +87,13 @@ tests() ->
         {"if", [
                 {"If/else",
                     <<"{% if var1 %}boo{% else %}yay{% endif %}">>, [{var1, ""}], <<"yay">>},
+                {"If elif",
+		    <<"{% if var1 %}boo{% elif var2 %}yay{% endif %}">>, [{var1, ""}, {var2, "happy"}], <<"yay">>},
+                {"If elif/else",
+		    <<"{% if var1 %}boo{% elif var2 %}sad{% else %}yay{% endif %}">>, [{var1, ""}, {var2, ""}], <<"yay">>},
+                {"If elif/elif/else",
+		    <<"{% if var1 %}boo{% elif var2 %}yay{% elif var3 %}sad{% else %}noo{% endif %}">>, [{var1, ""},
+			{var2, "happy"}, {var3, "not_taken"}], <<"yay">>},
                 {"If",
                     <<"{% if var1 %}boo{% endif %}">>, [{var1, ""}], <<>>},
                 {"If not",
