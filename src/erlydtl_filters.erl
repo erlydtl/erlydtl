@@ -53,6 +53,7 @@
         cut/2,
         date/1,
         date/2,
+        date_unix_epoch/1,
         default/2,
         default_if_none/2,
         dictsort/2,
@@ -195,8 +196,12 @@ date(Input) ->
     date(Input, "F j, Y").
 
 %% @doc Formats a date according to the given format.
+date(undefined, _) -> "undefined";
 date(Input, FormatStr) when is_binary(Input) ->
     list_to_binary(date(binary_to_list(Input), FormatStr));
+%% @doc format calendar:gregorian_seconds to string (year starts at year 0, not 1970. Use date_unix_epoch for latter).
+date(Input, FormatStr) when is_integer(Input) ->
+    date(calendar:gregorian_seconds_to_datetime(Input), FormatStr);
 date({{_,_,_} = Date,{_,_,_} = Time}, FormatStr) ->
     erlydtl_dateformat:format({Date, Time}, FormatStr);
 date({_,_,_} = Date, FormatStr) ->
@@ -204,6 +209,12 @@ date({_,_,_} = Date, FormatStr) ->
 date(Input, _FormatStr) when is_list(Input) ->
     io:format("Unexpected date parameter : ~p~n", [Input]),
     "".
+%% @doc format a date given in unix-epoch seconds.
+%% Input is seconds since 1-1-1970. 
+%%% offset is calendar:datetime_to_gregorian_seconds({{1970,1,1},{0,0,0}}), the difference between 
+%%% gregorian calendar and unix epoch.
+date_unix_epoch(Input) ->
+    date(Input + 62167219200).
 
 %% @doc If value evaluates to `false', use given default. Otherwise, use the value.
 default(Input, Default) ->
@@ -275,8 +286,12 @@ fix_ampersands(Input) when is_list(Input) ->
 
 %% @doc When used without an argument, rounds a floating-point number to one decimal place
 %% -- but only if there's a decimal part to be displayed
+floatformat(undefined, _) ->
+    "undefined";
 floatformat(Number, Place) when is_binary(Number) ->
     floatformat(binary_to_list(Number), Place);
+floatformat(Number, Place) when is_list(Number) ->
+    floatformat(list_to_float(Number), Place);
 floatformat(Number, Place) ->
     floatformat_io(Number, cast_to_integer(Place)).
 
@@ -445,6 +460,7 @@ phone2numeric(Input) when is_list(Input) ->
 %% @doc Returns a plural suffix if the value is not 1. By default, this suffix is 's'.
 pluralize(Number, Suffix) when is_binary(Suffix) ->
     pluralize_io(Number, binary_to_list(Suffix) );
+
 pluralize(Number, Suffix) when is_list(Suffix) ->
     pluralize_io(Number, Suffix).
 
