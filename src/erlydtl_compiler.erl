@@ -541,6 +541,10 @@ body_ast(DjangoParseTree, Context, TreeWalker) ->
             ({'for', {'in', IteratorList, Variable}, Contents, EmptyPartContents}, TreeWalkerAcc) ->
                 {EmptyAstInfo, TreeWalker1} = body_ast(EmptyPartContents, Context, TreeWalkerAcc),
                 for_loop_ast(IteratorList, Variable, Contents, EmptyAstInfo, Context, TreeWalker1);
+            ({'if', Expression, Contents, Elif}, TreeWalkerAcc) ->
+                {IfAstInfo, TreeWalker1} = body_ast(Contents, Context, TreeWalkerAcc),
+                {ElifAstInfo, TreeWalker2} = body_ast(Elif, Context, TreeWalker1),
+                ifelse_ast(Expression, IfAstInfo, ElifAstInfo, Context, TreeWalker2);
             ({'if', Expression, Contents}, TreeWalkerAcc) ->
                 {IfAstInfo, TreeWalker1} = body_ast(Contents, Context, TreeWalkerAcc),
                 {ElseAstInfo, TreeWalker2} = empty_ast(TreeWalker1),
