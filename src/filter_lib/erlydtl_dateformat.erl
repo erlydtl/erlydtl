@@ -361,8 +361,10 @@ monthname(_) -> "???".
 % Utility functions
 integer_to_list_zerofill(N) when N < 10 ->
     lists:flatten(io_lib:format("~2..0B", [N]));
+integer_to_list_zerofill(N) when is_integer(N) ->
+    integer_to_list(N);
 integer_to_list_zerofill(N) ->
-    integer_to_list(N).
+    integer_to_list(erlang:round(N)).
 
 ucfirst([First | Rest]) when First >= $a, First =< $z ->
     [First-($a-$A) | Rest];
