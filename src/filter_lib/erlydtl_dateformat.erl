@@ -364,7 +364,7 @@ integer_to_list_zerofill(N) when N < 10 ->
 integer_to_list_zerofill(N) when is_integer(N) ->
     integer_to_list(N);
 integer_to_list_zerofill(N) ->
-    integer_to_list(erlang:round(N)).
+    integer_to_list_zerofill(erlang:round(N)).
 
 ucfirst([First | Rest]) when First >= $a, First =< $z ->
     [First-($a-$A) | Rest];
