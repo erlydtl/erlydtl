@@ -102,6 +102,30 @@ run_tests() ->
           %{"Z", "3600"}
          ]
       },
+      {
+         "datetime 4",
+         {{2004, 2, 29}, {12, 0, 09.256687}}, % date/time tuple
+         [{"a", "p.m."}, {"A", "PM"}, {"c", "2004-02-29T12:00:09"},
+          {"d", "29"}, {"D", "Sun"}, {"f", "12"}, {"F", "February"},
+          {"g", "12"}, {"G", "12"},
+          {"h", "12"}, {"H", "12"}, {"i", "00"},
+          {"j", "29"}, {"l", "Sunday"}, {"L", "True"},
+          {"m", "02"}, {"M", "Feb"}, {"b", "feb"},
+          {"n", "2"}, {"N", "Feb."}, {"P", "noon"},
+          {"s", "09"}, {"S", "th"}, {"t", "29"},
+          {"w", "0"}, {"W", "9"}, {"y", "04"}, {"Y", "2004"}, {"z", "58"},
+          {"jS F Y H:i", "29th February 2004 12:00"},
+          {"jS o\\f F", "29th of February"},
+          % We expect these to come back verbatim
+          {"x", "x"}, {"C", "C"}, {";", ";"}, {"%", "%"}
+          % TODO : timzeone related tests.
+          %{"r", "Sun, 29 Feb 2004 12:00:59 +0000"},
+          %{"O", "0000"},
+          %{"T", "CET"},
+          %{"U", "300531600"},
+          %{"Z", "3600"}
+         ]
+      },
       % Weeknum tests.  Largely based on examples from :
       %   http://en.wikipedia.org/wiki/ISO_week_date
       { "weeknum 1.1",  {2005,  1,  1}, [{"W", "53"}] },
