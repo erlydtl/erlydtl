@@ -359,7 +359,7 @@ monthname(12) -> "december";
 monthname(_) -> "???".
 
 % Utility functions
-integer_to_list_zerofill(N) when not is_integer(N) ->
+integer_to_list_zerofill(N) when is_float(N) ->
     integer_to_list_zerofill(erlang:round(N));
 integer_to_list_zerofill(N) when N < 10 ->
     lists:flatten(io_lib:format("~2..0B", [N]));
