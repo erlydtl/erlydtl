@@ -152,13 +152,52 @@
 -define(SECONDS_PER_MONTH, (30 * ?SECONDS_PER_DAY)).
 -define(SECONDS_PER_YEAR, (365 * ?SECONDS_PER_DAY)).
  
-%% @doc Adds a number to the value.
-add(Input, Number) when is_binary(Input) ->
-    list_to_binary(add(binary_to_list(Input), Number));
-add(Input, Number) when is_list(Input) ->
-    integer_to_list(add(list_to_integer(Input), Number));
-add(Input, Number) when is_integer(Input) ->
-    Input + Number.
+%% @doc Adds to values
+add(LHS, RHS) when is_number(LHS), is_number(RHS) ->
+    LHS + RHS;
+add(LHS, RHS) when is_binary(LHS) ->
+    add(binary_to_list(LHS), RHS);
+add(LHS, RHS) when is_binary(RHS) ->
+    add(LHS, binary_to_list(RHS));
+add(LHS, RHS) when is_list(LHS), is_list(RHS) ->
+    case {to_numeric(LHS), to_numeric(RHS)} of
+	{{number, LHSNum}, {number, RHSNum}} ->
+	    LHSNum + RHSNum;
+	_ ->
+	    LHS ++ RHS
+    end;
+add(LHS, RHS) when is_list(LHS), is_number(RHS) ->
+    case to_numeric(LHS) of
+	{number, LHSNum} ->
+	    LHSNum + RHS;
+	_ ->
+	    LHS ++ to_string(RHS)
+    end;
+add(LHS, RHS) when is_number(LHS), is_list(RHS) ->
+    case to_numeric(RHS) of
+	{number, RHSNum} ->
+	    LHS + RHSNum;
+	_ ->
+	    to_string(LHS) ++ RHS
+    end.
+
+to_string(Num) when is_integer(Num) ->
+    integer_to_list(Num);
+to_string(Num) when is_float(Num) ->
+    float_to_list(Num).
+
+to_numeric(List) ->
+    try
+	{number, list_to_integer(List)}
+    catch
+	error:badarg ->
+	    try
+		{number, list_to_float(List)}
+	    catch
+		error:badarg ->
+		    undefined
+	    end
+    end.
  
 %% @doc Adds slashes before quotes.
 addslashes(Input) when is_binary(Input) ->
