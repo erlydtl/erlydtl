@@ -117,7 +117,7 @@ compile_dir(Dir, Module) ->
 
 compile_dir(Dir, Module, Options) ->
     Context = init_dtl_context_dir(Dir, Module, Options),
-    Files = filelib:fold_files(Dir, ".*", true, fun(F1,Acc1) -> [F1 | Acc1] end, []),
+    Files = filelib:fold_files(Dir, ".+\.html", true, fun(F1,Acc1) -> [F1 | Acc1] end, []),
     {ParserResults, ParserErrors} = lists:foldl(fun
             (File, {ResultAcc, ErrorAcc}) ->
                 case filename:basename(File) of
