@@ -1041,6 +1041,8 @@ truncatechars(_Input, 0, Acc) ->
 truncatechars([C|Rest], CharsLeft, Acc) ->
     truncatechars(Rest, CharsLeft - 1, [C|Acc]).
 
+truncatewords(Value, _WordsLeft, _Acc) when is_atom(Value) ->
+    Value;
 truncatewords([], _WordsLeft, Acc) ->
     lists:reverse(Acc);
 truncatewords(_Input, 0, Acc) ->
