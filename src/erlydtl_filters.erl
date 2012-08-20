@@ -808,9 +808,6 @@ truncatechars(Input, Max) ->
     truncatechars(Input, Max, []).
 
 %% @doc Truncates a string after a certain number of words.
-%% Do not truncate tuples, e.g. a timestamp ({{Y,M,D},{H,Mm,S}}). 
-truncatewords(Input, _) when is_tuple(Input) ->
-    Input;
 truncatewords(_Input, Max) when Max =< 0 ->
     "";
 truncatewords(Input, Max) when is_binary(Input) ->
