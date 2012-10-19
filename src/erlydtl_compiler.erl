@@ -86,7 +86,7 @@ compile(Binary, Module, Options) when is_binary(Binary) ->
         {ok, DjangoParseTree} ->
             case compile_to_binary(File, DjangoParseTree, 
                     init_dtl_context(File, Module, Options), CheckSum) of
-                {ok, Module1, _} ->
+                {ok, Module1, _, _} ->
                     {ok, Module1};
                 Err ->
                     Err
@@ -102,8 +102,8 @@ compile(File, Module, Options) ->
             ok;
         {ok, DjangoParseTree, CheckSum} ->
             case compile_to_binary(File, DjangoParseTree, Context, CheckSum) of
-                {ok, Module1, Bin} ->
-                    write_binary(Module1, Bin, Options);
+                {ok, Module1, Bin, Warnings} ->
+                    write_binary(Module1, Bin, Options, Warnings);
                 Err ->
                     Err
             end;
@@ -143,8 +143,8 @@ compile_dir(Dir, Module, Options) ->
     case ParserErrors of
         [] ->
             case compile_multiple_to_binary(Dir, ParserResults, Context) of
-                {ok, Module1, Bin} ->
-                    write_binary(Module1, Bin, Options);
+                {ok, Module1, Bin, Warnings} ->
+                    write_binary(Module1, Bin, Options, Warnings);
                 Err ->
                     Err
             end;
@@ -156,17 +156,31 @@ compile_dir(Dir, Module, Options) ->
 %% Internal functions
 %%====================================================================
 
-write_binary(Module1, Bin, Options) ->
+write_binary(Module1, Bin, Options, Warnings) ->
+    Verbose = proplists:get_value(verbose, Options, false),
     case proplists:get_value(out_dir, Options) of
         undefined ->
+            Verbose =:= true andalso
+                io:format("Template module: ~w not saved (no out_dir option)\n", [Module1]),
             ok;
         OutDir ->
             BeamFile = filename:join([OutDir, atom_to_list(Module1) ++ ".beam"]),
+
+            Verbose =:= true andalso
+                io:format("Template module: ~w -> ~s~s\n",
+                    [Module1, BeamFile,
+                        case Warnings of
+                        [] -> "";
+                        _  -> io_lib:format("\n  Warnings: ~p", [Warnings])
+                        end]),
+
             case file:write_file(BeamFile, Bin) of
                 ok ->
                     ok;
                 {error, Reason} ->
-                    {error, lists:concat(["beam generation failed (", Reason, "): ", BeamFile])}
+                    {error, lists:flatten(
+                        io_lib:format("Beam generation of '~s' failed: ~p",
+                            [BeamFile, file:format_error(Reason)]))}
             end
     end.
 
@@ -205,17 +219,22 @@ compile_to_binary(File, DjangoParseTree, Context, CheckSum) ->
 compile_forms_and_reload(File, Forms, CompilerOptions) ->
     case compile:forms(Forms, CompilerOptions) of
         {ok, Module1, Bin} -> 
-            code:purge(Module1),
-            case code:load_binary(Module1, atom_to_list(Module1) ++ ".erl", Bin) of
-                {module, _} -> {ok, Module1, Bin};
-                _ -> {error, lists:concat(["code reload failed: ", Module1])}
-            end;
+            load_code(Module1, Bin, []);
+        {ok, Module1, Bin, Warnings} ->
+            load_code(Module1, Bin, Warnings);
         error ->
             {error, lists:concat(["compilation failed: ", File])};
         OtherError ->
             OtherError
     end.
                 
+load_code(Module, Bin, Warnings) ->
+    code:purge(Module),
+    case code:load_binary(Module, atom_to_list(Module) ++ ".erl", Bin) of
+        {module, _} -> {ok, Module, Bin, Warnings};
+        _ -> {error, lists:concat(["code reload failed: ", Module])}
+    end.
+
 init_dtl_context(File, Module, Options) when is_list(Module) ->
     init_dtl_context(File, list_to_atom(Module), Options);
 init_dtl_context(File, Module, Options) ->
