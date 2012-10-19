@@ -1237,17 +1237,22 @@ full_path(File, DocRoot) ->
 %% Custom tags
 %%-------------------------------------------------------------------
 
+key_to_string(Key) when is_atom(Key) ->
+    erl_syntax:string(atom_to_list(Key));
+key_to_string(Key) when is_list(Key) ->
+    erl_syntax:string(Key).
+
 tag_ast(Name, Args, Context, TreeWalker) ->
     {InterpretedArgs, AstInfo} = lists:mapfoldl(fun
             ({{identifier, _, Key}, {string_literal, _, Value}}, AstInfoAcc) ->
                 {{StringAst, StringAstInfo}, _} = string_ast(unescape_string_literal(Value), Context, TreeWalker),
-                {erl_syntax:tuple([erl_syntax:string(Key), StringAst]), merge_info(StringAstInfo, AstInfoAcc)};
+                {erl_syntax:tuple([key_to_string(Key), StringAst]), merge_info(StringAstInfo, AstInfoAcc)};
             ({{identifier, _, Key}, {trans, StringLiteral}}, AstInfoAcc) ->
                 {{TransAst, TransAstInfo}, _} = translated_ast(StringLiteral, Context, TreeWalker),
-                {erl_syntax:tuple([erl_syntax:string(Key), TransAst]), merge_info(TransAstInfo, AstInfoAcc)};
+                {erl_syntax:tuple([key_to_string(Key), TransAst]), merge_info(TransAstInfo, AstInfoAcc)};
             ({{identifier, _, Key}, Value}, AstInfoAcc) ->
                 {AST, VarName} = resolve_variable_ast(Value, Context),
-                {erl_syntax:tuple([erl_syntax:string(Key), format(AST,Context, TreeWalker)]), merge_info(#ast_info{var_names=[VarName]}, AstInfoAcc)}
+                {erl_syntax:tuple([key_to_string(Key), format(AST,Context, TreeWalker)]), merge_info(#ast_info{var_names=[VarName]}, AstInfoAcc)}
         end, #ast_info{}, Args),
 
     {RenderAst, RenderInfo} = custom_tags_modules_ast(Name, InterpretedArgs, Context),
