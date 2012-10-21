@@ -169,6 +169,11 @@ List of names/checksums of templates included by the original template
 file. Useful for frameworks that recompile a template only when the
 template's dependencies change.
 
+    my_compiled_template:variables() -> [Variable::atom()]
+
+Sorted list of unique variables used in the template's body. The list can
+be used for determining which variable bindings need to be passed to the
+render/3 function.
 
 Differences from standard Django Template Language
 --------------------------------------------------
