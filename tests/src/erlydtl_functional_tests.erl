@@ -44,7 +44,9 @@ test_list() ->
         "for_tuple", "for_list_preset", "for_preset", "for_records",
         "for_records_preset", "include", "if", "if_preset", "ifequal",
         "ifequal_preset", "ifnotequal", "ifnotequal_preset", "now",
-        "var", "var_preset", "cycle", "custom_tag", "custom_call", 
+        "var", "var_preset", "cycle",
+        "custom_tag", "custom_tag1", "custom_tag2", "custom_tag3",
+        "custom_call", 
         "include_template", "include_path", "ssi",
         "extends_path", "extends_path2", "trans" ].
 
@@ -154,6 +156,14 @@ setup("extends_path2") ->
 setup("trans") ->
     RenderVars = [{locale, "reverse"}],
     {ok, RenderVars};
+setup("locale") ->
+    {ok, _RenderVars = [{locale, "ru"}]};
+setup("custom_tag1") ->
+    {ok, [{a, <<"a1">>}], [{locale, ru}, {custom_tags_context, ctx}], [<<"b1">>, <<"\n">>]};
+setup("custom_tag2") ->
+    {ok, [{a, <<"a1">>}], [{locale, ru}, {custom_tags_context, ctx}], [<<"b2">>, <<"\n">>]};
+setup("custom_tag3") ->
+    {ok, [{a, <<"a1">>}], [{locale, ru}], [<<"b3">>, <<"\n">>]};
 setup("ssi") ->
     RenderVars = [{path, filename:absname(filename:join(["tests", "input", "ssi_include.html"]))}],
     {ok, RenderVars};
@@ -215,7 +225,8 @@ test_compile_render(Name) ->
         {CompileStatus, CompileVars} ->
             Options = [
                 {vars, CompileVars}, 
-                {force_recompile, true}],
+                {force_recompile, true},
+                {custom_tags_modules, [erlydtl_custom_tags]}],
             io:format(" Template: ~p, ... compiling ... ", [Name]),
             case erlydtl:compile(File, Module, Options) of
                 ok ->
@@ -242,22 +253,36 @@ test_compile_render(Name) ->
 
 test_render(Name, Module) ->
     File = filename:join([templates_docroot(), Name]),
-    {RenderStatus, Vars} = setup(Name),
-    case catch Module:render(Vars) of
+    {RenderStatus, Vars, Opts, RenderResult} =
+        case setup(Name) of
+            {RS, V}       -> {RS, V, [], undefined};
+            {RS, V, O}    -> {RS, V, O, undefined};
+            {RS, V, O, R} -> {RS, V, O, R}
+        end,
+    case catch Module:render(Vars, Opts) of
         {ok, Data} ->
             io:format("rendering~n"), 
             case RenderStatus of
                 ok ->
-                    {File, _} = Module:source(),
-                    OutFile = filename:join([templates_outdir(), filename:basename(File)]),
-                    case file:open(OutFile, [write]) of
-                        {ok, IoDev} ->
-                            file:write(IoDev, Data),
-                            file:close(IoDev),
-                            ok;    
-                        Err ->
-                            Err
-                    end;
+                    case RenderResult of
+                        undefined ->
+                            {File, _} = Module:source(),
+                            OutFile = filename:join([templates_outdir(), filename:basename(File)]),
+                            case file:open(OutFile, [write]) of
+                                {ok, IoDev} ->
+                                    file:write(IoDev, Data),
+                                    file:close(IoDev),
+                                    ok;
+                                Err ->
+                                    Err
+                            end;
+                        _ when Data =:= RenderResult ->
+                            ok;
+                        _ ->
+                            {error, lists:flatten(io_lib:format("Test ~s failed\n"
+                                "Expected: ~p\n"
+                                "Value:    ~p\n", [Name, RenderResult, Data]))}
+                        end;
                 _ ->
                     {error, "rendering should have failed :" ++ File}
             end;
