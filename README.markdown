@@ -102,6 +102,7 @@ Defaults to [].
 * `binary_strings` - Whether to compile strings as binary terms (rather than
 lists). Defaults to `true`.
 
+* `verbose` - Enable verbose printing of compilation results.
 
 Helper compilation
 ------------------
