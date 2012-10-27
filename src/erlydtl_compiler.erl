@@ -353,16 +353,26 @@ custom_tags_clauses_ast1([Tag|CustomTags], ExcludeTags, ClauseAcc, InfoAcc, Cont
             custom_tags_clauses_ast1(CustomTags, ExcludeTags, ClauseAcc, InfoAcc, Context, TreeWalker);
         false ->
             CustomTagFile = full_path(Tag, Context#dtl_context.custom_tags_dir),
-            case parse(CustomTagFile, Context) of
-                {ok, DjangoParseTree, CheckSum} ->
-                    {{BodyAst, BodyAstInfo}, TreeWalker1} = with_dependency({CustomTagFile, CheckSum}, 
-                        body_ast(DjangoParseTree, Context, TreeWalker)),
-                    Clause = erl_syntax:clause([erl_syntax:string(Tag), erl_syntax:variable("_Variables"), options_ast()],
+            case filelib:is_file(CustomTagFile) of
+                true ->
+                    case parse(CustomTagFile, Context) of
+                        {ok, DjangoParseTree, CheckSum} ->
+                            {{BodyAst, BodyAstInfo}, TreeWalker1} =
+                                with_dependency({CustomTagFile, CheckSum}, 
+                                    body_ast(DjangoParseTree, Context, TreeWalker)),
+                            Clause = erl_syntax:clause(
+                                [erl_syntax:string(Tag),
+                                 erl_syntax:variable("_Variables"), options_ast()],
                                 none, [BodyAst]),
-                    custom_tags_clauses_ast1(CustomTags, [Tag|ExcludeTags], [Clause|ClauseAcc], merge_info(BodyAstInfo, InfoAcc), 
-                        Context, TreeWalker1);
-                Error ->
-                    throw(Error)
+                            custom_tags_clauses_ast1(CustomTags, [Tag|ExcludeTags],
+                                [Clause|ClauseAcc], merge_info(BodyAstInfo, InfoAcc), 
+                                Context, TreeWalker1);
+                        Error ->
+                            throw(Error)
+                    end;
+                false ->
+                    custom_tags_clauses_ast1(CustomTags, [Tag | ExcludeTags],
+                        ClauseAcc, InfoAcc, Context, TreeWalker)
             end
     end.
 
@@ -1278,7 +1288,8 @@ custom_tags_modules_ast(Name, InterpretedArgs, #dtl_context{ custom_tags_modules
         I ->
             throw({unsupported_custom_tag_fun, {Module, Name, I}})
     catch _:function_clause ->
-        custom_tags_modules_ast(Name, InterpretedArgs, Context#dtl_context{ custom_tags_modules = Rest })
+        custom_tags_modules_ast(Name, InterpretedArgs,
+            Context#dtl_context{ custom_tags_modules = Rest })
     end.
 
 print(true, Fmt, Args) ->
