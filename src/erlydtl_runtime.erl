@@ -192,7 +192,7 @@ stringify_final([], Out, _) ->
 stringify_final([El | Rest], Out, false = BinaryStrings) when is_atom(El) ->
     stringify_final(Rest, [atom_to_list(El) | Out], BinaryStrings);
 stringify_final([El | Rest], Out, true = BinaryStrings) when is_atom(El) ->
-    stringify_final(Rest, [list_to_binary(atom_to_list(El)) | Out], BinaryStrings);
+    stringify_final(Rest, [atom_to_binary(El, latin1) | Out], BinaryStrings);
 stringify_final([El | Rest], Out, BinaryStrings) when is_list(El) ->
     stringify_final(Rest, [stringify_final(El, BinaryStrings) | Out], BinaryStrings);
 stringify_final([El | Rest], Out, false = BinaryStrings) when is_tuple(El) ->
