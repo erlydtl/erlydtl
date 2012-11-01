@@ -53,12 +53,19 @@ will evaluate to `<b>100</b>`. Get it?
 
 * `custom_tags_modules` - A list of modules to be used for handling custom
 tags. The modules will be searched in order and take precedence over
-`custom_tags_dir`. Each custom tag should correspond to an exported function,
-e.g.: 
+`custom_tags_dir`. Each custom tag should correspond to an exported function
+with one of the following signatures: 
 
-    some_tag(Variables, Context) -> iolist()
+    some_tag(TagVars)          -> iolist()
+    some_tag(TagVars, Options) -> iolist()
 
-The `Context` is specified at render-time with the `custom_tags_context` option.
+The `TagVars` are variables provided to a custom tag in the template's body
+(e.g. `{% foo bar=100 %}` results in `TagVars = [{"bar", 100}]`).
+The `Options` are options passed as the second argument to the `render/2` call
+at render-time.  For backward compatibility, if render `Options` include
+a `custom_tags_context` option, its value will be passed as `Options` to the
+custom tag handling function. Note that this backward-compatibility functionality
+will be deprecated in one of the next releases.
 
 * `custom_filters_modules` - A list of modules to be used for handling custom
 filters. The modules will be searched in order and take precedence over the

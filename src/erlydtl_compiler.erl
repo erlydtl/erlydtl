@@ -58,6 +58,7 @@
     binary_strings = true,
     force_recompile = false,
     locale = none,
+    verbose = false,
     is_compiling_dir = false}).
 
 -record(ast_info, {
@@ -160,19 +161,17 @@ write_binary(Module1, Bin, Options, Warnings) ->
     Verbose = proplists:get_value(verbose, Options, false),
     case proplists:get_value(out_dir, Options) of
         undefined ->
-            Verbose =:= true andalso
-                io:format("Template module: ~w not saved (no out_dir option)\n", [Module1]),
+            print(Verbose, "Template module: ~w not saved (no out_dir option)\n", [Module1]),
             ok;
         OutDir ->
             BeamFile = filename:join([OutDir, atom_to_list(Module1) ++ ".beam"]),
 
-            Verbose =:= true andalso
-                io:format("Template module: ~w -> ~s~s\n",
-                    [Module1, BeamFile,
-                        case Warnings of
+            print(Verbose, "Template module: ~w -> ~s~s\n",
+                [Module1, BeamFile,
+                    case Warnings of
                         [] -> "";
                         _  -> io_lib:format("\n  Warnings: ~p", [Warnings])
-                        end]),
+                    end]),
 
             case file:write_file(BeamFile, Bin) of
                 ok ->
@@ -235,14 +234,12 @@ load_code(Module, Bin, Warnings) ->
         _ -> {error, lists:concat(["code reload failed: ", Module])}
     end.
 
-init_dtl_context(File, Module, Options) when is_list(Module) ->
-    init_dtl_context(File, list_to_atom(Module), Options);
-init_dtl_context(File, Module, Options) ->
+init_context(IsCompilingDir, ParseTrail, DefDir, Module, Options) ->
     Ctx = #dtl_context{},
     #dtl_context{
-        parse_trail = [File], 
+        parse_trail = ParseTrail,
         module = Module,
-        doc_root = proplists:get_value(doc_root, Options, filename:dirname(File)),
+        doc_root = proplists:get_value(doc_root, Options, DefDir),
         filter_modules = proplists:get_value(custom_filters_modules, Options, Ctx#dtl_context.filter_modules) ++ [erlydtl_filters],
         custom_tags_dir = proplists:get_value(custom_tags_dir, Options, filename:join([erlydtl_deps:get_base_dir(), "priv", "custom_tags"])),
         custom_tags_modules = proplists:get_value(custom_tags_modules, Options, Ctx#dtl_context.custom_tags_modules),
@@ -254,29 +251,18 @@ init_dtl_context(File, Module, Options) ->
         binary_strings = proplists:get_value(binary_strings, Options, Ctx#dtl_context.binary_strings),
         force_recompile = proplists:get_value(force_recompile, Options, Ctx#dtl_context.force_recompile),
         locale = proplists:get_value(locale, Options, Ctx#dtl_context.locale),
-        is_compiling_dir = false}.
+        verbose = proplists:get_value(verbose, Options, Ctx#dtl_context.verbose),
+        is_compiling_dir = IsCompilingDir}.
+
+init_dtl_context(File, Module, Options) when is_list(Module) ->
+    init_dtl_context(File, list_to_atom(Module), Options);
+init_dtl_context(File, Module, Options) ->
+    init_context(false, [File], filename:dirname(File), Module, Options).
 
 init_dtl_context_dir(Dir, Module, Options) when is_list(Module) ->
     init_dtl_context_dir(Dir, list_to_atom(Module), Options);
 init_dtl_context_dir(Dir, Module, Options) ->
-    Ctx = #dtl_context{},
-    #dtl_context{
-        parse_trail = [], 
-        module = Module,
-        doc_root = proplists:get_value(doc_root, Options, Dir),
-        filter_modules = proplists:get_value(custom_filters_modules, Options, Ctx#dtl_context.filter_modules) ++ [erlydtl_filters],
-        custom_tags_dir = proplists:get_value(custom_tags_dir, Options, filename:join([erlydtl_deps:get_base_dir(), "priv", "custom_tags"])),
-        custom_tags_modules = proplists:get_value(custom_tags_modules, Options, Ctx#dtl_context.custom_tags_modules),
-        blocktrans_fun = proplists:get_value(blocktrans_fun, Options, Ctx#dtl_context.blocktrans_fun),
-        blocktrans_locales = proplists:get_value(blocktrans_locales, Options, Ctx#dtl_context.blocktrans_locales),
-        vars = proplists:get_value(vars, Options, Ctx#dtl_context.vars), 
-        reader = proplists:get_value(reader, Options, Ctx#dtl_context.reader),
-        compiler_options = proplists:get_value(compiler_options, Options, Ctx#dtl_context.compiler_options),
-        binary_strings = proplists:get_value(binary_strings, Options, Ctx#dtl_context.binary_strings),
-        force_recompile = proplists:get_value(force_recompile, Options, Ctx#dtl_context.force_recompile),
-        locale = proplists:get_value(locale, Options, Ctx#dtl_context.locale),
-        is_compiling_dir = true}.
-
+    init_context(true, [], Dir, Module, Options).
 
 is_up_to_date(_, #dtl_context{force_recompile = true}) ->
     false;
@@ -367,16 +353,26 @@ custom_tags_clauses_ast1([Tag|CustomTags], ExcludeTags, ClauseAcc, InfoAcc, Cont
             custom_tags_clauses_ast1(CustomTags, ExcludeTags, ClauseAcc, InfoAcc, Context, TreeWalker);
         false ->
             CustomTagFile = full_path(Tag, Context#dtl_context.custom_tags_dir),
-            case parse(CustomTagFile, Context) of
-                {ok, DjangoParseTree, CheckSum} ->
-                    {{BodyAst, BodyAstInfo}, TreeWalker1} = with_dependency({CustomTagFile, CheckSum}, 
-                        body_ast(DjangoParseTree, Context, TreeWalker)),
-                    Clause = erl_syntax:clause([erl_syntax:string(Tag), erl_syntax:variable("_Variables"), options_ast()],
+            case filelib:is_file(CustomTagFile) of
+                true ->
+                    case parse(CustomTagFile, Context) of
+                        {ok, DjangoParseTree, CheckSum} ->
+                            {{BodyAst, BodyAstInfo}, TreeWalker1} =
+                                with_dependency({CustomTagFile, CheckSum}, 
+                                    body_ast(DjangoParseTree, Context, TreeWalker)),
+                            Clause = erl_syntax:clause(
+                                [erl_syntax:string(Tag),
+                                 erl_syntax:variable("_Variables"), options_ast()],
                                 none, [BodyAst]),
-                    custom_tags_clauses_ast1(CustomTags, [Tag|ExcludeTags], [Clause|ClauseAcc], merge_info(BodyAstInfo, InfoAcc), 
-                        Context, TreeWalker1);
-                Error ->
-                    throw(Error)
+                            custom_tags_clauses_ast1(CustomTags, [Tag|ExcludeTags],
+                                [Clause|ClauseAcc], merge_info(BodyAstInfo, InfoAcc), 
+                                Context, TreeWalker1);
+                        Error ->
+                            throw(Error)
+                    end;
+                false ->
+                    custom_tags_clauses_ast1(CustomTags, [Tag | ExcludeTags],
+                        ClauseAcc, InfoAcc, Context, TreeWalker)
             end
     end.
 
@@ -451,10 +447,7 @@ forms(File, Module, {BodyAst, BodyInfo}, {CustomTagsFunctionAst, CustomTagsInfo}
                 erl_syntax:atom(proplists),
                 erl_syntax:atom(get_value),
                 [erl_syntax:atom(locale), erl_syntax:variable("Options"), erl_syntax:atom(none)]),
-            erl_syntax:application(
-                erl_syntax:atom(proplists),
-                erl_syntax:atom(get_value),
-                [erl_syntax:atom(custom_tags_context), erl_syntax:variable("Options"), erl_syntax:atom(none)])
+            erl_syntax:variable("Options")
         ]),
     ClauseOk = erl_syntax:clause([erl_syntax:variable("Val")], none,
         [erl_syntax:tuple([erl_syntax:atom(ok), erl_syntax:variable("Val")])]),     
@@ -479,16 +472,30 @@ forms(File, Module, {BodyAst, BodyInfo}, {CustomTagsFunctionAst, CustomTagsInfo}
 
     VariablesAst = variables_function(MergedInfo#ast_info.var_names),
 
-    BodyAstTmp = erl_syntax:application(
-                    erl_syntax:atom(erlydtl_runtime),
-                    erl_syntax:atom(stringify_final),
-                    [BodyAst, erl_syntax:atom(BinaryStrings)]),
+    BodyAstTmp = [
+        erl_syntax:match_expr(
+            erl_syntax:variable("_CustomTagOptions"),
+            erl_syntax:application(
+                erl_syntax:atom(proplists),
+                erl_syntax:atom(get_value),
+                [erl_syntax:atom(custom_tags_context),
+                 erl_syntax:variable("RenderOptions"),
+                 erl_syntax:variable("RenderOptions")])),
+        erl_syntax:application(
+            erl_syntax:atom(erlydtl_runtime),
+            erl_syntax:atom(stringify_final),
+            [BodyAst, erl_syntax:atom(BinaryStrings)])
+    ],
 
     RenderInternalFunctionAst = erl_syntax:function(
         erl_syntax:atom(render_internal), 
-        [erl_syntax:clause([erl_syntax:variable("_Variables"), erl_syntax:variable("_TranslationFun"), 
-                    erl_syntax:variable("_CurrentLocale"), erl_syntax:variable("_CustomTagsContext")], none, 
-                [BodyAstTmp])]),   
+        [erl_syntax:clause([
+            erl_syntax:variable("_Variables"),
+            erl_syntax:variable("_TranslationFun"), 
+            erl_syntax:variable("_CurrentLocale"),
+            erl_syntax:variable("RenderOptions")],
+            none, BodyAstTmp)]
+    ),   
     
     ModuleAst  = erl_syntax:attribute(erl_syntax:atom(module), [erl_syntax:atom(Module)]),
     
@@ -825,10 +832,12 @@ widthratio_ast(Numerator, Denominator, Scale, Context, TreeWalker) ->
 binary_string(String) ->
     erl_syntax:binary([erl_syntax:binary_field(erl_syntax:integer(X)) || X <- String]).
 
-string_ast(String, #dtl_context{ binary_strings = true }, TreeWalker) ->
+string_ast(String, #dtl_context{ binary_strings = true }, TreeWalker) when is_list(String) ->
     {{binary_string(String), #ast_info{}}, TreeWalker};
-string_ast(String, #dtl_context{ binary_strings = false }, TreeWalker) ->
-    {{erl_syntax:string(String), #ast_info{}}, TreeWalker}. %% less verbose AST, better for development and debugging
+string_ast(String, #dtl_context{ binary_strings = false }, TreeWalker) when is_list(String) ->
+    {{erl_syntax:string(String), #ast_info{}}, TreeWalker}; %% less verbose AST, better for development and debugging
+string_ast(S, Context, TreeWalker) when is_atom(S) ->
+    string_ast(atom_to_list(S), Context, TreeWalker).
 
 
 include_ast(File, ArgList, Scopes, Context, TreeWalker) ->
@@ -1260,25 +1269,33 @@ tag_ast(Name, Args, Context, TreeWalker) ->
 
 custom_tags_modules_ast(Name, InterpretedArgs, #dtl_context{ custom_tags_modules = [], is_compiling_dir = false }) ->
     {erl_syntax:application(none, erl_syntax:atom(render_tag),
-            [erl_syntax:string(Name), erl_syntax:list(InterpretedArgs), erl_syntax:variable("_CustomTagsContext")]),
+            [key_to_string(Name), erl_syntax:list(InterpretedArgs),
+             erl_syntax:variable("_CustomTagOptions")]),
         #ast_info{custom_tags = [Name]}};
 custom_tags_modules_ast(Name, InterpretedArgs, #dtl_context{ custom_tags_modules = [], is_compiling_dir = true, module = Module }) ->
     {erl_syntax:application(erl_syntax:atom(Module), erl_syntax:atom(Name),
-            [erl_syntax:list(InterpretedArgs), erl_syntax:variable("_CustomTagsContext")]), #ast_info{ custom_tags = [Name] }};
+            [erl_syntax:list(InterpretedArgs), erl_syntax:variable("_CustomTagOptions")]),
+             #ast_info{ custom_tags = [Name] }};
 custom_tags_modules_ast(Name, InterpretedArgs, #dtl_context{ custom_tags_modules = [Module|Rest] } = Context) ->
-    case lists:member({Name, 2}, Module:module_info(exports)) of
-        true ->
+    try lists:max([I || {N,I} <- Module:module_info(exports), N =:= Name]) of
+        2 ->
             {erl_syntax:application(erl_syntax:atom(Module), erl_syntax:atom(Name),
-                    [erl_syntax:list(InterpretedArgs), erl_syntax:variable("_CustomTagsContext")]), #ast_info{}};
-        false ->
-            case lists:member({Name, 1}, Module:module_info(exports)) of
-                true ->
-                    {erl_syntax:application(erl_syntax:atom(Module), erl_syntax:atom(Name),
-                            [erl_syntax:list(InterpretedArgs)]), #ast_info{}};
-                false ->
-                    custom_tags_modules_ast(Name, InterpretedArgs, Context#dtl_context{ custom_tags_modules = Rest })
-            end
+                [erl_syntax:list(InterpretedArgs),
+                 erl_syntax:variable("_CustomTagOptions")]), #ast_info{}};
+        1 ->
+            {erl_syntax:application(erl_syntax:atom(Module), erl_syntax:atom(Name),
+                [erl_syntax:list(InterpretedArgs)]), #ast_info{}};
+        I ->
+            throw({unsupported_custom_tag_fun, {Module, Name, I}})
+    catch _:function_clause ->
+        custom_tags_modules_ast(Name, InterpretedArgs,
+            Context#dtl_context{ custom_tags_modules = Rest })
     end.
+
+print(true, Fmt, Args) ->
+    io:format(Fmt, Args);
+print(_, _Fmt, _Args) ->
+    ok.
 
 options_ast() ->
     erl_syntax:list([
