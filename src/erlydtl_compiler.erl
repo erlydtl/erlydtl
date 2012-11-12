@@ -57,6 +57,10 @@
     compiler_options = [verbose, report_errors],
     binary_strings = true,
     force_recompile = false,
+    included_headers = [],
+    defined_macros = dict:new(),
+    translater = {erlydtl_i18n, translate},
+    translater_macro_prefix = "I18N_",
     locale = none,
     verbose = false,
     is_compiling_dir = false}).
@@ -198,7 +202,8 @@ compile_multiple_to_binary(Dir, ParserResults, Context) ->
                             MatchAst ++ [BodyAst])]),
                 {{FunctionName, Function1, Function2}, {merge_info(AstInfo, BodyInfo), TreeWalker1}}
         end, {#ast_info{}, #treewalker{}}, ParserResults),
-    Forms = custom_forms(Dir, Context#dtl_context.module, Functions, AstInfo),
+    Includes = Context#dtl_context.included_headers,
+    Forms = custom_forms(Dir, Context#dtl_context.module, Includes, Functions, AstInfo),
     compile_forms_and_reload(Dir, Forms, Context#dtl_context.compiler_options).
 
 compile_to_binary(File, DjangoParseTree, Context, CheckSum) ->
@@ -206,7 +211,9 @@ compile_to_binary(File, DjangoParseTree, Context, CheckSum) ->
         {{BodyAst, BodyInfo}, BodyTreeWalker} ->
             try custom_tags_ast(BodyInfo#ast_info.custom_tags, Context, BodyTreeWalker) of
                 {{CustomTagsAst, CustomTagsInfo}, _} ->
-                    Forms = forms(File, Context#dtl_context.module, {BodyAst, BodyInfo}, 
+                    Forms = forms(File, Context#dtl_context.module,
+                        Context#dtl_context.included_headers,
+                        {BodyAst, BodyInfo},
                         {CustomTagsAst, CustomTagsInfo}, Context#dtl_context.binary_strings, CheckSum), 
                     compile_forms_and_reload(File, Forms, Context#dtl_context.compiler_options)
             catch 
@@ -237,6 +244,12 @@ load_code(Module, Bin, Warnings) ->
 
 init_context(IsCompilingDir, ParseTrail, DefDir, Module, Options) ->
     Ctx = #dtl_context{},
+    Headers = [H || H <- proplists:get_value(included_headers, Options,
+                Ctx#dtl_context.included_headers), is_list(H)],
+    I18nMF = {I18nM, I18nF} = proplists:get_value(translater, Options,
+        Ctx#dtl_context.translater),
+    lists:member({I18nF, 2}, I18nM:module_info(exports)) orelse
+        throw({undef, {I18nM, I18nF, 2}}),
     #dtl_context{
         parse_trail = ParseTrail,
         module = Module,
@@ -251,6 +264,12 @@ init_context(IsCompilingDir, ParseTrail, DefDir, Module, Options) ->
         compiler_options = proplists:get_value(compiler_options, Options, Ctx#dtl_context.compiler_options),
         binary_strings = proplists:get_value(binary_strings, Options, Ctx#dtl_context.binary_strings),
         force_recompile = proplists:get_value(force_recompile, Options, Ctx#dtl_context.force_recompile),
+        included_headers = Headers,
+        defined_macros = parse_macros(Headers, Ctx#dtl_context.defined_macros,
+            proplists:get_value(compiler_options, Options, [])),
+        translater = I18nMF,
+        translater_macro_prefix = proplists:get_value(translater_macro_prefix, Options,
+            Ctx#dtl_context.translater_macro_prefix),
         locale = proplists:get_value(locale, Options, Ctx#dtl_context.locale),
         verbose = proplists:get_value(verbose, Options, Ctx#dtl_context.verbose),
         is_compiling_dir = IsCompilingDir}.
@@ -406,7 +425,7 @@ variables_function(Variables) ->
         erl_syntax:atom(variables), [erl_syntax:clause([], none,
                 [erl_syntax:list([erl_syntax:atom(S) || S <- lists:usort(Variables)])])]). 
 
-custom_forms(Dir, Module, Functions, AstInfo) ->
+custom_forms(Dir, Module, Includes, Functions, AstInfo) ->
     ModuleAst = erl_syntax:attribute(erl_syntax:atom(module), [erl_syntax:atom(Module)]),
     ExportAst = erl_syntax:attribute(erl_syntax:atom(export),
         [erl_syntax:list([
@@ -419,16 +438,22 @@ custom_forms(Dir, Module, Functions, AstInfo) ->
                                 erl_syntax:arity_qualifier(erl_syntax:atom(FunctionName), erl_syntax:integer(2))|Acc]
                     end, [], Functions)]
             )]),
+    IncludedHeadersAst =
+        [erl_syntax:attribute(erl_syntax:atom(include), [erl_syntax:string(H)])
+            || H <- Includes],
     SourceFunctionAst = erl_syntax:function(
         erl_syntax:atom(source_dir), [erl_syntax:clause([], none, [erl_syntax:string(Dir)])]),
     DependenciesFunctionAst = dependencies_function(AstInfo#ast_info.dependencies), 
     TranslatableStringsFunctionAst = translatable_strings_function(AstInfo#ast_info.translatable_strings),
     FunctionAsts = lists:foldl(fun({_, Function1, Function2}, Acc) -> [Function1, Function2 | Acc] end, [], Functions),
 
-    [erl_syntax:revert(X) || X <- [ModuleAst, ExportAst, SourceFunctionAst, DependenciesFunctionAst, TranslatableStringsFunctionAst
-            | FunctionAsts] ++ AstInfo#ast_info.pre_render_asts].
+    [erl_syntax:revert(X) ||
+        X <- [ModuleAst, ExportAst] ++ IncludedHeadersAst ++
+              [SourceFunctionAst, DependenciesFunctionAst,
+               TranslatableStringsFunctionAst | FunctionAsts]
+            ++ AstInfo#ast_info.pre_render_asts].
 
-forms(File, Module, {BodyAst, BodyInfo}, {CustomTagsFunctionAst, CustomTagsInfo}, BinaryStrings, CheckSum) ->
+forms(File, Module, Includes, {BodyAst, BodyInfo}, {CustomTagsFunctionAst, CustomTagsInfo}, BinaryStrings, CheckSum) ->
     MergedInfo = merge_info(BodyInfo, CustomTagsInfo),
     Render0FunctionAst = erl_syntax:function(erl_syntax:atom(render),
         [erl_syntax:clause([], none, [erl_syntax:application(none, 
@@ -493,7 +518,11 @@ forms(File, Module, {BodyAst, BodyInfo}, {CustomTagsFunctionAst, CustomTagsInfo}
                     erl_syntax:arity_qualifier(erl_syntax:atom(variables), erl_syntax:integer(0))
                 ])]),
     
-    [erl_syntax:revert(X) || X <- [ModuleAst, ExportAst, Render0FunctionAst, Render1FunctionAst, Render2FunctionAst,
+    IncludedHeadersAst =
+        [erl_syntax:attribute(erl_syntax:atom(include), [erl_syntax:string(H)])
+            || H <- Includes],
+    [erl_syntax:revert(X) || X <- [ModuleAst, ExportAst] ++ IncludedHeadersAst ++
+        [Render0FunctionAst, Render1FunctionAst, Render2FunctionAst,
             SourceFunctionAst, DependenciesFunctionAst, TranslatableStringsAst,
             TranslatedBlocksAst, VariablesAst, RenderInternalFunctionAst, 
             CustomTagsFunctionAst | BodyInfo#ast_info.pre_render_asts]].    
@@ -779,23 +808,45 @@ blocktrans_ast(ArgList, Contents, Context, TreeWalker) ->
             {{Ast, FinalAstInfo#ast_info{ translated_blocks = [SourceText] }}, FinalTreeWalker}
     end.
 
+to_translated_id_ast(S, Prefix, Dict) when is_list(S), S =/= [], hd(S) =:= $? ->
+    Macro = try list_to_existing_atom(Prefix ++ tl(S)) catch _:_ -> undefined end,
+    Val   = case dict:find(Macro, Dict) of
+            {ok, {_, [V|_]}} -> V;
+            error -> throw({undefined_macro, "?"++Prefix++tl(S)})
+            end,
+    Val;
+to_translated_id_ast(S, _Prefix, _Dict) ->
+    erl_syntax:string(S).
+
 translated_ast({string_literal, _, String}, Context, TreeWalker) ->
     NewStr = unescape_string_literal(String),
     DefaultString = case Context#dtl_context.locale of
         none -> NewStr;
-        Locale -> erlydtl_i18n:translate(NewStr,Locale)
+        Locale ->
+            {M,F} = Context#dtl_context.translater,
+            M:F(NewStr,Locale)
     end,
-    translated_ast2(erl_syntax:string(NewStr), erl_syntax:string(DefaultString), 
-        #ast_info{translatable_strings = [NewStr]}, TreeWalker);
+    translated_ast2(
+        to_translated_id_ast(NewStr,
+            Context#dtl_context.translater_macro_prefix,
+            Context#dtl_context.defined_macros),
+        erl_syntax:string(DefaultString),
+        #ast_info{translatable_strings = [NewStr]}, Context#dtl_context.translater, TreeWalker);
 translated_ast(ValueToken, Context, TreeWalker) ->
     {{Ast, Info}, TreeWalker1} = value_ast(ValueToken, true, Context, TreeWalker),
-    translated_ast2(Ast, Ast, Info, TreeWalker1).
+    translated_ast2(Ast, Ast, Info, Context#dtl_context.translater, TreeWalker1).
 
-translated_ast2(NewStrAst, DefaultStringAst, AstInfo, TreeWalker) ->
+translated_ast2(NewStrAst, DefaultStringAst, AstInfo, {erlydtl_i18n,translate}, TreeWalker) ->
     StringLookupAst = erl_syntax:application(
         erl_syntax:atom(erlydtl_runtime),
         erl_syntax:atom(translate),
         [NewStrAst, erl_syntax:variable("_TranslationFun"), DefaultStringAst]),
+    {{StringLookupAst, AstInfo}, TreeWalker};
+
+translated_ast2(NewStrAst, _DefaultStringAst, AstInfo, {M, F}, TreeWalker) ->
+    StringLookupAst = erl_syntax:application(
+        erl_syntax:atom(M), erl_syntax:atom(F),
+            [NewStrAst, erl_syntax:variable("_CurrentLocale")]),
     {{StringLookupAst, AstInfo}, TreeWalker}.
 
 % Completely unnecessary in ErlyDTL (use {{ "{%" }} etc), but implemented for compatibility.
@@ -1323,3 +1374,92 @@ call_ast(Module, Variable, AstInfo, TreeWalker) ->
 		 [ErrStrAst]),
     CallAst = erl_syntax:case_expr(AppAst, [OkAst, ErrorAst]),   
     with_dependencies(Module:dependencies(), {{CallAst, AstInfo}, TreeWalker}).
+
+parse_macros([], Dict, _Opts) ->
+    Dict;
+parse_macros([H|T], Dict, Opts) ->
+    File = find_file(H, Opts),
+    {ok, Bin} = file:read_file(File),
+    {Forms, Dict1} = scan_and_parse(binary_to_list(Bin), 1, [], Dict, Opts),
+    Forms =:= [] orelse throw({no_forms_expected, Forms}),
+    parse_macros(T, Dict1, Opts).
+
+
+scan_and_parse([],_Line,Forms,MacroDict,_Opt) ->
+    {lists:reverse(Forms), MacroDict};
+scan_and_parse(Text,Line,Forms,MacroDict,Options) ->
+    case scanner(Text,Line,MacroDict,Options) of
+    {macro,NLine,Cont,NMacroDict} ->
+        scan_and_parse(Cont,NLine,Forms,NMacroDict,Options);
+    {tokens,NLine,Cont,Toks} ->
+        {ok,Form} = erl_parse:parse_form(Toks),
+        scan_and_parse(Cont,NLine,[Form|Forms],MacroDict,Options)
+    end.
+
+scanner(Text,Line,MacroDict,Options) ->
+    case erl_scan:tokens([],Text,Line) of
+    {done,{ok,Toks,NLine},Cont} ->
+        case pre_proc(Toks,MacroDict,Options) of
+        {macro,NMacroDict} ->
+            {macro,NLine,Cont,NMacroDict};
+        {tokens,NToks} ->
+            {tokens,NLine,Cont,NToks}
+        end;
+    {more, Cont} ->
+        {more, Cont}
+    end.
+
+pre_proc([{'-',_},{atom,_,define},{'(',_},{_,_,Name}|DefToks],MacroDict,_Opts) ->
+    false = dict:is_key(Name,MacroDict),
+    case DefToks of
+    [{',',_}|Macro] ->
+        {macro,dict:store(Name,{[],macro_wo_vars(Macro,[])},MacroDict)};
+    [{'(',_}|Macro] ->
+        {macro,dict:store(Name,macro_w_vars(Macro,[]),MacroDict)}
+    end;
+pre_proc(Toks,MacroDict,_Opts) ->
+    {tokens,subst_macros(Toks,MacroDict,[])}.
+
+macro_w_vars([{')',_},{',',_}|Toks],Vars) ->
+    {lists:reverse(Vars),macro_wo_vars(Toks,[])};
+macro_w_vars([{var,_,Var}|Toks],Vars) ->
+    macro_w_vars(Toks,[Var|Vars]);
+macro_w_vars([{',',_},{var,_,Var}|Toks],Vars) ->
+    macro_w_vars(Toks,[Var|Vars]).
+
+macro_wo_vars([{')',_},{dot,_}],Val) -> Val;
+macro_wo_vars([H|T],Val) -> macro_wo_vars(T,[H|Val]).
+
+subst_macros([{'?',_},{_,_,Name},{'(',_}|Toks],MacroDict,O) ->
+    {NToks,Vars} = subst_macros_get_vars(Toks,[]),
+    Macro = dict:fetch(Name,MacroDict),
+    subst_macros(NToks,MacroDict,subst_macros_put_vars(Macro,Vars)++O);
+subst_macros([{'?',_},{_,_,Name}|Toks],MacroDict,O) ->
+    Macro = dict:fetch(Name,MacroDict),
+    subst_macros(Toks,MacroDict,subst_macros_put_vars(Macro,[])++O);
+subst_macros([H|T],MacroDict,O) -> subst_macros(T,MacroDict,[H|O]);
+subst_macros([],_MacroDict,O) -> lists:reverse(O).
+
+subst_macros_get_vars([{')',_}|Toks],O) ->
+    {Toks,lists:reverse(O)};
+subst_macros_get_vars([{',',_},{var,_,Var}|Toks],O) ->
+    subst_macros_get_vars(Toks,[Var|O]);
+subst_macros_get_vars([{var,_,Var}|Toks],O) ->
+    subst_macros_get_vars(Toks,[Var|O]).
+
+subst_macros_put_vars({[],Macro},[]) -> Macro;
+subst_macros_put_vars({[MVar|MVars],Macro},[Var|Vars]) ->
+    NMacro = lists:keyreplace(MVar,3,Macro,{var,1,Var}),
+    subst_macros_put_vars({MVars,NMacro},Vars).
+
+find_file(F, Opts) ->
+    Dirs = ["."] ++ [D || {i, D} <- Opts],
+    find_file2(F, Dirs).
+find_file2(F, []) ->
+    throw({file_not_found, F});
+find_file2(F, [D | T]) ->
+    Filename = filename:join(D, F),
+    case filelib:is_file(Filename) of
+    true  -> Filename;
+    false -> find_file2(F, T)
+    end.
