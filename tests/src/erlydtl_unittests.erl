@@ -1059,12 +1059,18 @@ tests() ->
      {"unicode", [
              {"(tm) somewhere",
                  <<"™">>, [], <<"™">>}
+        ]},
+     {"contrib_humanize", [
+             {"intcomma",
+                 <<"{{ a|intcomma }} {{ b|intcomma }} {{ c|intcomma }} {{ d|intcomma }}">>,
+                     [{a, 999}, {b, 123456789}, {c, 12345}, {d, 1234567890}],
+                     <<"999 123,456,789 12,345 1,234,567,890">>}
         ]}
     ].
  
 run_tests() ->
     io:format("Running unit tests...~n"),
-    DefaultOptions = [],
+    DefaultOptions = [{custom_filters_modules, [erlydtl_contrib_humanize]}],
     Failures = lists:foldl(
         fun({Group, Assertions}, GroupAcc) ->
                 io:format(" Test group ~p...~n", [Group]),
