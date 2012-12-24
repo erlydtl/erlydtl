@@ -118,9 +118,9 @@ Helpers provide additional templating functionality and can be used in
 conjunction with the `custom_tags_module` option above. They can be created
 from a directory of templates thusly:
 
-    erlydtl:compile_dir("/path/to/dir", my_helper_module_name)
+    erlydtl_compiler:compile_dir("/path/to/dir", my_helper_module_name)
     
-    erlydtl:compile_dir("/path/to/dir", my_helper_module_name, Options)
+    erlydtl_compiler:compile_dir("/path/to/dir", my_helper_module_name, Options)
 
 The resulting module will export a function for each template appearing
 in the specified directory. Options is the same as for compile/3.
