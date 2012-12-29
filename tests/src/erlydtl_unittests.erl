@@ -1001,7 +1001,8 @@ tests() ->
     {"spaceless", [
             {"Beginning", <<"{% spaceless %}    <b>foo</b>{% endspaceless %}">>, [], <<"<b>foo</b>">>},
             {"Middle", <<"{% spaceless %}<b>foo</b>  <b>bar</b>{% endspaceless %}">>, [], <<"<b>foo</b><b>bar</b>">>},
-            {"End", <<"{% spaceless %}<b>foo</b>  {% endspaceless %}">>, [], <<"<b>foo</b>">>}
+            {"End", <<"{% spaceless %}<b>foo</b>  {% endspaceless %}">>, [], <<"<b>foo</b>">>},
+            {"NewLine", <<"{% spaceless %}\n<div> \n <b>foo</b> \n </div>\n {% endspaceless %}">>, [], <<"<div><b>foo</b></div>">>}
         ]},
     {"templatetag", [
             {"openblock", <<"{% templatetag openblock %}">>, [], <<"{%">>},
