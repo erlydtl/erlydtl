@@ -37,6 +37,7 @@
 
 %% API
 -export([compile/2, compile/3]).
+-export([compile_dir/2, compile_dir/3]).
 
 %% @spec compile( FileOrBinary, Module::atom() ) -> ok | {error, Reason}
 compile(FileOrBinary, Module) ->
@@ -45,3 +46,11 @@ compile(FileOrBinary, Module) ->
 %% @spec compile( FileOrBinary, Module::atom(), Options ) -> ok | {error, Reason}
 compile(FileOrBinary, Module, Options) ->
     erlydtl_compiler:compile(FileOrBinary, Module, Options).
+
+%% @spec compile_dir( DirectoryPath::string(), Module::atom() ) -> ok | {error, Reason}
+compile_dir(DirectoryPath, Module) ->
+    erlydtl_compiler:compile_dir(DirectoryPath, Module).
+
+%% @spec compile_dir( DirectoryPath::string(), Module::atom(), Options ) -> ok | {error, Reason}
+compile_dir(DirectoryPath, Module, Options) ->
+    erlydtl_compiler:compile_dir(DirectoryPath, Module, Options).
