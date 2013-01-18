@@ -159,9 +159,9 @@ setup("trans") ->
 setup("locale") ->
     {ok, _RenderVars = [{locale, "ru"}]};
 setup("custom_tag1") ->
-    {ok, [{a, <<"a1">>}], [{locale, ru}, {custom_tags_context, ctx}], [<<"b1">>, <<"\n">>]};
+    {ok, [{a, <<"a1">>}], [{locale, ru}], [<<"b1">>, <<"\n">>]};
 setup("custom_tag2") ->
-    {ok, [{a, <<"a1">>}], [{locale, ru}, {custom_tags_context, ctx}], [<<"b2">>, <<"\n">>]};
+    {ok, [{a, <<"a1">>}], [{locale, ru}, {foo, bar}], [<<"b2">>, <<"\n">>]};
 setup("custom_tag3") ->
     {ok, [{a, <<"a1">>}], [{locale, ru}], [<<"b3">>, <<"\n">>]};
 setup("ssi") ->

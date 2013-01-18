@@ -62,10 +62,8 @@ with one of the following signatures:
 The `TagVars` are variables provided to a custom tag in the template's body
 (e.g. `{% foo bar=100 %}` results in `TagVars = [{"bar", 100}]`).
 The `Options` are options passed as the second argument to the `render/2` call
-at render-time.  For backward compatibility, if render `Options` include
-a `custom_tags_context` option, its value will be passed as `Options` to the
-custom tag handling function. Note that this backward-compatibility functionality
-will be deprecated in one of the next releases.
+at render-time. (These may include any options, not just `locale` and
+`translation_fun`.)
 
 * `custom_filters_modules` - A list of modules to be used for handling custom
 filters. The modules will be searched in order and take precedence over the
@@ -152,8 +150,6 @@ Val end`
 
 * `locale` - A string specifying the current locale, for use with the
 `blocktrans_fun` compile-time option.
-
-* `custom_tags_context` - A value that will be passed to custom tags.
 
     my_compiled_template:translatable_strings() -> [String]
 

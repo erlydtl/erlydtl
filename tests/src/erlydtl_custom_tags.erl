@@ -5,7 +5,7 @@
 custom1(_TagVars = []) ->
     <<"b1">>.
 
-custom2([], _CustomTagsContext = ctx) ->
+custom2([], _RenderOptions = [{locale, ru}, {foo, bar}]) ->
     <<"b2">>.
 
 custom3([], _RenderOptions = [{locale, ru}]) ->

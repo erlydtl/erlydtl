@@ -184,6 +184,7 @@ write_binary(Module1, Bin, Options, Warnings) ->
     end.
 
 compile_multiple_to_binary(Dir, ParserResults, Context) ->
+    MatchAst = options_match_ast(), 
     {Functions, {AstInfo, _}} = lists:mapfoldl(fun({File, DjangoParseTree, CheckSum}, {AstInfo, TreeWalker}) ->
                 FilePath = full_path(File, Context#dtl_context.doc_root),
                 {{BodyAst, BodyInfo}, TreeWalker1} = with_dependency({FilePath, CheckSum}, body_ast(DjangoParseTree, Context, TreeWalker)),
@@ -191,10 +192,10 @@ compile_multiple_to_binary(Dir, ParserResults, Context) ->
                 Function1 = erl_syntax:function(erl_syntax:atom(FunctionName),
                     [erl_syntax:clause([erl_syntax:variable("_Variables")], none,
                             [erl_syntax:application(none, erl_syntax:atom(FunctionName), 
-                                    [erl_syntax:variable("_Variables"), erl_syntax:atom(none)])])]),
+                                    [erl_syntax:variable("_Variables"), erl_syntax:list([])])])]),
                 Function2 = erl_syntax:function(erl_syntax:atom(FunctionName), 
-                    [erl_syntax:clause([erl_syntax:variable("_Variables"), erl_syntax:variable("_TranslationFun")], none,
-                            [BodyAst])]),
+                    [erl_syntax:clause([erl_syntax:variable("_Variables"), erl_syntax:variable("RenderOptions")], none,
+                            MatchAst ++ [BodyAst])]),
                 {{FunctionName, Function1, Function2}, {merge_info(AstInfo, BodyInfo), TreeWalker1}}
         end, {#ast_info{}, #treewalker{}}, ParserResults),
     Forms = custom_forms(Dir, Context#dtl_context.module, Functions, AstInfo),
@@ -345,8 +346,9 @@ custom_tags_clauses_ast(CustomTags, Context, TreeWalker) ->
     custom_tags_clauses_ast1(CustomTags, [], [], #ast_info{}, Context, TreeWalker).
 
 custom_tags_clauses_ast1([], _ExcludeTags, ClauseAcc, InfoAcc, _Context, TreeWalker) ->
-    {{lists:reverse([erl_syntax:clause([erl_syntax:underscore(), erl_syntax:underscore(), erl_syntax:underscore()], none,
-                        [erl_syntax:list([])])|ClauseAcc]), InfoAcc}, TreeWalker};
+    {{lists:reverse([erl_syntax:clause([erl_syntax:variable("TagName"), erl_syntax:underscore(), erl_syntax:underscore()], none, 
+                        [erl_syntax:list([])])|ClauseAcc
+                ]), InfoAcc}, TreeWalker};
 custom_tags_clauses_ast1([Tag|CustomTags], ExcludeTags, ClauseAcc, InfoAcc, Context, TreeWalker) ->
     case lists:member(Tag, ExcludeTags) of
         true ->
@@ -357,13 +359,12 @@ custom_tags_clauses_ast1([Tag|CustomTags], ExcludeTags, ClauseAcc, InfoAcc, Cont
                 true ->
                     case parse(CustomTagFile, Context) of
                         {ok, DjangoParseTree, CheckSum} ->
-                            {{BodyAst, BodyAstInfo}, TreeWalker1} =
-                                with_dependency({CustomTagFile, CheckSum}, 
-                                    body_ast(DjangoParseTree, Context, TreeWalker)),
+                            {{BodyAst, BodyAstInfo}, TreeWalker1} = with_dependency(
+                                {CustomTagFile, CheckSum}, body_ast(DjangoParseTree, Context, TreeWalker)),
+                            MatchAst = options_match_ast(), 
                             Clause = erl_syntax:clause(
-                                [erl_syntax:string(Tag),
-                                 erl_syntax:variable("_Variables"), options_ast()],
-                                none, [BodyAst]),
+                                [key_to_string(Tag), erl_syntax:variable("_Variables"), erl_syntax:variable("RenderOptions")],
+                                none, MatchAst ++ [BodyAst]),
                             custom_tags_clauses_ast1(CustomTags, [Tag|ExcludeTags],
                                 [Clause|ClauseAcc], merge_info(BodyAstInfo, InfoAcc), 
                                 Context, TreeWalker1);
@@ -438,24 +439,14 @@ forms(File, Module, {BodyAst, BodyInfo}, {CustomTagsFunctionAst, CustomTagsInfo}
                         erl_syntax:atom(render),
                         [erl_syntax:variable("_Variables"), erl_syntax:list([])])])]),
     Function2 = erl_syntax:application(none, erl_syntax:atom(render_internal), 
-        [erl_syntax:variable("_Variables"),
-            erl_syntax:application(
-                erl_syntax:atom(proplists),
-                erl_syntax:atom(get_value),
-                [erl_syntax:atom(translation_fun), erl_syntax:variable("Options"), erl_syntax:atom(none)]),
-            erl_syntax:application(
-                erl_syntax:atom(proplists),
-                erl_syntax:atom(get_value),
-                [erl_syntax:atom(locale), erl_syntax:variable("Options"), erl_syntax:atom(none)]),
-            erl_syntax:variable("Options")
-        ]),
+        [erl_syntax:variable("_Variables"), erl_syntax:variable("RenderOptions")]),
     ClauseOk = erl_syntax:clause([erl_syntax:variable("Val")], none,
         [erl_syntax:tuple([erl_syntax:atom(ok), erl_syntax:variable("Val")])]),     
     ClauseCatch = erl_syntax:clause([erl_syntax:variable("Err")], none,
         [erl_syntax:tuple([erl_syntax:atom(error), erl_syntax:variable("Err")])]),            
     Render2FunctionAst = erl_syntax:function(erl_syntax:atom(render),
         [erl_syntax:clause([erl_syntax:variable("_Variables"),
-                    erl_syntax:variable("Options")], none, 
+                    erl_syntax:variable("RenderOptions")], none, 
             [erl_syntax:try_expr([Function2], [ClauseOk], [ClauseCatch])])]),  
      
     SourceFunctionTuple = erl_syntax:tuple(
@@ -472,15 +463,9 @@ forms(File, Module, {BodyAst, BodyInfo}, {CustomTagsFunctionAst, CustomTagsInfo}
 
     VariablesAst = variables_function(MergedInfo#ast_info.var_names),
 
-    BodyAstTmp = [
-        erl_syntax:match_expr(
-            erl_syntax:variable("_CustomTagOptions"),
-            erl_syntax:application(
-                erl_syntax:atom(proplists),
-                erl_syntax:atom(get_value),
-                [erl_syntax:atom(custom_tags_context),
-                 erl_syntax:variable("RenderOptions"),
-                 erl_syntax:variable("RenderOptions")])),
+    MatchAst = options_match_ast(), 
+    
+    BodyAstTmp = MatchAst ++ [
         erl_syntax:application(
             erl_syntax:atom(erlydtl_runtime),
             erl_syntax:atom(stringify_final),
@@ -491,8 +476,6 @@ forms(File, Module, {BodyAst, BodyInfo}, {CustomTagsFunctionAst, CustomTagsInfo}
         erl_syntax:atom(render_internal), 
         [erl_syntax:clause([
             erl_syntax:variable("_Variables"),
-            erl_syntax:variable("_TranslationFun"), 
-            erl_syntax:variable("_CurrentLocale"),
             erl_syntax:variable("RenderOptions")],
             none, BodyAstTmp)]
     ),   
@@ -515,6 +498,21 @@ forms(File, Module, {BodyAst, BodyInfo}, {CustomTagsFunctionAst, CustomTagsInfo}
             TranslatedBlocksAst, VariablesAst, RenderInternalFunctionAst, 
             CustomTagsFunctionAst | BodyInfo#ast_info.pre_render_asts]].    
 
+options_match_ast() -> 
+    [
+        erl_syntax:match_expr(
+            erl_syntax:variable("_TranslationFun"),
+            erl_syntax:application(
+                erl_syntax:atom(proplists),
+                erl_syntax:atom(get_value),
+                [erl_syntax:atom(translation_fun), erl_syntax:variable("RenderOptions"), erl_syntax:atom(none)])),
+        erl_syntax:match_expr(
+            erl_syntax:variable("_CurrentLocale"),
+            erl_syntax:application(
+                erl_syntax:atom(proplists),
+                erl_syntax:atom(get_value),
+                [erl_syntax:atom(locale), erl_syntax:variable("RenderOptions"), erl_syntax:atom(none)]))
+    ].
         
 % child templates should only consist of blocks at the top level
 body_ast([{'extends', {string_literal, _Pos, String}} | ThisParseTree], Context, TreeWalker) ->
@@ -1270,18 +1268,18 @@ tag_ast(Name, Args, Context, TreeWalker) ->
 custom_tags_modules_ast(Name, InterpretedArgs, #dtl_context{ custom_tags_modules = [], is_compiling_dir = false }) ->
     {erl_syntax:application(none, erl_syntax:atom(render_tag),
             [key_to_string(Name), erl_syntax:list(InterpretedArgs),
-             erl_syntax:variable("_CustomTagOptions")]),
+             erl_syntax:variable("RenderOptions")]),
         #ast_info{custom_tags = [Name]}};
 custom_tags_modules_ast(Name, InterpretedArgs, #dtl_context{ custom_tags_modules = [], is_compiling_dir = true, module = Module }) ->
     {erl_syntax:application(erl_syntax:atom(Module), erl_syntax:atom(Name),
-            [erl_syntax:list(InterpretedArgs), erl_syntax:variable("_CustomTagOptions")]),
+            [erl_syntax:list(InterpretedArgs), erl_syntax:variable("RenderOptions")]),
              #ast_info{ custom_tags = [Name] }};
 custom_tags_modules_ast(Name, InterpretedArgs, #dtl_context{ custom_tags_modules = [Module|Rest] } = Context) ->
     try lists:max([I || {N,I} <- Module:module_info(exports), N =:= Name]) of
         2 ->
             {erl_syntax:application(erl_syntax:atom(Module), erl_syntax:atom(Name),
                 [erl_syntax:list(InterpretedArgs),
-                 erl_syntax:variable("_CustomTagOptions")]), #ast_info{}};
+                 erl_syntax:variable("RenderOptions")]), #ast_info{}};
         1 ->
             {erl_syntax:application(erl_syntax:atom(Module), erl_syntax:atom(Name),
                 [erl_syntax:list(InterpretedArgs)]), #ast_info{}};
@@ -1297,12 +1295,6 @@ print(true, Fmt, Args) ->
 print(_, _Fmt, _Args) ->
     ok.
 
-options_ast() ->
-    erl_syntax:list([
-            erl_syntax:tuple([erl_syntax:atom(translation_fun), erl_syntax:variable("_TranslationFun")]),
-            erl_syntax:tuple([erl_syntax:atom(locale), erl_syntax:variable("_CurrentLocale")])
-        ]).
-
 call_ast(Module, TreeWalkerAcc) ->
     call_ast(Module, erl_syntax:variable("_Variables"), #ast_info{}, TreeWalkerAcc).
 
@@ -1314,7 +1306,7 @@ call_ast(Module, Variable, AstInfo, TreeWalker) ->
      AppAst = erl_syntax:application(
 		erl_syntax:atom(Module),
 		erl_syntax:atom(render),
-                [Variable, options_ast()]),
+        [Variable, erl_syntax:variable("RenderOptions")]),
     RenderedAst = erl_syntax:variable("Rendered"),
     OkAst = erl_syntax:clause(
 	      [erl_syntax:tuple([erl_syntax:atom(ok), RenderedAst])], 
