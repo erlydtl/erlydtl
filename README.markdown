@@ -91,8 +91,9 @@ changed. Useful for debugging.
 
 * `locale` - The locale used for template compile. Requires erlang_gettext. It
 will ask gettext_server for the string value on the provided locale.
-For example, adding {locale, "en_US"} will call {key2str, Key, "en_US"}
-for all string marked as trans (`{% trans "StringValue" %}` on templates).
+For example, adding {locale, "en_US"} will call `TransMod:TransFun(Key, "en_US")`
+for all string marked as trans (`{% trans "StringValue" %}` on templates).  The
+`TransMod` and `TransFun` are configurable through the `i18n_mf` option.
 See README_I18N.
 
 * `blocktrans_fun` - A two-argument fun to use for translating `blocktrans`
@@ -106,6 +107,18 @@ Defaults to [].
 
 * `binary_strings` - Whether to compile strings as binary terms (rather than
 lists). Defaults to `true`.
+
+* `included_headers` - List of header files to be included in the compiled
+template.  The headers may define integer constants used for referencing
+message identifiers in the `{% trans MsgID %}` tags.  Defaults to `[]`.
+
+* `translater` - Tuple `{Module, Function}` that defines internationalization
+translation function.  Defaults to `{erlydtl_i18n, translate}`. See
+README_I18N.
+
+* `translater_macro_prefix` - Contains a prefix prepended to translation
+macros used in `{% trans "?MACRO" %}` tags.  This is for avoiding possible
+macro name collisions.  Defaults to `"I18N_"`, so "?HELLO" becomes ?I18N_HELLO.
 
 * `verbose` - Enable verbose printing of compilation results.
 
@@ -150,6 +163,11 @@ Val end`
 
 * `locale` - A string specifying the current locale, for use with the
 `blocktrans_fun` compile-time option.
+
+* `translater` - A tuple {Module::atom(), Fun::atom()} representing a custom
+translation function for internationalization support.  This function will
+be called with `(MsgID, Locale)` arguments corresponding to the
+`{% trans MsgID %}` tags.  See README_I18N.
 
     my_compiled_template:translatable_strings() -> [String]
 
