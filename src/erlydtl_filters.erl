@@ -1038,6 +1038,16 @@ truncatechars([], _CharsLeft, Acc) ->
     lists:reverse(Acc);
 truncatechars(_Input, 0, Acc) ->
     lists:reverse("..." ++ Acc);
+truncatechars([C|Rest], CharsLeft, Acc) when C >= 2#11111100 ->
+    truncatechars(Rest, CharsLeft + 4, [C|Acc]);
+truncatechars([C|Rest], CharsLeft, Acc) when C >= 2#11111000 ->
+    truncatechars(Rest, CharsLeft + 3, [C|Acc]);
+truncatechars([C|Rest], CharsLeft, Acc) when C >= 2#11110000 ->
+    truncatechars(Rest, CharsLeft + 2, [C|Acc]);
+truncatechars([C|Rest], CharsLeft, Acc) when C >= 2#11100000 ->
+    truncatechars(Rest, CharsLeft + 1, [C|Acc]);
+truncatechars([C|Rest], CharsLeft, Acc) when C >= 2#11000000 ->
+    truncatechars(Rest, CharsLeft, [C|Acc]);
 truncatechars([C|Rest], CharsLeft, Acc) ->
     truncatechars(Rest, CharsLeft - 1, [C|Acc]).
 
