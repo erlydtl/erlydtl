@@ -1029,7 +1029,8 @@ title([], Acc) ->
     lists:reverse(Acc);
 title([Char | Rest], [] = Acc) when Char >= $a, Char =< $z ->
     title(Rest, [Char + ($A - $a) | Acc]);
-title([Char | Rest], [$\  |_] = Acc) when Char >= $a, Char =< $z ->
+title([Char | Rest], [Sep|_] = Acc) when Char >= $a, Char =< $z, not (Sep >= $a andalso Sep =< $z),
+                                         not (Sep >= $A andalso Sep =< $Z) ->
     title(Rest, [Char + ($A - $a) | Acc]);
 title([Char | Rest], Acc) ->
     title(Rest, [Char | Acc]).
