@@ -797,7 +797,7 @@ timeuntil(Date,Comparison) ->
 title(Input) when is_binary(Input) ->
     title(binary_to_list(Input));
 title(Input) when is_list(Input) ->
-    title(Input, []).
+    title(lower(Input), []).
 
 %% @doc Truncates a string after a certain number of characters.
 truncatechars(_Input, Max) when Max =< 0 ->
@@ -1029,8 +1029,12 @@ title([], Acc) ->
     lists:reverse(Acc);
 title([Char | Rest], [] = Acc) when Char >= $a, Char =< $z ->
     title(Rest, [Char + ($A - $a) | Acc]);
-title([Char | Rest], [Sep|_] = Acc) when Char >= $a, Char =< $z, not (Sep >= $a andalso Sep =< $z),
-                                         not (Sep >= $A andalso Sep =< $Z) ->
+title([Char | Rest], [Sep|[Sep2|_Other]] = Acc)
+  when Char >= $a, Char =< $z,
+       not (Sep >= $a andalso Sep =< $z),
+       not (Sep >= $A andalso Sep =< $Z),
+       not (Sep >= $0 andalso Sep =< $9),
+       not (Sep =:= $' andalso (Sep2 >= $a andalso Sep2 =< $z)) ->
     title(Rest, [Char + ($A - $a) | Acc]);
 title([Char | Rest], Acc) ->
     title(Rest, [Char | Acc]).
