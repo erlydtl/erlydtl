@@ -260,10 +260,10 @@ EndBlockBraced -> open_tag endblock_keyword close_tag.
 
 ExtendsTag -> open_tag extends_keyword string_literal close_tag : {extends, '$3'}.
 
-IncludeTag -> open_tag include_keyword string_literal close_tag : {include, '$3', []}.
-IncludeTag -> open_tag include_keyword string_literal with_keyword Args close_tag : {include, '$3', '$5'}.
-IncludeTag -> open_tag include_keyword string_literal only_keyword close_tag : {include_only, '$3', []}.
-IncludeTag -> open_tag include_keyword string_literal with_keyword Args only_keyword close_tag : {include_only, '$3', '$5'}.
+IncludeTag -> open_tag include_keyword Value close_tag : {include, '$3', []}.
+IncludeTag -> open_tag include_keyword Value with_keyword Args close_tag : {include, '$3', '$5'}.
+IncludeTag -> open_tag include_keyword Value only_keyword close_tag : {include_only, '$3', []}.
+IncludeTag -> open_tag include_keyword Value with_keyword Args only_keyword close_tag : {include_only, '$3', '$5'}.
 
 NowTag -> open_tag now_keyword string_literal close_tag : {date, now, '$3'}.
 
@@ -351,7 +351,7 @@ EndRegroupBraced -> open_tag endregroup_keyword close_tag.
 SpacelessBlock -> open_tag spaceless_keyword close_tag Elements open_tag endspaceless_keyword close_tag : {spaceless, '$4'}.
 
 SSITag -> open_tag ssi_keyword Value close_tag : {ssi, '$3'}.
-SSITag -> open_tag ssi_keyword string_literal parsed_keyword close_tag : {ssi_parsed, '$3'}.
+SSITag -> open_tag ssi_keyword Value parsed_keyword close_tag : {ssi_parsed, '$3'}.
 
 BlockTransBlock -> open_tag blocktrans_keyword close_tag Elements open_tag endblocktrans_keyword close_tag : {blocktrans, [], '$4'}.
 BlockTransBlock -> open_tag blocktrans_keyword with_keyword Args close_tag Elements open_tag endblocktrans_keyword close_tag : {blocktrans, '$4', '$6'}.

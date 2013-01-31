@@ -39,6 +39,8 @@
 %% Definitions
 %% --------------------------------------------------------------------
 -export([compile/2, compile/3, compile_dir/2, compile_dir/3, parse/1]).
+% Access from erlydtl_runtime
+-export([full_path/2]).
 
 -record(dtl_context, {
     local_scopes = [], 
@@ -255,6 +257,39 @@ init_context(IsCompilingDir, ParseTrail, DefDir, Module, Options) ->
         verbose = proplists:get_value(verbose, Options, Ctx#dtl_context.verbose),
         is_compiling_dir = IsCompilingDir}.
 
+context_to_options(Context) ->
+    #dtl_context{
+        doc_root = DocRoot,
+        filter_modules = FilterModules,
+        custom_tags_dir = CustomTagsDir,
+        custom_tags_modules = CustomTagsModules,
+        blocktrans_fun = BlockTransFun,
+        blocktrans_locales = BlockTransLocales,
+        vars = Vars,
+        reader = Reader,
+        compiler_options = CompilerOptions,
+        binary_strings = BinaryStrings,
+        force_recompile = ForceRecompile,
+        locale = Locale,
+        verbose = Verbose
+    } = Context,
+    CustomFilterModules = FilterModules -- [erlydtl_filters],
+    [
+        {doc_root, DocRoot},
+        {custom_filter_modules, CustomFilterModules},
+        {custom_tags_dir, CustomTagsDir},
+        {custom_tags_modules, CustomTagsModules},
+        {blocktrans_fun, BlockTransFun},
+        {blocktrans_locales, BlockTransLocales},
+        {vars, Vars},
+        {reader, Reader},
+        {compiler_options, CompilerOptions},
+        {binary_strings, BinaryStrings},
+        {force_recompile, ForceRecompile},
+        {locale, Locale},
+        {verbose, Verbose}
+    ].
+   
 init_dtl_context(File, Module, Options) when is_list(Module) ->
     init_dtl_context(File, list_to_atom(Module), Options);
 init_dtl_context(File, Module, Options) ->
@@ -620,18 +655,18 @@ body_ast(DjangoParseTree, Context, TreeWalker) ->
                 {IfAstInfo, TreeWalker1} = body_ast(IfContents, Context, TreeWalkerAcc),
                 {ElseAstInfo, TreeWalker2} = body_ast(ElseContents, Context, TreeWalker1),
                 ifelse_ast({'expr', "ne", Arg1, Arg2}, IfAstInfo, ElseAstInfo, Context, TreeWalker2);                    
-            ({'include', {string_literal, _, File}, Args}, TreeWalkerAcc) ->
-                include_ast(unescape_string_literal(File), Args, Context#dtl_context.local_scopes, Context, TreeWalkerAcc);
-            ({'include_only', {string_literal, _, File}, Args}, TreeWalkerAcc) ->
-                include_ast(unescape_string_literal(File), Args, [], Context, TreeWalkerAcc);
+            ({'include', Expression, Args}, TreeWalkerAcc) ->
+                include_ast(Expression, Args, Context#dtl_context.local_scopes, false, Context, TreeWalkerAcc);
+            ({'include_only', Expression, Args}, TreeWalkerAcc) ->
+                include_ast(Expression, Args, [], true, Context, TreeWalkerAcc);
             ({'regroup', {ListVariable, Grouper, {identifier, _, NewVariable}}, Contents}, TreeWalkerAcc) ->
                 regroup_ast(ListVariable, Grouper, NewVariable, Contents, Context, TreeWalkerAcc);
             ({'spaceless', Contents}, TreeWalkerAcc) ->
                 spaceless_ast(Contents, Context, TreeWalkerAcc);
             ({'ssi', Arg}, TreeWalkerAcc) ->
                 ssi_ast(Arg, Context, TreeWalkerAcc);
-            ({'ssi_parsed', {string_literal, _, FileName}}, TreeWalkerAcc) ->
-                include_ast(unescape_string_literal(FileName), [], Context#dtl_context.local_scopes, Context, TreeWalkerAcc);
+            ({'ssi_parsed', Expression}, TreeWalkerAcc) ->
+                include_ast(Expression, [], Context#dtl_context.local_scopes, false, Context, TreeWalkerAcc);
             ({'string', _Pos, String}, TreeWalkerAcc) -> 
                 string_ast(String, Context, TreeWalkerAcc);
             ({'tag', {identifier, _, Name}, Args}, TreeWalkerAcc) ->
@@ -837,8 +872,9 @@ string_ast(String, #dtl_context{ binary_strings = false }, TreeWalker) when is_l
 string_ast(S, Context, TreeWalker) when is_atom(S) ->
     string_ast(atom_to_list(S), Context, TreeWalker).
 
-
-include_ast(File, ArgList, Scopes, Context, TreeWalker) ->
+% include at compile time
+include_ast({string_literal, _, FileName}, ArgList, Scopes, _Only, Context, TreeWalker) ->
+    File = unescape_string_literal(FileName),
     FilePath = full_path(File, Context#dtl_context.doc_root),
     case parse(FilePath, Context) of
         {ok, InclusionParseTree, CheckSum} ->
@@ -857,8 +893,59 @@ include_ast(File, ArgList, Scopes, Context, TreeWalker) ->
             {{BodyAst, merge_info(BodyInfo, ArgInfo)}, TreeWalker2};
         Err ->
             throw(Err)
-    end.
-    
+    end;
+% include at run time
+include_ast(FileName, ArgList, Scopes, Only, Context, TreeWalker) ->
+    {{FileNameAst, AstInfo0}, TreeWalker1} = value_ast(FileName, true, Context, TreeWalker),
+    {ArgsScope, {AstInfo4, TreeWalker4}} = lists:mapfoldl(fun
+            ({{identifier, _, LocalVarName}, Value}, {AstInfo1, TreeWalker2}) ->
+                {{ArgAst, AstInfo2}, TreeWalker3} = value_ast(Value, false, Context, TreeWalker2),
+                {{LocalVarName, ArgAst}, {merge_info(AstInfo1, AstInfo2), TreeWalker3}}
+        end, {AstInfo0, TreeWalker1}, ArgList),
+    NewScopes = [ArgsScope | Scopes],
+    ScopeAstPairs = lists:foldl(fun(Scope, AccScopeAst0) ->
+        lists:foldl(fun({Variable, VariableAst}, AccScopeAst1) ->
+            case lists:keymember(Variable, 1, AccScopeAst1) of
+                false -> [{Variable, erl_syntax:tuple([erl_syntax:atom(Variable), VariableAst])} | AccScopeAst1];
+                true -> AccScopeAst1
+            end
+        end, AccScopeAst0, Scope)
+    end, [], NewScopes),
+    {_Variables, ScopeAstL} = lists:unzip(ScopeAstPairs),
+    ScopeAst0 = erl_syntax:list(ScopeAstL),
+    ScopeAst = case Only of
+        true -> ScopeAst0;
+        false -> erl_syntax:application(
+            erl_syntax:atom(lists),
+            erl_syntax:atom(append),
+            [
+                ScopeAst0,
+                erl_syntax:variable("_Variables")
+            ])
+    end,
+    CompileOptions0 = context_to_options(Context),
+    CompileOptions1 = case lists:keyfind(blocktrans_fun, 1, CompileOptions0) of
+        {blocktrans_fun, BlockTransFun} when is_function(BlockTransFun) ->
+            % function cannot be abstracted.
+            % term_to_binary would work, but without any insurance that the
+            % function will still exist at runtime.
+            lists:keydelete(blocktrans_fun, 1, CompileOptions0);
+        _ -> CompileOptions0
+    end,
+    IncludeAst = erl_syntax:application(
+        erl_syntax:atom(erlydtl_runtime),
+        erl_syntax:atom(include_file),
+        [
+            erl_syntax:string(Context#dtl_context.doc_root),
+            FileNameAst,
+            erl_syntax:atom(Context#dtl_context.module),
+            erl_syntax:abstract(CompileOptions1),
+            ScopeAst,
+            erl_syntax:variable("_Variables")
+        ]
+    ),
+    {{IncludeAst, AstInfo4}, TreeWalker4}.
+
 % include at run-time
 ssi_ast(FileName, Context, TreeWalker) ->
     {{Ast, Info}, TreeWalker1} = value_ast(FileName, true, Context, TreeWalker),
