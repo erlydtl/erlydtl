@@ -16,7 +16,10 @@ tests() ->
                     [{var1, 0.42}], <<"The price of milk is: 0.42">>},
                 {"No spaces",
                     <<"{{var1}}">>,
-                    [{var1, "foo"}], <<"foo">>}
+                    [{var1, "foo"}], <<"foo">>},
+                {"Variable name is a tag name",
+                    <<"{{ comment }}">>,
+                    [{comment, "Nice work!"}], <<"Nice work!">>}
             ]},
         {"comment", [
                 {"comment block is excised",

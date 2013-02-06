@@ -53,70 +53,11 @@ scan(Template) ->
     scan(Template, [], {1, 1}, in_text).
 
 scan([], Scanned, _, in_text) ->
-    {ok, lists:reverse(lists:map(
-                fun
-                    ({identifier, Pos, String}) ->
-                        RevString = lists:reverse(String),
-                        Keywords = [
-                            "autoescape", "endautoescape", 
-
-                            "block", "endblock", 
-
-                            "comment", "endcomment", 
-
-                            %TODO "csrf_token",
-                            
-                            "cycle", 
-                            
-                            "extends", 
-
-                            "filter", "endfilter",
-
-                            "firstof",
-
-                            "for", "in", "empty", "endfor", 
-
-                            "if", "elif", "else", "endif", "not", "or", "and", 
-
-                            "ifchanged", "endifchanged",
-                            
-                            "ifequal", "endifequal", 
-
-                            "ifnotequal", "endifnotequal",
-
-                            "include", "only",
-
-                            "now", 
-
-                            "regroup", "endregroup", "as", "by",
-                            
-                            "spaceless", "endspaceless", 
-                            
-                            "ssi", "parsed",
-                            
-                            "templatetag", "openblock", "closeblock", "openvariable", "closevariable", "openbrace", "closebrace", "opencomment", "closecomment",
-
-                            % "url", - implemented as custom tag
-
-                            "widthratio",
-
-                            "call", "with", "endwith",
-                            
-                            "trans", "blocktrans", "endblocktrans", "noop"
-                        ], 
-                        Type = case lists:member(RevString, Keywords) of
-                            true ->
-                                list_to_atom(RevString ++ "_keyword");
-                            _ ->
-                                identifier
-                        end,
-                        {Type, Pos, list_to_atom(RevString)};
-                    ({Category, Pos, String}) when  Category =:= string; 
-                                                    Category =:= string_literal; 
-                                                    Category =:= number_literal ->
-                        {Category, Pos, lists:reverse(String)};
-                    (Other) -> Other
-                end, Scanned))};
+    Tokens = lists:reverse(Scanned),
+    FixedTokens = reverse_strings(Tokens),
+    MarkedTokens = mark_keywords(FixedTokens),
+    AtomizedTokens = atomize_identifiers(MarkedTokens),
+    {ok, AtomizedTokens};
 
 scan([], _Scanned, _, {in_comment, _}) ->
     {error, "Reached end of file inside a comment."};
@@ -305,3 +246,147 @@ char_type(C) when ((C >= $0) andalso (C =< $9)) ->
     digit;
 char_type(_C) ->
     undefined.
+
+reverse_strings(Tokens) ->
+    reverse_strings(Tokens, []).
+
+reverse_strings([], Acc) ->
+    lists:reverse(Acc);
+reverse_strings([{Category, Pos, String}|T], Acc) when Category =:= string; Category =:= identifier;
+                                                       Category =:= string_literal; Category =:= number_literal ->
+    reverse_strings(T, [{Category, Pos, lists:reverse(String)}|Acc]);
+reverse_strings([Other|T], Acc) ->
+    reverse_strings(T, [Other|Acc]).
+
+mark_keywords(Tokens) ->
+    mark_keywords(Tokens, []).
+
+mark_keywords([], Acc) ->
+    lists:reverse(Acc);
+mark_keywords([{identifier, Pos, "in" = String}|T], Acc) ->
+    mark_keywords(T, [{in_keyword, Pos, String}|Acc]);
+mark_keywords([{identifier, Pos, "not" = String}|T], Acc) ->
+    mark_keywords(T, [{not_keyword, Pos, String}|Acc]);
+mark_keywords([{identifier, Pos, "or" = String}|T], Acc) ->
+    mark_keywords(T, [{or_keyword, Pos, String}|Acc]);
+mark_keywords([{identifier, Pos, "and" = String}|T], Acc) ->
+    mark_keywords(T, [{and_keyword, Pos, String}|Acc]);
+mark_keywords([{identifier, Pos, "as" = String}|T], Acc) ->
+    mark_keywords(T, [{as_keyword, Pos, String}|Acc]);
+mark_keywords([{identifier, Pos, "by" = String}|T], Acc) ->
+    mark_keywords(T, [{by_keyword, Pos, String}|Acc]);
+mark_keywords([{identifier, Pos, "with" = String}|T], Acc) ->
+    mark_keywords(T, [{with_keyword, Pos, String}|Acc]);
+% These must be succeeded by a close_tag
+mark_keywords([{identifier, Pos, "only" = String}, {close_tag, _, _} = CloseTag|T], Acc) ->
+    mark_keywords(T, lists:reverse([{only_keyword, Pos, String}, CloseTag], Acc));
+mark_keywords([{identifier, Pos, "parsed" = String}, {close_tag, _, _} = CloseTag|T], Acc) ->
+    mark_keywords(T, lists:reverse([{parsed_keyword, Pos, String}, CloseTag], Acc));
+mark_keywords([{identifier, Pos, "noop" = String}, {close_tag, _, _} = CloseTag|T], Acc) ->
+    mark_keywords(T, lists:reverse([{noop_keyword, Pos, String}, CloseTag], Acc));
+mark_keywords([{identifier, Pos, "openblock" = String}, {close_tag, _, _} = CloseTag|T], Acc) ->
+    mark_keywords(T, lists:reverse([{openblock_keyword, Pos, String}, CloseTag], Acc));
+mark_keywords([{identifier, Pos, "closeblock" = String}, {close_tag, _, _} = CloseTag|T], Acc) ->
+    mark_keywords(T, lists:reverse([{closeblock_keyword, Pos, String}, CloseTag], Acc));
+mark_keywords([{identifier, Pos, "openvariable" = String}, {close_tag, _, _} = CloseTag|T], Acc) ->
+    mark_keywords(T, lists:reverse([{openvariable_keyword, Pos, String}, CloseTag], Acc));
+mark_keywords([{identifier, Pos, "closevariable" = String}, {close_tag, _, _} = CloseTag|T], Acc) ->
+    mark_keywords(T, lists:reverse([{closevariable_keyword, Pos, String}, CloseTag], Acc));
+mark_keywords([{identifier, Pos, "openbrace" = String}, {close_tag, _, _} = CloseTag|T], Acc) ->
+    mark_keywords(T, lists:reverse([{openbrace_keyword, Pos, String}, CloseTag], Acc));
+mark_keywords([{identifier, Pos, "closebrace" = String}, {close_tag, _, _} = CloseTag|T], Acc) ->
+    mark_keywords(T, lists:reverse([{closebrace_keyword, Pos, String}, CloseTag], Acc));
+mark_keywords([{identifier, Pos, "opencomment" = String}, {close_tag, _, _} = CloseTag|T], Acc) ->
+    mark_keywords(T, lists:reverse([{opencomment_keyword, Pos, String}, CloseTag], Acc));
+mark_keywords([{identifier, Pos, "closecomment" = String}, {close_tag, _, _} = CloseTag|T], Acc) ->
+    mark_keywords(T, lists:reverse([{closecomment_keyword, Pos, String}, CloseTag], Acc));
+% The rest must be preceded by an open_tag.
+% This allows variables to have the same names as tags.
+mark_keywords([{open_tag, _, _} = OpenToken, {identifier, Pos, "autoescape" = String}|T], Acc) ->
+    mark_keywords(T, lists:reverse([OpenToken, {autoescape_keyword, Pos, String}], Acc));
+mark_keywords([{open_tag, _, _} = OpenToken, {identifier, Pos, "endautoescape" = String}|T], Acc) ->
+    mark_keywords(T, lists:reverse([OpenToken, {endautoescape_keyword, Pos, String}], Acc));
+mark_keywords([{open_tag, _, _} = OpenToken, {identifier, Pos, "block" = String}|T], Acc) ->
+    mark_keywords(T, lists:reverse([OpenToken, {block_keyword, Pos, String}], Acc));
+mark_keywords([{open_tag, _, _} = OpenToken, {identifier, Pos, "endblock" = String}|T], Acc) ->
+    mark_keywords(T, lists:reverse([OpenToken, {endblock_keyword, Pos, String}], Acc));
+mark_keywords([{open_tag, _, _} = OpenToken, {identifier, Pos, "comment" = String}|T], Acc) ->
+    mark_keywords(T, lists:reverse([OpenToken, {comment_keyword, Pos, String}], Acc));
+mark_keywords([{open_tag, _, _} = OpenToken, {identifier, Pos, "endcomment" = String}|T], Acc) ->
+    mark_keywords(T, lists:reverse([OpenToken, {endcomment_keyword, Pos, String}], Acc));
+mark_keywords([{open_tag, _, _} = OpenToken, {identifier, Pos, "cycle" = String}|T], Acc) ->
+    mark_keywords(T, lists:reverse([OpenToken, {cycle_keyword, Pos, String}], Acc));
+mark_keywords([{open_tag, _, _} = OpenToken, {identifier, Pos, "extends" = String}|T], Acc) ->
+    mark_keywords(T, lists:reverse([OpenToken, {extends_keyword, Pos, String}], Acc));
+mark_keywords([{open_tag, _, _} = OpenToken, {identifier, Pos, "filter" = String}|T], Acc) ->
+    mark_keywords(T, lists:reverse([OpenToken, {filter_keyword, Pos, String}], Acc));
+mark_keywords([{open_tag, _, _} = OpenToken, {identifier, Pos, "endfilter" = String}|T], Acc) ->
+    mark_keywords(T, lists:reverse([OpenToken, {endfilter_keyword, Pos, String}], Acc));
+mark_keywords([{open_tag, _, _} = OpenToken, {identifier, Pos, "firstof" = String}|T], Acc) ->
+    mark_keywords(T, lists:reverse([OpenToken, {firstof_keyword, Pos, String}], Acc));
+mark_keywords([{open_tag, _, _} = OpenToken, {identifier, Pos, "for" = String}|T], Acc) ->
+    mark_keywords(T, lists:reverse([OpenToken, {for_keyword, Pos, String}], Acc));
+mark_keywords([{open_tag, _, _} = OpenToken, {identifier, Pos, "empty" = String}|T], Acc) ->
+    mark_keywords(T, lists:reverse([OpenToken, {empty_keyword, Pos, String}], Acc));
+mark_keywords([{open_tag, _, _} = OpenToken, {identifier, Pos, "endfor" = String}|T], Acc) ->
+    mark_keywords(T, lists:reverse([OpenToken, {endfor_keyword, Pos, String}], Acc));
+mark_keywords([{open_tag, _, _} = OpenToken, {identifier, Pos, "if" = String}|T], Acc) ->
+    mark_keywords(T, lists:reverse([OpenToken, {if_keyword, Pos, String}], Acc));
+mark_keywords([{open_tag, _, _} = OpenToken, {identifier, Pos, "elif" = String}|T], Acc) ->
+    mark_keywords(T, lists:reverse([OpenToken, {elif_keyword, Pos, String}], Acc));
+mark_keywords([{open_tag, _, _} = OpenToken, {identifier, Pos, "else" = String}|T], Acc) ->
+    mark_keywords(T, lists:reverse([OpenToken, {else_keyword, Pos, String}], Acc));
+mark_keywords([{open_tag, _, _} = OpenToken, {identifier, Pos, "endif" = String}|T], Acc) ->
+    mark_keywords(T, lists:reverse([OpenToken, {endif_keyword, Pos, String}], Acc));
+mark_keywords([{open_tag, _, _} = OpenToken, {identifier, Pos, "ifchanged" = String}|T], Acc) ->
+    mark_keywords(T, lists:reverse([OpenToken, {ifchanged_keyword, Pos, String}], Acc));
+mark_keywords([{open_tag, _, _} = OpenToken, {identifier, Pos, "endifchanged" = String}|T], Acc) ->
+    mark_keywords(T, lists:reverse([OpenToken, {endifchanged_keyword, Pos, String}], Acc));
+mark_keywords([{open_tag, _, _} = OpenToken, {identifier, Pos, "ifequal" = String}|T], Acc) ->
+    mark_keywords(T, lists:reverse([OpenToken, {ifequal_keyword, Pos, String}], Acc));
+mark_keywords([{open_tag, _, _} = OpenToken, {identifier, Pos, "endifequal" = String}|T], Acc) ->
+    mark_keywords(T, lists:reverse([OpenToken, {endifequal_keyword, Pos, String}], Acc));
+mark_keywords([{open_tag, _, _} = OpenToken, {identifier, Pos, "ifnotequal" = String}|T], Acc) ->
+    mark_keywords(T, lists:reverse([OpenToken, {ifnotequal_keyword, Pos, String}], Acc));
+mark_keywords([{open_tag, _, _} = OpenToken, {identifier, Pos, "endifnotequal" = String}|T], Acc) ->
+    mark_keywords(T, lists:reverse([OpenToken, {endifnotequal_keyword, Pos, String}], Acc));
+mark_keywords([{open_tag, _, _} = OpenToken, {identifier, Pos, "include" = String}|T], Acc) ->
+    mark_keywords(T, lists:reverse([OpenToken, {include_keyword, Pos, String}], Acc));
+mark_keywords([{open_tag, _, _} = OpenToken, {identifier, Pos, "now" = String}|T], Acc) ->
+    mark_keywords(T, lists:reverse([OpenToken, {now_keyword, Pos, String}], Acc));
+mark_keywords([{open_tag, _, _} = OpenToken, {identifier, Pos, "regroup" = String}|T], Acc) ->
+    mark_keywords(T, lists:reverse([OpenToken, {regroup_keyword, Pos, String}], Acc));
+mark_keywords([{open_tag, _, _} = OpenToken, {identifier, Pos, "endregroup" = String}|T], Acc) ->
+    mark_keywords(T, lists:reverse([OpenToken, {endregroup_keyword, Pos, String}], Acc));
+mark_keywords([{open_tag, _, _} = OpenToken, {identifier, Pos, "spaceless" = String}|T], Acc) ->
+    mark_keywords(T, lists:reverse([OpenToken, {spaceless_keyword, Pos, String}], Acc));
+mark_keywords([{open_tag, _, _} = OpenToken, {identifier, Pos, "endspaceless" = String}|T], Acc) ->
+    mark_keywords(T, lists:reverse([OpenToken, {endspaceless_keyword, Pos, String}], Acc));
+mark_keywords([{open_tag, _, _} = OpenToken, {identifier, Pos, "ssi" = String}|T], Acc) ->
+    mark_keywords(T, lists:reverse([OpenToken, {ssi_keyword, Pos, String}], Acc));
+mark_keywords([{open_tag, _, _} = OpenToken, {identifier, Pos, "templatetag" = String}|T], Acc) ->
+    mark_keywords(T, lists:reverse([OpenToken, {templatetag_keyword, Pos, String}], Acc));
+mark_keywords([{open_tag, _, _} = OpenToken, {identifier, Pos, "widthratio" = String}|T], Acc) ->
+    mark_keywords(T, lists:reverse([OpenToken, {widthratio_keyword, Pos, String}], Acc));
+mark_keywords([{open_tag, _, _} = OpenToken, {identifier, Pos, "call" = String}|T], Acc) ->
+    mark_keywords(T, lists:reverse([OpenToken, {call_keyword, Pos, String}], Acc));
+mark_keywords([{open_tag, _, _} = OpenToken, {identifier, Pos, "endwith" = String}|T], Acc) ->
+    mark_keywords(T, lists:reverse([OpenToken, {endwith_keyword, Pos, String}], Acc));
+mark_keywords([{open_tag, _, _} = OpenToken, {identifier, Pos, "trans" = String}|T], Acc) ->
+    mark_keywords(T, lists:reverse([OpenToken, {trans_keyword, Pos, String}], Acc));
+mark_keywords([{open_tag, _, _} = OpenToken, {identifier, Pos, "blocktrans" = String}|T], Acc) ->
+    mark_keywords(T, lists:reverse([OpenToken, {blocktrans_keyword, Pos, String}], Acc));
+mark_keywords([{open_tag, _, _} = OpenToken, {identifier, Pos, "endblocktrans" = String}|T], Acc) ->
+    mark_keywords(T, lists:reverse([OpenToken, {endblocktrans_keyword, Pos, String}], Acc));
+mark_keywords([H|T], Acc) ->
+    mark_keywords(T, [H|Acc]).
+
+atomize_identifiers(Tokens) ->
+    atomize_identifiers(Tokens, []).
+
+atomize_identifiers([], Acc) ->
+    lists:reverse(Acc);
+atomize_identifiers([{identifier, Pos, String}|T], Acc) ->
+    atomize_identifiers(T, [{identifier, Pos, list_to_atom(String)}|Acc]);
+atomize_identifiers([H|T], Acc) ->
+    atomize_identifiers(T, [H|Acc]).

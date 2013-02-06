@@ -799,21 +799,21 @@ translated_ast2(NewStrAst, DefaultStringAst, AstInfo, TreeWalker) ->
     {{StringLookupAst, AstInfo}, TreeWalker}.
 
 % Completely unnecessary in ErlyDTL (use {{ "{%" }} etc), but implemented for compatibility.
-templatetag_ast('openblock', Context, TreeWalker) ->
+templatetag_ast("openblock", Context, TreeWalker) ->
     string_ast("{%", Context, TreeWalker);
-templatetag_ast('closeblock', Context, TreeWalker) ->
+templatetag_ast("closeblock", Context, TreeWalker) ->
     string_ast("%}", Context, TreeWalker);
-templatetag_ast('openvariable', Context, TreeWalker) ->
+templatetag_ast("openvariable", Context, TreeWalker) ->
     string_ast("{{", Context, TreeWalker);
-templatetag_ast('closevariable', Context, TreeWalker) ->
+templatetag_ast("closevariable", Context, TreeWalker) ->
     string_ast("}}", Context, TreeWalker);
-templatetag_ast('openbrace', Context, TreeWalker) ->
+templatetag_ast("openbrace", Context, TreeWalker) ->
     string_ast("{", Context, TreeWalker);
-templatetag_ast('closebrace', Context, TreeWalker) ->
+templatetag_ast("closebrace", Context, TreeWalker) ->
     string_ast("}", Context, TreeWalker);
-templatetag_ast('opencomment', Context, TreeWalker) ->
+templatetag_ast("opencomment", Context, TreeWalker) ->
     string_ast("{#", Context, TreeWalker);
-templatetag_ast('closecomment', Context, TreeWalker) ->
+templatetag_ast("closecomment", Context, TreeWalker) ->
     string_ast("#}", Context, TreeWalker).
 
 
