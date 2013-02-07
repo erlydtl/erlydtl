@@ -645,7 +645,7 @@ body_ast(DjangoParseTree, Context, TreeWalker) ->
             ({'with', Args, Contents}, TreeWalkerAcc) ->
                 with_ast(Args, Contents, Context, TreeWalkerAcc);
             (ValueToken, TreeWalkerAcc) -> 
-                {{ValueAst,ValueInfo},ValueTreeWalker} = value_ast(ValueToken, true, Context, TreeWalkerAcc),
+                {{ValueAst,ValueInfo},ValueTreeWalker} = value_ast(ValueToken, true, true, Context, TreeWalkerAcc),
                 {{format(ValueAst, Context, ValueTreeWalker),ValueInfo},ValueTreeWalker}
         end, TreeWalker, DjangoParseTree),   
     {AstList, {Info, TreeWalker3}} = lists:mapfoldl(
@@ -677,17 +677,17 @@ body_ast(DjangoParseTree, Context, TreeWalker) ->
     {{erl_syntax:list(AstList), Info}, TreeWalker3}.
 
 
-value_ast(ValueToken, AsString, Context, TreeWalker) ->
+value_ast(ValueToken, AsString, ThrowIfUndefined, Context, TreeWalker) ->
     case ValueToken of
         {'expr', Operator, Value} ->
-            {{ValueAst,InfoValue}, TreeWalker1} = value_ast(Value, false, Context, TreeWalker),
+            {{ValueAst,InfoValue}, TreeWalker1} = value_ast(Value, false, ThrowIfUndefined, Context, TreeWalker),
             Ast = erl_syntax:application(erl_syntax:atom(erlydtl_runtime), 
                                          erl_syntax:atom(Operator), 
                                          [ValueAst]),
             {{Ast, InfoValue}, TreeWalker1};
         {'expr', Operator, Value1, Value2} ->
-            {{Value1Ast,InfoValue1}, TreeWalker1} = value_ast(Value1, false, Context, TreeWalker),
-            {{Value2Ast,InfoValue2}, TreeWalker2} = value_ast(Value2, false, Context, TreeWalker1),
+            {{Value1Ast,InfoValue1}, TreeWalker1} = value_ast(Value1, false, ThrowIfUndefined, Context, TreeWalker),
+            {{Value2Ast,InfoValue2}, TreeWalker2} = value_ast(Value2, false, ThrowIfUndefined, Context, TreeWalker1),
             Ast = erl_syntax:application(erl_syntax:atom(erlydtl_runtime), 
                                          erl_syntax:atom(Operator), 
                                          [Value1Ast, Value2Ast]),
@@ -702,10 +702,10 @@ value_ast(ValueToken, AsString, Context, TreeWalker) ->
         {'apply_filter', Variable, Filter} ->
             filter_ast(Variable, Filter, Context, TreeWalker);
         {'attribute', _} = Variable ->
-            {Ast, VarName} = resolve_variable_ast(Variable, Context),
+            {Ast, VarName} = resolve_variable_ast(Variable, Context, ThrowIfUndefined),
             {{Ast, #ast_info{var_names = [VarName]}}, TreeWalker};
         {'variable', _} = Variable ->
-            {Ast, VarName} = resolve_variable_ast(Variable, Context),
+            {Ast, VarName} = resolve_variable_ast(Variable, Context, ThrowIfUndefined),
             {{Ast, #ast_info{var_names = [VarName]}}, TreeWalker}
     end.
 
@@ -752,7 +752,7 @@ empty_ast(TreeWalker) ->
 blocktrans_ast(ArgList, Contents, Context, TreeWalker) ->
     {NewScope, {ArgInfo, TreeWalker1}} = lists:mapfoldl(fun
             ({{identifier, _, LocalVarName}, Value}, {AstInfo1, TreeWalker1}) ->
-                {{Ast, Info}, TreeWalker2} = value_ast(Value, false, Context, TreeWalker1),
+                {{Ast, Info}, TreeWalker2} = value_ast(Value, false, false, Context, TreeWalker1),
                 {{LocalVarName, Ast}, {merge_info(AstInfo1, Info), TreeWalker2}}
         end, {#ast_info{}, TreeWalker}, ArgList),
     NewContext = Context#dtl_context{ local_scopes = [NewScope|Context#dtl_context.local_scopes] },
@@ -788,7 +788,7 @@ translated_ast({string_literal, _, String}, Context, TreeWalker) ->
     translated_ast2(erl_syntax:string(NewStr), erl_syntax:string(DefaultString), 
         #ast_info{translatable_strings = [NewStr]}, TreeWalker);
 translated_ast(ValueToken, Context, TreeWalker) ->
-    {{Ast, Info}, TreeWalker1} = value_ast(ValueToken, true, Context, TreeWalker),
+    {{Ast, Info}, TreeWalker1} = value_ast(ValueToken, true, false, Context, TreeWalker),
     translated_ast2(Ast, Ast, Info, TreeWalker1).
 
 translated_ast2(NewStrAst, DefaultStringAst, AstInfo, TreeWalker) ->
@@ -818,9 +818,9 @@ templatetag_ast("closecomment", Context, TreeWalker) ->
 
 
 widthratio_ast(Numerator, Denominator, Scale, Context, TreeWalker) ->
-    {{NumAst, NumInfo}, TreeWalker1} = value_ast(Numerator, false, Context, TreeWalker),
-    {{DenAst, DenInfo}, TreeWalker2} = value_ast(Denominator, false, Context, TreeWalker1),
-    {{ScaleAst, ScaleInfo}, TreeWalker3} = value_ast(Scale, false, Context, TreeWalker2),
+    {{NumAst, NumInfo}, TreeWalker1} = value_ast(Numerator, false, true, Context, TreeWalker),
+    {{DenAst, DenInfo}, TreeWalker2} = value_ast(Denominator, false, true, Context, TreeWalker1),
+    {{ScaleAst, ScaleInfo}, TreeWalker3} = value_ast(Scale, false, true, Context, TreeWalker2),
     {{format_number_ast(erl_syntax:application(
                 erl_syntax:atom(erlydtl_runtime),
                 erl_syntax:atom(widthratio),
@@ -844,7 +844,7 @@ include_ast(File, ArgList, Scopes, Context, TreeWalker) ->
         {ok, InclusionParseTree, CheckSum} ->
             {NewScope, {ArgInfo, TreeWalker1}} = lists:mapfoldl(fun
                     ({{identifier, _, LocalVarName}, Value}, {AstInfo1, TreeWalker1}) ->
-                        {{Ast, Info}, TreeWalker2} = value_ast(Value, false, Context, TreeWalker1),
+                        {{Ast, Info}, TreeWalker2} = value_ast(Value, false, false, Context, TreeWalker1),
                         {{LocalVarName, Ast}, {merge_info(AstInfo1, Info), TreeWalker2}}
                 end, {#ast_info{}, TreeWalker}, ArgList),
 
@@ -861,7 +861,7 @@ include_ast(File, ArgList, Scopes, Context, TreeWalker) ->
     
 % include at run-time
 ssi_ast(FileName, Context, TreeWalker) ->
-    {{Ast, Info}, TreeWalker1} = value_ast(FileName, true, Context, TreeWalker),
+    {{Ast, Info}, TreeWalker1} = value_ast(FileName, true, true, Context, TreeWalker),
     {Mod, Fun} = Context#dtl_context.reader,
     {{erl_syntax:application(
                 erl_syntax:atom(erlydtl_runtime),
@@ -935,13 +935,13 @@ filter_ast(Variable, Filter, Context, TreeWalker) ->
     {{EscapedAst, Info}, TreeWalker2}.
 
 filter_ast_noescape(Variable, [{identifier, _, 'escape'}], Context, TreeWalker) ->
-    value_ast(Variable, true, Context, TreeWalker#treewalker{safe = true});
+    value_ast(Variable, true, false, Context, TreeWalker#treewalker{safe = true});
 filter_ast_noescape(Variable, [{identifier, _, 'safe'}], Context, TreeWalker) ->
-    value_ast(Variable, true, Context, TreeWalker#treewalker{safe = true});
+    value_ast(Variable, true, false, Context, TreeWalker#treewalker{safe = true});
 filter_ast_noescape(Variable, [{identifier, _, 'safeseq'}], Context, TreeWalker) ->
-    value_ast(Variable, true, Context, TreeWalker#treewalker{safe = true});
+    value_ast(Variable, true, false, Context, TreeWalker#treewalker{safe = true});
 filter_ast_noescape(Variable, Filter, Context, TreeWalker) ->
-    {{VariableAst, Info1}, TreeWalker2} = value_ast(Variable, true, Context, TreeWalker),
+    {{VariableAst, Info1}, TreeWalker2} = value_ast(Variable, true, false, Context, TreeWalker),
     {VarValue, Info2} = filter_ast1(Filter, VariableAst, Context),
     {{VarValue, merge_info(Info1, Info2)}, TreeWalker2}.
 
@@ -952,7 +952,7 @@ filter_ast1([{identifier, _, Name}, {string_literal, _, ArgName}], VariableAst, 
 filter_ast1([{identifier, _, Name}, {number_literal, _, ArgName}], VariableAst, Context) ->
     filter_ast2(Name, VariableAst, [erl_syntax:integer(list_to_integer(ArgName))], [], Context);
 filter_ast1([{identifier, _, Name}, ArgVariable], VariableAst, Context) ->
-    {ArgAst, ArgVarName} = resolve_variable_ast(ArgVariable, Context),
+    {ArgAst, ArgVarName} = resolve_variable_ast(ArgVariable, Context, false),
     filter_ast2(Name, VariableAst, [ArgAst], [ArgVarName], Context);
 filter_ast1([{identifier, _, Name}], VariableAst, Context) ->
     filter_ast2(Name, VariableAst, [], [], Context).
@@ -994,15 +994,17 @@ search_for_safe_filter({apply_filter, Variable, Filter}, _) ->
 search_for_safe_filter(_Variable, _Filter) ->
     on.
 
-resolve_variable_ast(VarTuple, Context) ->
-    resolve_variable_ast(VarTuple, Context, 'find_value').
+resolve_variable_ast(VarTuple, Context, true) ->
+    resolve_variable_ast1(VarTuple, Context, 'fetch_value');
+resolve_variable_ast(VarTuple, Context, false) ->
+    resolve_variable_ast1(VarTuple, Context, 'find_value').
  
-resolve_variable_ast({attribute, {{identifier, _, AttrName}, Variable}}, Context, FinderFunction) ->
-    {VarAst, VarName} = resolve_variable_ast(Variable, Context, FinderFunction),
+resolve_variable_ast1({attribute, {{identifier, _, AttrName}, Variable}}, Context, FinderFunction) ->
+    {VarAst, VarName} = resolve_variable_ast1(Variable, Context, FinderFunction),
     {erl_syntax:application(erl_syntax:atom(erlydtl_runtime), erl_syntax:atom(FinderFunction),
                     [erl_syntax:atom(AttrName), VarAst]), VarName};
 
-resolve_variable_ast({variable, {identifier, _, VarName}}, Context, FinderFunction) ->
+resolve_variable_ast1({variable, {identifier, _, VarName}}, Context, FinderFunction) ->
     VarValue = case resolve_scoped_variable_ast(VarName, Context) of
         undefined ->
             erl_syntax:application(erl_syntax:atom(erlydtl_runtime), erl_syntax:atom(FinderFunction),
@@ -1012,7 +1014,7 @@ resolve_variable_ast({variable, {identifier, _, VarName}}, Context, FinderFuncti
     end,
     {VarValue, VarName};
 
-resolve_variable_ast(What, _Context, _FinderFunction) ->
+resolve_variable_ast1(What, _Context, _FinderFunction) ->
    error_logger:error_msg("~p:resolve_variable_ast unhandled: ~p~n", [?MODULE, What]).
 
 resolve_scoped_variable_ast(VarName, Context) ->
@@ -1052,7 +1054,7 @@ firstof_ast(Vars, Context, TreeWalker) ->
 
 ifelse_ast(Expression, {IfContentsAst, IfContentsInfo}, {ElseContentsAst, ElseContentsInfo}, Context, TreeWalker) ->
     Info = merge_info(IfContentsInfo, ElseContentsInfo),
-    {{Ast, ExpressionInfo}, TreeWalker1} = value_ast(Expression, false, Context, TreeWalker), 
+    {{Ast, ExpressionInfo}, TreeWalker1} = value_ast(Expression, false, false, Context, TreeWalker), 
     {{erl_syntax:case_expr(erl_syntax:application(erl_syntax:atom(erlydtl_runtime), erl_syntax:atom(is_true), [Ast]),
         [erl_syntax:clause([erl_syntax:atom(true)], none, 
                 [IfContentsAst]),
@@ -1063,7 +1065,7 @@ ifelse_ast(Expression, {IfContentsAst, IfContentsInfo}, {ElseContentsAst, ElseCo
 with_ast(ArgList, Contents, Context, TreeWalker) ->
     {ArgAstList, {ArgInfo, TreeWalker1}} = lists:mapfoldl(fun
             ({{identifier, _, _LocalVarName}, Value}, {AstInfo1, TreeWalker1}) ->
-                {{Ast, Info}, TreeWalker2} = value_ast(Value, false, Context, TreeWalker1),
+                {{Ast, Info}, TreeWalker2} = value_ast(Value, false, false, Context, TreeWalker1),
                 {Ast, {merge_info(AstInfo1, Info), TreeWalker2}}
         end, {#ast_info{}, TreeWalker}, ArgList),
 
@@ -1080,7 +1082,7 @@ with_ast(ArgList, Contents, Context, TreeWalker) ->
                             [InnerAst])]), ArgAstList), merge_info(ArgInfo, InnerInfo)}, TreeWalker2}.
 
 regroup_ast(ListVariable, GrouperVariable, LocalVarName, Contents, Context, TreeWalker) ->
-    {{ListAst, ListInfo}, TreeWalker1} = value_ast(ListVariable, false, Context, TreeWalker),
+    {{ListAst, ListInfo}, TreeWalker1} = value_ast(ListVariable, false, true, Context, TreeWalker),
     NewScope = [{LocalVarName, erl_syntax:variable(lists:concat(["Var_", LocalVarName]))}],
 
     {{InnerAst, InnerInfo}, TreeWalker2} = body_ast(Contents, 
@@ -1113,7 +1115,7 @@ for_loop_ast(IteratorList, LoopValue, Contents, {EmptyContentsAst, EmptyContents
     CounterAst = erl_syntax:application(erl_syntax:atom(erlydtl_runtime), 
         erl_syntax:atom(increment_counter_stats), [erl_syntax:variable("Counters")]),
 
-    {{LoopValueAst, LoopValueInfo}, TreeWalker2} = value_ast(LoopValue, false, Context, TreeWalker1),
+    {{LoopValueAst, LoopValueInfo}, TreeWalker2} = value_ast(LoopValue, false, true, Context, TreeWalker1),
 
     CounterVars0 = case resolve_scoped_variable_ast('forloop', Context) of
         undefined ->
@@ -1147,7 +1149,7 @@ for_loop_ast(IteratorList, LoopValue, Contents, {EmptyContentsAst, EmptyContents
 ifchanged_values_ast(Values, {IfContentsAst, IfContentsInfo}, {ElseContentsAst, ElseContentsInfo}, Context, TreeWalker) ->
     Info = merge_info(IfContentsInfo, ElseContentsInfo),
     ValueAstFun = fun(Expr, {LTreeWalker, LInfo, Acc}) ->
-                          {{EAst, EInfo}, ETw} = value_ast(Expr, false, Context, LTreeWalker),
+                          {{EAst, EInfo}, ETw} = value_ast(Expr, false, true, Context, LTreeWalker),
                           {ETw, merge_info(LInfo, EInfo), [erl_syntax:tuple([erl_syntax:integer(erlang:phash2(Expr)), EAst])|Acc]} end,
     {TreeWalker1, MergedInfo, Changed} = lists:foldl(ValueAstFun, {TreeWalker, Info,  []}, Values),
     {{erl_syntax:case_expr(erl_syntax:application(erl_syntax:atom(erlydtl_runtime), erl_syntax:atom(ifchanged), [erl_syntax:list(Changed)]),
@@ -1174,7 +1176,7 @@ cycle_ast(Names, Context, TreeWalker) ->
                 {{S, _}, _} = string_ast(unescape_string_literal(Str), Context, TreeWalker),
                 {S, VarNamesAcc};
             ({variable, _}=Var, VarNamesAcc) ->
-                {V, VarName} = resolve_variable_ast(Var, Context),
+                {V, VarName} = resolve_variable_ast(Var, Context, true),
                 {V, [VarName|VarNamesAcc]};
             ({number_literal, _, Num}, VarNamesAcc) ->
                 {format(erl_syntax:integer(Num), Context, TreeWalker), VarNamesAcc};
@@ -1258,7 +1260,7 @@ tag_ast(Name, Args, Context, TreeWalker) ->
                 {{TransAst, TransAstInfo}, _} = translated_ast(StringLiteral, Context, TreeWalker),
                 {erl_syntax:tuple([erl_syntax:atom(Key), TransAst]), merge_info(TransAstInfo, AstInfoAcc)};
             ({{identifier, _, Key}, Value}, AstInfoAcc) ->
-                {AST, VarName} = resolve_variable_ast(Value, Context),
+                {AST, VarName} = resolve_variable_ast(Value, Context, false),
                 {erl_syntax:tuple([erl_syntax:atom(Key), format(AST,Context, TreeWalker)]), merge_info(#ast_info{var_names=[VarName]}, AstInfoAcc)}
         end, #ast_info{}, Args),
 
@@ -1299,7 +1301,7 @@ call_ast(Module, TreeWalkerAcc) ->
     call_ast(Module, erl_syntax:variable("_Variables"), #ast_info{}, TreeWalkerAcc).
 
 call_with_ast(Module, Variable, Context, TreeWalker) ->
-    {VarAst, VarName} = resolve_variable_ast(Variable, Context),
+    {VarAst, VarName} = resolve_variable_ast(Variable, Context, false),
     call_ast(Module, VarAst, #ast_info{var_names=[VarName]}, TreeWalker).
         
 call_ast(Module, Variable, AstInfo, TreeWalker) ->
