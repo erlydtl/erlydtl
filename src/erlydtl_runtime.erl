@@ -4,6 +4,9 @@
 
 -define(IFCHANGED_CONTEXT_VARIABLE, erlydtl_ifchanged_context).
 
+find_value(Key, Data, _, _) ->
+    find_value(Key, Data).
+
 find_value(_, undefined) ->
     undefined;
 find_value(Key, Fun) when is_function(Fun, 1) ->
@@ -56,10 +59,13 @@ find_deep_value([Key|Rest],Item) ->
     end;
 find_deep_value([],Item) -> Item.
 
-fetch_value(Key, Data) ->
+fetch_value(Key, Data, FileName, Pos) ->
     case find_value(Key, Data) of
         undefined ->
-            throw({undefined_variable, Key});
+            throw({undefined_variable, 
+                    [{name, Key},
+                        {file, FileName},
+                        {line, Pos}]});
         Val ->
             Val
     end.
@@ -262,7 +268,7 @@ ifchanged2({Key, Value}, IfChangedContext) ->
     end.
 
 cycle(NamesTuple, Counters) when is_tuple(NamesTuple) ->
-    element(fetch_value(counter0, Counters) rem size(NamesTuple) + 1, NamesTuple).
+    element(find_value(counter0, Counters) rem size(NamesTuple) + 1, NamesTuple).
 
 widthratio(Numerator, Denominator, Scale) ->
     round(Numerator / Denominator * Scale).

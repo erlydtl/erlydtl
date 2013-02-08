@@ -999,16 +999,28 @@ resolve_variable_ast(VarTuple, Context, true) ->
 resolve_variable_ast(VarTuple, Context, false) ->
     resolve_variable_ast1(VarTuple, Context, 'find_value').
  
-resolve_variable_ast1({attribute, {{identifier, _, AttrName}, Variable}}, Context, FinderFunction) ->
+resolve_variable_ast1({attribute, {{identifier, {Row, Col}, AttrName}, Variable}}, Context, FinderFunction) ->
     {VarAst, VarName} = resolve_variable_ast1(Variable, Context, FinderFunction),
+    FileNameAst = case Context#dtl_context.parse_trail of 
+        [] -> erl_syntax:atom(undefined); 
+        [H|_] -> erl_syntax:string(H)
+    end,
     {erl_syntax:application(erl_syntax:atom(erlydtl_runtime), erl_syntax:atom(FinderFunction),
-                    [erl_syntax:atom(AttrName), VarAst]), VarName};
+                    [erl_syntax:atom(AttrName), VarAst, FileNameAst,
+                        erl_syntax:tuple([erl_syntax:integer(Row), erl_syntax:integer(Col)])
+                    ]), VarName};
 
-resolve_variable_ast1({variable, {identifier, _, VarName}}, Context, FinderFunction) ->
+resolve_variable_ast1({variable, {identifier, {Row, Col}, VarName}}, Context, FinderFunction) ->
     VarValue = case resolve_scoped_variable_ast(VarName, Context) of
         undefined ->
+            FileNameAst = case Context#dtl_context.parse_trail of 
+                [] -> erl_syntax:atom(undefined); 
+                [H|_] -> erl_syntax:string(H)
+            end,
             erl_syntax:application(erl_syntax:atom(erlydtl_runtime), erl_syntax:atom(FinderFunction),
-                [erl_syntax:atom(VarName), erl_syntax:variable("_Variables")]);
+                [erl_syntax:atom(VarName), erl_syntax:variable("_Variables"), FileNameAst,
+                    erl_syntax:tuple([erl_syntax:integer(Row), erl_syntax:integer(Col)])
+                ]);
         Val ->
             Val
     end,
