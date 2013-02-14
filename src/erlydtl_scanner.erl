@@ -150,9 +150,53 @@ scan("%}-->" ++ T, Scanned, {Row, Column}, {_, "%}-->"}) ->
     scan(T, [{close_tag, {Row, Column}, '%}-->'} | Scanned], 
         {Row, Column + length("%}-->")}, in_text);
 
+scan("%}" ++ T, [{identifier, _, "mitabrev"}, {open_tag, _, '{%'}|Scanned], {Row, Column}, {_, "%}"}) ->
+    scan(T, [{string, {Row, Column + 2}, ""}|Scanned], {Row, Column + 2}, {in_verbatim, undefined});
+
+scan("%}" ++ T, [{identifier, _, ReversedTag}, {identifier, _, "mitabrev"}, {open_tag, _, '{%'}|Scanned], 
+    {Row, Column}, {_, "%}"}) ->
+    scan(T, [{string, {Row, Column + 2}, ""}|Scanned], {Row, Column + 2}, {in_verbatim, ReversedTag});
+
 scan("%}" ++ T, Scanned, {Row, Column}, {_, "%}"}) ->
     scan(T, [{close_tag, {Row, Column}, '%}'} | Scanned], 
         {Row, Column + 2}, in_text);
+
+scan("{%" ++ T, Scanned, {Row, Column}, {in_verbatim, Tag}) ->
+    scan(T, Scanned, {Row, Column + 2}, {in_verbatim_code, lists:reverse("{%"), Tag});
+
+scan(" " ++ T, Scanned, {Row, Column}, {in_verbatim_code, BackTrack, Tag}) ->
+    scan(T, Scanned, {Row, Column + 1}, {in_verbatim_code, [$\ |BackTrack], Tag});
+
+scan("endverbatim%}" ++ T, Scanned, {Row, Column}, {in_verbatim_code, _BackTrack, undefined}) ->
+    scan(T, Scanned, {Row, Column + length("endverbatim%}")}, in_text);
+
+scan("endverbatim " ++ T, Scanned, {Row, Column}, {in_verbatim_code, BackTrack, Tag}) ->
+    scan(T, Scanned, {Row, Column + length("endverbatim ")}, 
+        {in_endverbatim_code, "", lists:reverse("endverbatim ", BackTrack), Tag});
+
+scan(" " ++ T, Scanned, {Row, Column}, {in_endverbatim_code, "", BackTrack, Tag}) ->
+    scan(T, Scanned, {Row, Column + 1}, {in_endverbatim_code, "", [$\ |BackTrack], Tag});
+
+scan([H|T], Scanned, {Row, Column}, {in_endverbatim_code, EndTag, BackTrack, Tag}) when H >= $a, H =< $z; H >= $0, H =< $9; H =:= $_  ->
+    scan(T, Scanned, {Row, Column + 1}, {in_endverbatim_code, [H|EndTag], [H|BackTrack], Tag});
+
+scan(" " ++ T, Scanned, {Row, Column}, {in_endverbatim_code, Tag, BackTrack, Tag}) ->
+    scan(T, Scanned, {Row, Column + 1}, {in_endverbatim_code, Tag, [$\ |BackTrack], Tag});
+
+scan("%}" ++ T, Scanned, {Row, Column}, {in_endverbatim_code, Tag, _BackTrack, Tag}) ->
+    scan(T, Scanned, {Row, Column + 2}, in_text);
+
+scan("%}" ++ T, Scanned, {Row, Column}, {in_endverbatim_code, "", _BackTrack, undefined}) ->
+    scan(T, Scanned, {Row, Column + 2}, in_text);
+
+scan([H|T], [{string, Pos, Data}|Scanned], {Row, Column}, {in_endverbatim_code, _, BackTrack, Tag}) ->
+    scan(T, [{string, Pos, [H|BackTrack] ++ Data}|Scanned], {Row, Column + 1}, {in_verbatim, Tag});
+
+scan([H|T], [{string, Pos, Data}|Scanned], {Row, Column}, {in_verbatim_code, BackTrack, Tag}) ->
+    scan(T, [{string, Pos, [H|BackTrack] ++ Data}|Scanned], {Row, Column + 1}, {in_verbatim, Tag});
+
+scan([H|T], [{string, Pos, Data}|Scanned], {Row, Column}, {in_verbatim, Tag}) ->
+    scan(T, [{string, Pos, [H|Data]}|Scanned], {Row, Column + 1}, {in_verbatim, Tag});
 
 scan("==" ++ T, Scanned, {Row, Column}, {_, Closer}) ->
     scan(T, [{'==', {Row, Column}} | Scanned], {Row, Column + 2}, {in_code, Closer});

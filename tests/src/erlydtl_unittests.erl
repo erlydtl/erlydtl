@@ -1063,6 +1063,14 @@ tests() ->
             {"blocktrans with args",
                 <<"{% blocktrans with var1=foo %}{{ var1 }}{% endblocktrans %}">>, [{foo, "Hello"}], <<"Hello">>}
         ]},
+    {"verbatim", [
+            {"Plain verbatim",
+                <<"{% verbatim %}{{ oh no{% foobar %}{% endverbatim %}">>, [],
+                <<"{{ oh no{% foobar %}">>},
+            {"Named verbatim",
+                <<"{% verbatim foobar %}{% verbatim %}{% endverbatim foobar2 %}{% endverbatim foobar %}">>, [],
+                <<"{% verbatim %}{% endverbatim foobar2 %}">>}
+        ]},
     {"widthratio", [
             {"Literals", <<"{% widthratio 5 10 100 %}">>, [], <<"50">>},
             {"Rounds up", <<"{% widthratio a b 100 %}">>, [{a, 175}, {b, 200}], <<"88">>}

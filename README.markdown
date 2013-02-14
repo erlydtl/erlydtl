@@ -3,7 +3,7 @@ ErlyDTL
 
 ErlyDTL compiles Django Template Language to Erlang bytecode.
 
-*Supported tags*: autoescape, block, blocktrans, comment, cycle, extends, filter, firstof, for, if, ifchanged, ifequal, ifnotequal, include, now, regroup, spaceless, ssi, templatetag, trans, widthratio, with
+*Supported tags*: autoescape, block, blocktrans, comment, cycle, extends, filter, firstof, for, if, ifchanged, ifequal, ifnotequal, include, now, regroup, spaceless, ssi, templatetag, trans, verbatim, widthratio, with
 
 _Unsupported tags_: csrf_token, url
 
