@@ -281,9 +281,42 @@ spaceless(Contents) ->
     Contents4.
 
 read_file(Module, Function, DocRoot, FileName) ->
-    AbsName = case filename:absname(FileName) of
-        FileName -> FileName;
-        _ -> filename:join([DocRoot, FileName])
-    end,
+    AbsName = erlydtl_compiler:full_path(FileName, DocRoot),
     {ok, Binary} = Module:Function(AbsName),
     binary_to_list(Binary).
+
+include_file(DocRoot, FileName, ParentModule, Options, Variables, RenderOptions) when is_binary(FileName) ->
+    include_file(DocRoot, unicode:characters_to_list(FileName), ParentModule, Options, Variables, RenderOptions);
+include_file(DocRoot, FileName, ParentModule, Options, Variables, RenderOptions) when is_list(FileName) ->
+    Module = partial_module(ParentModule, FileName),
+    % We do not recompile if the module exists, even if force_recompile is true.
+    % Indeed, we cannot be sure that, at runtime, user wants the template to
+    % be re-compiled, or that the source code can actually be found.
+    case code:ensure_loaded(Module) of
+        {module, Module} -> ok;
+        {error, _} ->
+            AbsName = erlydtl_compiler:full_path(FileName, DocRoot),
+            case erlydtl_compiler:compile(AbsName, Module, Options) of
+                ok -> ok;
+                Err ->
+                    throw(Err)
+            end
+    end,
+    {ok, Rendered} = Module:render(Variables, RenderOptions),
+    Rendered.
+
+% Compute the boss_load:view_module/2 module for a-runtime included partial.
+% However, we do not know the application. We'll try to guess it from the
+% first occurrence of "_view_" in the parent module. If it fails, we're not
+% in a boss application and we'll use parent module as the prefix.
+partial_module(ParentModule, FileName) ->
+    ParentModuleList = atom_to_list(ParentModule),
+    Prefix = case string:str(ParentModuleList, "_view_") of
+        0 -> ParentModuleList;
+        Index -> lists:sublist(ParentModuleList, Index + 4)
+    end,
+    Components = filename:split(FileName),
+    Lc = string:to_lower(lists:concat([Prefix, "_", string:join(Components, "_")])),
+    LcBin = unicode:characters_to_binary(Lc),
+    ModuleBin = binary:replace(LcBin, <<".">>, <<"_">>, [global]),
+    binary_to_atom(ModuleBin, utf8).

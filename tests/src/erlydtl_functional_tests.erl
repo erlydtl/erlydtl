@@ -42,12 +42,12 @@ test_list() ->
 % order is important.
     ["autoescape", "comment", "extends", "filters", "for", "for_list",
         "for_tuple", "for_list_preset", "for_preset", "for_records",
-        "for_records_preset", "include", "if", "if_preset", "ifequal",
+        "for_records_preset", "include", "include_expr", "if", "if_preset", "ifequal",
         "ifequal_preset", "ifnotequal", "ifnotequal_preset", "now",
         "var", "var_preset", "cycle",
         "custom_tag", "custom_tag1", "custom_tag2", "custom_tag3",
         "custom_call", 
-        "include_template", "include_path", "ssi",
+        "include_template", "include_template_expr", "include_path", "include_path_expr", "ssi",
         "extends_path", "extends_path2", "trans" ].
 
 setup_compile("for_list_preset") ->
@@ -119,6 +119,9 @@ setup("for_records_preset") ->
 setup("include") ->
     RenderVars = [{var1, "foostring1"}, {var2, "foostring2"}],
     {ok, RenderVars};
+setup("include_expr") ->
+    RenderVars = [{var1, "foostring1"}, {var2, "foostring2"}],
+    {ok, RenderVars};
 setup("if") ->
     RenderVars = [{var1, "something"}],
     {ok, RenderVars}; 
@@ -144,7 +147,13 @@ setup("cycle") ->
 setup("include_template") ->
     RenderVars = [{base_var, "base-barstring"}, {test_var, "test-barstring"}],
     {ok, RenderVars};
+setup("include_template_expr") ->
+    RenderVars = [{base_var, "base-barstring"}, {test_var, "test-barstring"}],
+    {ok, RenderVars};
 setup("include_path") ->
+    RenderVars = [{base_var, "base-barstring"}, {test_var, "test-barstring"}],
+    {ok, RenderVars};
+setup("include_path_expr") ->
     RenderVars = [{base_var, "base-barstring"}, {test_var, "test-barstring"}],
     {ok, RenderVars};
 setup("extends_path") ->
