@@ -190,13 +190,16 @@ scan("%}" ++ T, Scanned, {Row, Column}, {in_endverbatim_code, "", _BackTrack, un
     scan(T, Scanned, {Row, Column + 2}, in_text);
 
 scan([H|T], [{string, Pos, Data}|Scanned], {Row, Column}, {in_endverbatim_code, _, BackTrack, Tag}) ->
-    scan(T, [{string, Pos, [H|BackTrack] ++ Data}|Scanned], {Row, Column + 1}, {in_verbatim, Tag});
+    NewPos = case H of $\n -> {Row + 1, 1}; _ -> {Row, Column + 1} end,
+    scan(T, [{string, Pos, [H|BackTrack] ++ Data}|Scanned], NewPos, {in_verbatim, Tag});
 
 scan([H|T], [{string, Pos, Data}|Scanned], {Row, Column}, {in_verbatim_code, BackTrack, Tag}) ->
-    scan(T, [{string, Pos, [H|BackTrack] ++ Data}|Scanned], {Row, Column + 1}, {in_verbatim, Tag});
+    NewPos = case H of $\n -> {Row + 1, 1}; _ -> {Row, Column + 1} end,
+    scan(T, [{string, Pos, [H|BackTrack] ++ Data}|Scanned], NewPos, {in_verbatim, Tag});
 
 scan([H|T], [{string, Pos, Data}|Scanned], {Row, Column}, {in_verbatim, Tag}) ->
-    scan(T, [{string, Pos, [H|Data]}|Scanned], {Row, Column + 1}, {in_verbatim, Tag});
+    NewPos = case H of $\n -> {Row + 1, 1}; _ -> {Row, Column + 1} end,
+    scan(T, [{string, Pos, [H|Data]}|Scanned], NewPos, {in_verbatim, Tag});
 
 scan("==" ++ T, Scanned, {Row, Column}, {_, Closer}) ->
     scan(T, [{'==', {Row, Column}} | Scanned], {Row, Column + 2}, {in_code, Closer});
