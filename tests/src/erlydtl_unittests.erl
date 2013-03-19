@@ -177,6 +177,8 @@ tests() ->
         {"if size comparison", [
                 {"If int greater than number literal",
                     <<"{% if var1 > 2 %}yay{% endif %}">>, [{var1, 3}], <<"yay">>},
+                {"If int greater than negative number literal",
+                    <<"{% if var1 > -2 %}yay{% endif %}">>, [{var1, -1}], <<"yay">>},
                 {"If int greater than number literal (false)",
                     <<"{% if var1 > 2 %}yay{% endif %}">>, [{var1, 2}], <<"">>},
  

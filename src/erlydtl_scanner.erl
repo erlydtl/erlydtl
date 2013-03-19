@@ -251,6 +251,8 @@ scan([H | T], Scanned, {Row, Column}, {in_code, Closer}) ->
     case char_type(H) of
         letter_underscore ->
             scan(T, [{identifier, {Row, Column}, [H]} | Scanned], {Row, Column + 1}, {in_identifier, Closer});
+        hyphen_minus ->
+            scan(T, [{number_literal, {Row, Column}, [H]} | Scanned], {Row, Column + 1}, {in_number, Closer});
         digit ->
             scan(T, [{number_literal, {Row, Column}, [H]} | Scanned], {Row, Column + 1}, {in_number, Closer});
         _ ->
@@ -291,6 +293,8 @@ char_type(C) when ((C >= $a) andalso (C =< $z)) orelse ((C >= $A) andalso (C =< 
     letter_underscore;
 char_type(C) when ((C >= $0) andalso (C =< $9)) ->
     digit;
+char_type($-) ->
+    hyphen_minus;
 char_type(_C) ->
     undefined.
 
