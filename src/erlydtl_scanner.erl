@@ -289,7 +289,7 @@ append_text_char(Scanned, {Row, Column}, Char) ->
 
 char_type(C) when ((C >= $a) andalso (C =< $z)) orelse ((C >= $A) andalso (C =< $Z)) orelse (C == $_) ->
     letter_underscore;
-char_type(C) when ((C >= $0) andalso (C =< $9)) ->
+char_type(C) when ((C >= $0) andalso (C =< $9) orelse (C =:= $-)) ->
     digit;
 char_type(_C) ->
     undefined.
