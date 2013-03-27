@@ -677,17 +677,17 @@ body_ast(DjangoParseTree, Context, TreeWalker) ->
     {{erl_syntax:list(AstList), Info}, TreeWalker3}.
 
 
-value_ast(ValueToken, AsString, ThrowIfUndefined, Context, TreeWalker) ->
+value_ast(ValueToken, AsString, EmptyIfUndefined, Context, TreeWalker) ->
     case ValueToken of
         {'expr', Operator, Value} ->
-            {{ValueAst,InfoValue}, TreeWalker1} = value_ast(Value, false, ThrowIfUndefined, Context, TreeWalker),
+            {{ValueAst,InfoValue}, TreeWalker1} = value_ast(Value, false, EmptyIfUndefined, Context, TreeWalker),
             Ast = erl_syntax:application(erl_syntax:atom(erlydtl_runtime), 
                                          erl_syntax:atom(Operator), 
                                          [ValueAst]),
             {{Ast, InfoValue}, TreeWalker1};
         {'expr', Operator, Value1, Value2} ->
-            {{Value1Ast,InfoValue1}, TreeWalker1} = value_ast(Value1, false, ThrowIfUndefined, Context, TreeWalker),
-            {{Value2Ast,InfoValue2}, TreeWalker2} = value_ast(Value2, false, ThrowIfUndefined, Context, TreeWalker1),
+            {{Value1Ast,InfoValue1}, TreeWalker1} = value_ast(Value1, false, EmptyIfUndefined, Context, TreeWalker),
+            {{Value2Ast,InfoValue2}, TreeWalker2} = value_ast(Value2, false, EmptyIfUndefined, Context, TreeWalker1),
             Ast = erl_syntax:application(erl_syntax:atom(erlydtl_runtime), 
                                          erl_syntax:atom(Operator), 
                                          [Value1Ast, Value2Ast]),
@@ -702,10 +702,10 @@ value_ast(ValueToken, AsString, ThrowIfUndefined, Context, TreeWalker) ->
         {'apply_filter', Variable, Filter} ->
             filter_ast(Variable, Filter, Context, TreeWalker);
         {'attribute', _} = Variable ->
-            {Ast, VarName} = resolve_variable_ast(Variable, Context, ThrowIfUndefined),
+            {Ast, VarName} = resolve_variable_ast(Variable, Context, EmptyIfUndefined),
             {{Ast, #ast_info{var_names = [VarName]}}, TreeWalker};
         {'variable', _} = Variable ->
-            {Ast, VarName} = resolve_variable_ast(Variable, Context, ThrowIfUndefined),
+            {Ast, VarName} = resolve_variable_ast(Variable, Context, EmptyIfUndefined),
             {{Ast, #ast_info{var_names = [VarName]}}, TreeWalker}
     end.
 
