@@ -59,15 +59,10 @@ find_deep_value([Key|Rest],Item) ->
     end;
 find_deep_value([],Item) -> Item.
 
-fetch_value(Key, Data, FileName, Pos) ->
+fetch_value(Key, Data, _FileName, _Pos) ->
     case find_value(Key, Data) of
-        undefined ->
-            throw({undefined_variable, 
-                    [{name, Key},
-                        {file, FileName},
-                        {line, Pos}]});
-        Val ->
-            Val
+        undefined -> [];
+        Val -> Val
     end.
 
 regroup(List, Attribute) ->
