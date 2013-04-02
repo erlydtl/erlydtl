@@ -1264,20 +1264,17 @@ key_to_string(Key) when is_list(Key) ->
     erl_syntax:string(Key).
 
 tag_ast(Name, Args, Context, TreeWalker) ->
-    {InterpretedArgs, AstInfo} = lists:mapfoldl(fun
-            ({{identifier, _, Key}, {string_literal, _, Value}}, AstInfoAcc) ->
-                {{StringAst, StringAstInfo}, _} = string_ast(unescape_string_literal(Value), Context, TreeWalker),
-                {erl_syntax:tuple([erl_syntax:atom(Key), StringAst]), merge_info(StringAstInfo, AstInfoAcc)};
-            ({{identifier, _, Key}, {trans, StringLiteral}}, AstInfoAcc) ->
-                {{TransAst, TransAstInfo}, _} = translated_ast(StringLiteral, Context, TreeWalker),
-                {erl_syntax:tuple([erl_syntax:atom(Key), TransAst]), merge_info(TransAstInfo, AstInfoAcc)};
-            ({{identifier, _, Key}, Value}, AstInfoAcc) ->
-                {AST, VarName} = resolve_variable_ast(Value, Context, false),
-                {erl_syntax:tuple([erl_syntax:atom(Key), format(AST,Context, TreeWalker)]), merge_info(#ast_info{var_names=[VarName]}, AstInfoAcc)}
-        end, #ast_info{}, Args),
+    {{InterpretedArgs, AstInfo1}, TreeWalker1} = lists:foldr(fun
+            ({{identifier, _, Key}, {trans, StringLiteral}}, {{ArgsAcc, AstInfoAcc}, TreeWalkerAcc}) ->
+                {{TransAst, TransAstInfo}, TreeWalker0} = translated_ast(StringLiteral, Context, TreeWalkerAcc),
+                {{[erl_syntax:tuple([erl_syntax:atom(Key), TransAst])|ArgsAcc], merge_info(TransAstInfo, AstInfoAcc)}, TreeWalker0};
+            ({{identifier, _, Key}, Value}, {{ArgsAcc, AstInfoAcc}, TreeWalkerAcc}) ->
+                {{Ast0, AstInfo0}, TreeWalker0} = value_ast(Value, false, false, Context, TreeWalkerAcc),
+                {{[erl_syntax:tuple([erl_syntax:atom(Key), Ast0])|ArgsAcc], merge_info(AstInfo0, AstInfoAcc)}, TreeWalker0}
+        end, {{[], #ast_info{}}, TreeWalker}, Args),
 
     {RenderAst, RenderInfo} = custom_tags_modules_ast(Name, InterpretedArgs, Context),
-    {{RenderAst, merge_info(AstInfo, RenderInfo)}, TreeWalker}.
+    {{RenderAst, merge_info(AstInfo1, RenderInfo)}, TreeWalker1}.
 
 custom_tags_modules_ast(Name, InterpretedArgs, #dtl_context{ custom_tags_modules = [], is_compiling_dir = false }) ->
     {erl_syntax:application(none, erl_syntax:atom(render_tag),
