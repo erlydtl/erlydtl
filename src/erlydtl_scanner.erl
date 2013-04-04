@@ -335,6 +335,8 @@ mark_keywords([{identifier, Pos, "parsed" = String}, {close_tag, _, _} = CloseTa
     mark_keywords(T, lists:reverse([{parsed_keyword, Pos, String}, CloseTag], Acc));
 mark_keywords([{identifier, Pos, "noop" = String}, {close_tag, _, _} = CloseTag|T], Acc) ->
     mark_keywords(T, lists:reverse([{noop_keyword, Pos, String}, CloseTag], Acc));
+mark_keywords([{identifier, Pos, "reversed" = String}, {close_tag, _, _} = CloseTag|T], Acc) ->
+    mark_keywords(T, lists:reverse([{reversed_keyword, Pos, String}, CloseTag], Acc));
 mark_keywords([{identifier, Pos, "openblock" = String}, {close_tag, _, _} = CloseTag|T], Acc) ->
     mark_keywords(T, lists:reverse([{openblock_keyword, Pos, String}, CloseTag], Acc));
 mark_keywords([{identifier, Pos, "closeblock" = String}, {close_tag, _, _} = CloseTag|T], Acc) ->

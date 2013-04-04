@@ -570,12 +570,12 @@ body_ast(DjangoParseTree, Context, TreeWalker) ->
                 filter_tag_ast(FilterList, Contents, Context, TreeWalkerAcc);
             ({'firstof', Vars}, TreeWalkerAcc) ->
                 firstof_ast(Vars, Context, TreeWalkerAcc);
-            ({'for', {'in', IteratorList, Variable}, Contents}, TreeWalkerAcc) ->
+            ({'for', {'in', IteratorList, Variable, Reversed}, Contents}, TreeWalkerAcc) ->
                 {EmptyAstInfo, TreeWalker1} = empty_ast(TreeWalkerAcc),
-                for_loop_ast(IteratorList, Variable, Contents, EmptyAstInfo, Context, TreeWalker1);
-            ({'for', {'in', IteratorList, Variable}, Contents, EmptyPartContents}, TreeWalkerAcc) ->
+                for_loop_ast(IteratorList, Variable, Reversed, Contents, EmptyAstInfo, Context, TreeWalker1);
+            ({'for', {'in', IteratorList, Variable, Reversed}, Contents, EmptyPartContents}, TreeWalkerAcc) ->
                 {EmptyAstInfo, TreeWalker1} = body_ast(EmptyPartContents, Context, TreeWalkerAcc),
-                for_loop_ast(IteratorList, Variable, Contents, EmptyAstInfo, Context, TreeWalker1);
+                for_loop_ast(IteratorList, Variable, Reversed, Contents, EmptyAstInfo, Context, TreeWalker1);
             ({'if', Expression, Contents, Elif}, TreeWalkerAcc) ->
                 {IfAstInfo, TreeWalker1} = body_ast(Contents, Context, TreeWalkerAcc),
                 {ElifAstInfo, TreeWalker2} = body_ast(Elif, Context, TreeWalker1),
@@ -1114,7 +1114,7 @@ regroup_filter({variable,{identifier,_,Var}},Acc) ->
     erl_syntax:list([erl_syntax:atom(Var)|Acc]).
 
 
-for_loop_ast(IteratorList, LoopValue, Contents, {EmptyContentsAst, EmptyContentsInfo}, Context, TreeWalker) ->
+for_loop_ast(IteratorList, LoopValue, IsReversed, Contents, {EmptyContentsAst, EmptyContentsInfo}, Context, TreeWalker) ->
     Vars = lists:map(fun({identifier, _, Iterator}) -> 
                 erl_syntax:variable(lists:concat(["Var_", Iterator])) 
             end, IteratorList),
@@ -1129,11 +1129,16 @@ for_loop_ast(IteratorList, LoopValue, Contents, {EmptyContentsAst, EmptyContents
 
     {{LoopValueAst, LoopValueInfo}, TreeWalker2} = value_ast(LoopValue, false, true, Context, TreeWalker1),
 
+    LoopValueAst0 = case IsReversed of
+        true -> erl_syntax:application(erl_syntax:atom(lists), erl_syntax:atom(reverse), [LoopValueAst]);
+        false -> LoopValueAst
+    end,
+
     CounterVars0 = case resolve_scoped_variable_ast('forloop', Context) of
         undefined ->
-            erl_syntax:application(erl_syntax:atom(erlydtl_runtime), erl_syntax:atom(init_counter_stats), [LoopValueAst]);
+            erl_syntax:application(erl_syntax:atom(erlydtl_runtime), erl_syntax:atom(init_counter_stats), [LoopValueAst0]);
         Value ->
-            erl_syntax:application(erl_syntax:atom(erlydtl_runtime), erl_syntax:atom(init_counter_stats), [LoopValueAst, Value])
+            erl_syntax:application(erl_syntax:atom(erlydtl_runtime), erl_syntax:atom(init_counter_stats), [LoopValueAst0, Value])
     end,
     {{erl_syntax:case_expr(
                 erl_syntax:application(
@@ -1145,7 +1150,7 @@ for_loop_ast(IteratorList, LoopValue, Contents, {EmptyContentsAst, EmptyContents
                                         _ -> [erl_syntax:list(Vars), erl_syntax:variable("Counters")] end, none, 
                                     [erl_syntax:tuple([InnerAst, CounterAst])])
                             ]),
-                        CounterVars0, LoopValueAst]),
+                        CounterVars0, LoopValueAst0]),
                 [erl_syntax:clause(
                         [erl_syntax:tuple([erl_syntax:underscore(), 
                                     erl_syntax:list([erl_syntax:tuple([erl_syntax:atom(counter), erl_syntax:integer(1)])], 
