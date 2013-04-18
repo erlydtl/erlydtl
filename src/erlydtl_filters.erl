@@ -36,6 +36,9 @@
 -author('emmiller@gmail.com').
 -author('drew dot gulino at google dot com').
  
+-ifdef(TEST).
+-undef(TEST).
+-endif.
 -define(TEST,"").
 %-define(NOTEST,1).
 -define(NODEBUG,1).
