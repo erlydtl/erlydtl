@@ -1206,14 +1206,21 @@ process_binary_match(Pre, Insertion, SizePost, Post) ->
         _ -> [Pre, Insertion, Post]
     end.
 
-yesno_io(Bool, Choices) ->
-    case {Bool, binary:split(Choices, <<",">>, [global])} of
+yesno_io(Val, Choices) ->
+    case {term_to_bool(Val), binary:split(Choices, <<",">>, [global])} of
         {true, [T|_]} -> T;
         {false, [_,F|_]} -> F;
         {undefined, [_,_,U|_]} -> U;
         {undefined, [_,F|_]} -> F;
         _ -> error
     end.
+
+term_to_bool(true) -> true;
+term_to_bool(false) -> false;
+term_to_bool(undefined) -> undefined;
+term_to_bool(Str) when is_list(Str); is_binary(Str) ->
+    iolist_size(Str) > 0;
+term_to_bool(_) -> true.
 
 %% unjoin == split in other languages; inverse of join
 %%FROM: http://www.erlang.org/pipermail/erlang-questions/2008-October/038896.html
