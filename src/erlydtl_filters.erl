@@ -864,12 +864,10 @@ wordwrap(Input, Number) when is_list(Input) ->
     wordwrap(Input, [], [], 0, Number).
 
 %% @doc Given a string mapping values for true, false and (optionally) undefined, returns one of those strings according to the value.
-yesno(Bool, Choices) when is_binary(Bool) ->
-    yesno_io(binary_to_list(Bool), Choices);
 yesno(Bool, Choices) when is_binary(Choices) ->
-    yesno_io(Bool, binary_to_list(Choices));
+    yesno_io(Bool, Choices);
 yesno(Bool, Choices) when is_list(Choices) ->
-    yesno_io(Bool, Choices).
+    yesno_io(Bool, list_to_binary(Choices)).
 
 % internal
 
@@ -1209,19 +1207,12 @@ process_binary_match(Pre, Insertion, SizePost, Post) ->
     end.
 
 yesno_io(Bool, Choices) ->
-    %%       io:format("Bool, Choices: ~p, ~p ~n",[Bool, Choices]),
-    Terms = string:tokens(Choices, ","),
-    case Bool of
-        true ->
-            lists:nth(1, Terms);
-        false ->
-            lists:nth(2, Terms);
-        undefined when erlang:length(Terms) == 2 -> % (converts undefined to false if no mapping for undefined is given)
-            lists:nth(2, Terms);
-        undefined when erlang:length(Terms) == 3 ->
-            lists:nth(3, Terms);
-        _ ->
-            error
+    case {Bool, binary:split(Choices, <<",">>, [global])} of
+        {true, [T|_]} -> T;
+        {false, [_,F|_]} -> F;
+        {undefined, [_,_,U|_]} -> U;
+        {undefined, [_,F|_]} -> F;
+        _ -> error
     end.
 
 %% unjoin == split in other languages; inverse of join
