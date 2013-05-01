@@ -2,6 +2,9 @@
 
 -export([slice/2,slice_input_cases/7]).
 
+-ifdef(TEST).
+-undef(TEST).
+-endif.
 -define(TEST,"").
 -define(NOTEST,1).
 % remark out NODEBUG when running tests; unremark when debugging indivdual use cases
