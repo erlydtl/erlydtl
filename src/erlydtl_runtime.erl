@@ -206,6 +206,9 @@ stringify_final([El | Rest], Out, BinaryStrings) ->
 init_counter_stats(List) ->
     init_counter_stats(List, undefined).
 
+init_counter_stats(undefined, Parent) ->
+  init_counter_stats([], Parent);
+
 init_counter_stats(List, Parent) when is_list(List) ->
     [{counter, 1}, 
         {counter0, 0}, 
