@@ -9,7 +9,7 @@ compile:
 
 compile_test:
 	-mkdir -p ebintest
-	$(ERL) -make 
+	$(ERL) -pa deps/pmod_transform/ebin/ -make
 
 test: compile compile_test
 	$(ERL) -noshell -pa ebin -pa ebintest \
@@ -18,7 +18,7 @@ test: compile compile_test
 		-s erlydtl_unittests run_tests \
 		-s sources_parser_unittests run_tests \
 		-s init stop
-	
+
 clean:
 	@$(REBAR) clean
 	rm -fv ebintest/*
