@@ -9,7 +9,7 @@ compile:
 
 compile_test:
 	-mkdir -p ebintest
-	$(ERL) -pa deps/pmod_transform/ebin/ -make
+	$(ERL) -make
 
 test: compile compile_test
 	$(ERL) -noshell -pa ebin -pa ebintest \

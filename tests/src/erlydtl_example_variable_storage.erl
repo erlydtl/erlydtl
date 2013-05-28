@@ -1,5 +1,10 @@
--module(erlydtl_example_variable_storage, [SomeVar]).
+-module(erlydtl_example_variable_storage).
 -compile(export_all).
 
-some_var() ->
+% fake pmod
+
+new(SomeVar) ->
+    {?MODULE, SomeVar}.
+
+some_var({?MODULE, SomeVar}) ->
     SomeVar.
