@@ -165,7 +165,7 @@ setup("custom_tag2") ->
 setup("custom_tag3") ->
     {ok, [{a, <<"a1">>}], [{locale, ru}], [<<"b3">>, <<"\n">>]};
 setup("custom_tag4") ->
-    {ok, [<<"a|b">>, <<"\n">>]};
+    {ok, [], [], [<<"a|b">>, <<"\n">>]};
 setup("ssi") ->
     RenderVars = [{path, filename:absname(filename:join(["tests", "input", "ssi_include.html"]))}],
     {ok, RenderVars};
