@@ -45,7 +45,7 @@ test_list() ->
         "for_records_preset", "include", "if", "if_preset", "ifequal",
         "ifequal_preset", "ifnotequal", "ifnotequal_preset", "now",
         "var", "var_preset", "cycle",
-        "custom_tag", "custom_tag1", "custom_tag2", "custom_tag3",
+        "custom_tag", "custom_tag1", "custom_tag2", "custom_tag3", "custom_tag4",
         "custom_call", 
         "include_template", "include_path", "ssi",
         "extends_path", "extends_path2", "trans", "extends2", "extends3" ].
@@ -172,6 +172,8 @@ setup("custom_tag2") ->
     {ok, [{a, <<"a1">>}], [{locale, ru}, {foo, bar}], <<"b2\n">>};
 setup("custom_tag3") ->
     {ok, [{a, <<"a1">>}], [{locale, ru}], <<"b3\n">>};
+setup("custom_tag4") ->
+    {ok, [<<"a|b">>, <<"\n">>]};
 setup("ssi") ->
     RenderVars = [{path, filename:absname(filename:join(["tests", "input", "ssi_include.html"]))}],
     {ok, RenderVars};
