@@ -85,11 +85,11 @@ scan("#}" ++ T, Scanned, {Row, Column}, {in_comment, "#}"}) ->
 
 scan("<!--{%" ++ T, Scanned, {Row, Column}, in_text) ->
     scan(T, [{open_tag, {Row, Column}, '<!--{%'} | Scanned], 
-        {Row, Column + length("<!--{%")}, {in_code, "%}-->"});
+	 {Row, Column + length("<!--{%")}, {in_code, "%}-->"});
 
 scan("{%" ++ T, Scanned, {Row, Column}, in_text) ->
     scan(T, [{open_tag, {Row, Column}, '{%'} | Scanned], 
-        {Row, Column + length("{%")}, {in_code, "%}"});
+	 {Row, Column + length("{%")}, {in_code, "%}"});
 
 scan([_ | T], Scanned, {Row, Column}, {in_comment, Closer}) ->
     scan(T, Scanned, {Row, Column + 1}, {in_comment, Closer});
@@ -124,11 +124,11 @@ scan([$\\ | T], Scanned, {Row, Column}, {in_single_quote, Closer}) ->
 scan([H | T], Scanned, {Row, Column}, {in_single_quote_slash, Closer}) ->
     scan(T, append_char(Scanned, H), {Row, Column + 1}, {in_single_quote, Closer});
 
-% end quote
+						% end quote
 scan("\"" ++ T, Scanned, {Row, Column}, {in_double_quote, Closer}) ->
     scan(T, append_char(Scanned, 34), {Row, Column + 1}, {in_code, Closer});
 
-% treat single quotes the same as double quotes
+						% treat single quotes the same as double quotes
 scan("\'" ++ T, Scanned, {Row, Column}, {in_single_quote, Closer}) ->
     scan(T, append_char(Scanned, 34), {Row, Column + 1}, {in_code, Closer});
 
@@ -141,25 +141,25 @@ scan([H | T], Scanned, {Row, Column}, {in_single_quote, Closer}) ->
 
 scan("}}-->" ++ T, Scanned, {Row, Column}, {_, "}}-->"}) ->
     scan(T, [{close_var, {Row, Column}, '}}-->'} | Scanned], 
-        {Row, Column + length("}}-->")}, in_text);
+	 {Row, Column + length("}}-->")}, in_text);
 
 scan("}}" ++ T, Scanned, {Row, Column}, {_, "}}"}) ->
     scan(T, [{close_var, {Row, Column}, '}}'} | Scanned], {Row, Column + 2}, in_text);
 
 scan("%}-->" ++ T, Scanned, {Row, Column}, {_, "%}-->"}) ->
     scan(T, [{close_tag, {Row, Column}, '%}-->'} | Scanned], 
-        {Row, Column + length("%}-->")}, in_text);
+	 {Row, Column + length("%}-->")}, in_text);
 
 scan("%}" ++ T, [{identifier, _, "mitabrev"}, {open_tag, _, '{%'}|Scanned], {Row, Column}, {_, "%}"}) ->
     scan(T, [{string, {Row, Column + 2}, ""}|Scanned], {Row, Column + 2}, {in_verbatim, undefined});
 
 scan("%}" ++ T, [{identifier, _, ReversedTag}, {identifier, _, "mitabrev"}, {open_tag, _, '{%'}|Scanned], 
-    {Row, Column}, {_, "%}"}) ->
+     {Row, Column}, {_, "%}"}) ->
     scan(T, [{string, {Row, Column + 2}, ""}|Scanned], {Row, Column + 2}, {in_verbatim, ReversedTag});
 
 scan("%}" ++ T, Scanned, {Row, Column}, {_, "%}"}) ->
     scan(T, [{close_tag, {Row, Column}, '%}'} | Scanned], 
-        {Row, Column + 2}, in_text);
+	 {Row, Column + 2}, in_text);
 
 scan("{%" ++ T, Scanned, {Row, Column}, {in_verbatim, Tag}) ->
     scan(T, Scanned, {Row, Column + 2}, {in_verbatim_code, lists:reverse("{%"), Tag});
@@ -172,7 +172,7 @@ scan("endverbatim%}" ++ T, Scanned, {Row, Column}, {in_verbatim_code, _BackTrack
 
 scan("endverbatim " ++ T, Scanned, {Row, Column}, {in_verbatim_code, BackTrack, Tag}) ->
     scan(T, Scanned, {Row, Column + length("endverbatim ")}, 
-        {in_endverbatim_code, "", lists:reverse("endverbatim ", BackTrack), Tag});
+	 {in_endverbatim_code, "", lists:reverse("endverbatim ", BackTrack), Tag});
 
 scan(" " ++ T, Scanned, {Row, Column}, {in_endverbatim_code, "", BackTrack, Tag}) ->
     scan(T, Scanned, {Row, Column + 1}, {in_endverbatim_code, "", [$\ |BackTrack], Tag});
@@ -277,7 +277,7 @@ scan([H | T], Scanned, {Row, Column}, {in_identifier, Closer}) ->
             {error, {Row, ?MODULE, lists:concat(["Illegal character in column ", Column])}}
     end.
 
-% internal functions
+						% internal functions
 
 append_char([{Type, Pos, Chars}|Scanned], Char) ->
     [{Type, Pos, [Char | Chars]} | Scanned].
@@ -328,7 +328,7 @@ mark_keywords([{identifier, Pos, "by" = String}|T], Acc) ->
     mark_keywords(T, [{by_keyword, Pos, String}|Acc]);
 mark_keywords([{identifier, Pos, "with" = String}|T], Acc) ->
     mark_keywords(T, [{with_keyword, Pos, String}|Acc]);
-% These must be succeeded by a close_tag
+						% These must be succeeded by a close_tag
 mark_keywords([{identifier, Pos, "only" = String}, {close_tag, _, _} = CloseTag|T], Acc) ->
     mark_keywords(T, lists:reverse([{only_keyword, Pos, String}, CloseTag], Acc));
 mark_keywords([{identifier, Pos, "parsed" = String}, {close_tag, _, _} = CloseTag|T], Acc) ->
@@ -353,8 +353,8 @@ mark_keywords([{identifier, Pos, "opencomment" = String}, {close_tag, _, _} = Cl
     mark_keywords(T, lists:reverse([{opencomment_keyword, Pos, String}, CloseTag], Acc));
 mark_keywords([{identifier, Pos, "closecomment" = String}, {close_tag, _, _} = CloseTag|T], Acc) ->
     mark_keywords(T, lists:reverse([{closecomment_keyword, Pos, String}, CloseTag], Acc));
-% The rest must be preceded by an open_tag.
-% This allows variables to have the same names as tags.
+						% The rest must be preceded by an open_tag.
+						% This allows variables to have the same names as tags.
 mark_keywords([{open_tag, _, _} = OpenToken, {identifier, Pos, "autoescape" = String}|T], Acc) ->
     mark_keywords(T, lists:reverse([OpenToken, {autoescape_keyword, Pos, String}], Acc));
 mark_keywords([{open_tag, _, _} = OpenToken, {identifier, Pos, "endautoescape" = String}|T], Acc) ->
