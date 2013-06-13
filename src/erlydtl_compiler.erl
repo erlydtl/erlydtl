@@ -59,7 +59,9 @@
 	  force_recompile = false,
 	  locale = none,
 	  verbose = false,
-	  is_compiling_dir = false}).
+	  is_compiling_dir = false,
+	  extension_module = undefined
+	 }).
 
 -record(ast_info, {
 	  dependencies = [],
@@ -83,10 +85,10 @@ compile(File, Module) ->
 compile(Binary, Module, Options) when is_binary(Binary) ->
     File = "",
     CheckSum = "",
-    case parse(Binary) of
+    Context = init_dtl_context(File, Module, Options),
+    case parse(Binary, Context) of
         {ok, DjangoParseTree} ->
-            case compile_to_binary(File, DjangoParseTree, 
-				   init_dtl_context(File, Module, Options), CheckSum) of
+            case compile_to_binary(File, DjangoParseTree, Context, CheckSum) of
                 {ok, Module1, _, _} ->
                     {ok, Module1};
                 Err ->
@@ -253,7 +255,9 @@ init_context(IsCompilingDir, ParseTrail, DefDir, Module, Options) ->
 		  force_recompile = proplists:get_value(force_recompile, Options, Ctx#dtl_context.force_recompile),
 		  locale = proplists:get_value(locale, Options, Ctx#dtl_context.locale),
 		  verbose = proplists:get_value(verbose, Options, Ctx#dtl_context.verbose),
-		  is_compiling_dir = IsCompilingDir}.
+		  is_compiling_dir = IsCompilingDir,
+		  extension_module = proplists:get_value(extension_module, Options, Ctx#dtl_context.extension_module)
+		}.
 
 init_dtl_context(File, Module, Options) when is_list(Module) ->
     init_dtl_context(File, list_to_atom(Module), Options);
@@ -299,7 +303,16 @@ is_up_to_date(CheckSum, Context) ->
             false
     end.
 
+parse(Data) ->
+    parse(Data, #dtl_context{}).
 
+parse(Data, _Context) when is_binary(Data) ->
+    case erlydtl_scanner:scan(binary_to_list(Data)) of
+        {ok, Tokens} ->
+            erlydtl_parser:parse(Tokens);
+        Err ->
+            Err
+    end;
 parse(File, Context) ->  
     {M, F} = Context#dtl_context.reader,
     case catch M:F(File) of
@@ -322,21 +335,13 @@ parse(CheckSum, Data, Context) ->
         true ->
             ok;
         _ ->
-            case parse(Data) of
+            case parse(Data, Context) of
                 {ok, Val} ->
                     {ok, Val, CheckSum};
                 Err ->
                     Err
             end
     end.
-
-parse(Data) ->
-    case erlydtl_scanner:scan(binary_to_list(Data)) of
-        {ok, Tokens} ->
-            erlydtl_parser:parse(Tokens);
-        Err ->
-            Err
-    end.        
 
 custom_tags_ast(CustomTags, Context, TreeWalker) ->
     {{CustomTagsClauses, CustomTagsInfo}, TreeWalker1} = custom_tags_clauses_ast(CustomTags, Context, TreeWalker),
@@ -768,7 +773,7 @@ blocktrans_ast(ArgList, Contents, Context, TreeWalker) ->
 									       default ->
 										   {AstInfoAcc, ThisTreeWalker, ClauseAcc};
 									       Body ->
-										   {ok, DjangoParseTree} = parse(Body),
+										   {ok, DjangoParseTree} = parse(Body, Context),
 										   {{ThisAst, ThisAstInfo}, TreeWalker3} = body_ast(DjangoParseTree, NewContext, ThisTreeWalker),
 										   {merge_info(ThisAstInfo, AstInfoAcc), TreeWalker3, 
 										    [erl_syntax:clause([erl_syntax:string(Locale)], none, [ThisAst])|ClauseAcc]}
