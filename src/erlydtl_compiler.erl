@@ -219,6 +219,12 @@ compile_to_binary(File, DjangoParseTree, Context, CheckSum) ->
     end.
 
 compile_forms_and_reload(File, Forms, CompilerOptions) ->
+    case proplists:get_value(debug_compiler, CompilerOptions) of
+	true ->
+	    io:format("Template ~p compiled with options: ~p~n", [File, CompilerOptions]),
+	    [io:format("~s~n", [erl_pp:form(Form)]) || Form <- Forms];
+	_ -> nop
+    end,
     case compile:forms(Forms, CompilerOptions) of
         {ok, Module1, Bin} -> 
             load_code(Module1, Bin, []);
