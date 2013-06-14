@@ -35,7 +35,8 @@
 -author('rsaccon@gmail.com').
 -author('emmiller@gmail.com').
 
--export([scan/1]). 
+-export([scan/1, recover/2]). 
+-include("erlydtl_ext.hrl").
 
 
 %%====================================================================
@@ -49,8 +50,33 @@
 %% an error.
 %% @end
 %%--------------------------------------------------------------------
+scan(#scanner_state{ template=Template, scanned=Scanned, 
+		     pos=Pos, state=State}) ->
+    scan(Template, Scanned, Pos, State);
 scan(Template) ->
-    scan(Template, [], {1, 1}, in_text).
+    scan(Template, [], {1, 1}, in_text).    
+
+recover(Mod, State) ->
+    M = case code:is_loaded(Mod) of
+	    false ->
+		case code:load_file(Mod) of
+		    {module, Mod} ->
+			Mod;
+		    _ ->
+			undefined
+		end;
+	    _ -> Mod
+	end,
+    if M /= undefined ->
+	    case erlang:function_exported(M, scan, 1) of
+		true ->
+		    M:scan(State);
+		false ->
+		    undefined
+	    end;
+       true ->
+	    undefined
+    end.
 
 scan([], Scanned, _, in_text) ->
     Tokens = lists:reverse(Scanned),
@@ -256,7 +282,8 @@ scan([H | T], Scanned, {Row, Column}, {in_code, Closer}) ->
         digit ->
             scan(T, [{number_literal, {Row, Column}, [H]} | Scanned], {Row, Column + 1}, {in_number, Closer});
         _ ->
-            {error, {Row, ?MODULE, lists:concat(["Illegal character in column ", Column])}}
+            {error, {Row, ?MODULE, lists:concat(["Illegal character in column ", Column])},
+	     #scanner_state{ template=[H|T], scanned=Scanned, pos={Row, Column}, state={in_code, Closer}}}
     end;
 
 scan([H | T], Scanned, {Row, Column}, {in_number, Closer}) ->
@@ -264,7 +291,8 @@ scan([H | T], Scanned, {Row, Column}, {in_number, Closer}) ->
         digit ->
             scan(T, append_char(Scanned, H), {Row, Column + 1}, {in_number, Closer});
         _ ->
-            {error, {Row, ?MODULE, lists:concat(["Illegal character in column ", Column])}}
+            {error, {Row, ?MODULE, lists:concat(["Illegal character in column ", Column])},
+	     #scanner_state{ template=[H|T], scanned=Scanned, pos={Row, Column}, state={in_code, Closer}}}
     end;
 
 scan([H | T], Scanned, {Row, Column}, {in_identifier, Closer}) ->
@@ -274,7 +302,8 @@ scan([H | T], Scanned, {Row, Column}, {in_identifier, Closer}) ->
         digit ->
             scan(T, append_char(Scanned, H), {Row, Column + 1}, {in_identifier, Closer});
         _ ->
-            {error, {Row, ?MODULE, lists:concat(["Illegal character in column ", Column])}}
+            {error, {Row, ?MODULE, lists:concat(["Illegal character in column ", Column])},
+	     #scanner_state{ template=[H|T], scanned=Scanned, pos={Row, Column}, state={in_code, Closer}}}
     end.
 
 						% internal functions

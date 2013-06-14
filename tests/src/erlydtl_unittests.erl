@@ -1101,6 +1101,13 @@ tests() ->
 			    <<"{{ a|intcomma }} {{ b|intcomma }} {{ c|intcomma }} {{ d|intcomma }}">>,
 			    [{a, 999}, {b, 123456789}, {c, 12345}, {d, 1234567890}],
 			    <<"999 123,456,789 12,345 1,234,567,890">>}
+			  ]},
+     %% custom syntax stuff
+     {"extension_module", [
+			   %% the erlydtl_extension_test module replaces a foo identifier with bar when hitting a #.
+			   {"replace parsed token", <<"{{ foo # }}">>, [{bar, "ok"}], [], [{extension_module, erlydtl_extension_test}], <<"ok">>},
+			   {"proper error message", <<"{{ bar # }}">>, [{bar, "ok"}], [], [{extension_module, erlydtl_extension_test}],
+			    {error, {1,erlydtl_extension_test,"Unexpected '#' in code at column 8"}}}
 			  ]}
     ].
 
@@ -1141,6 +1148,7 @@ process_unit_test(CompiledTemplate, Vars, RenderOpts, Output,Acc, Group, Name) -
 		    [{Group, Name, 'list', Unexpected1, Output},
 		     {Group, Name, 'binary', Unexpected2, Output} | Acc]
 	    end;
+	Output -> Acc;
 	Err ->
 	    [{Group, Name, Err} | Acc]
     end.

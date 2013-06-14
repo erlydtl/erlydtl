@@ -306,13 +306,10 @@ is_up_to_date(CheckSum, Context) ->
 parse(Data) ->
     parse(Data, #dtl_context{}).
 
-parse(Data, _Context) when is_binary(Data) ->
-    case erlydtl_scanner:scan(binary_to_list(Data)) of
-        {ok, Tokens} ->
-            erlydtl_parser:parse(Tokens);
-        Err ->
-            Err
-    end;
+parse(Data, Context) when is_binary(Data) ->
+    check_scan(erlydtl_scanner:scan(binary_to_list(Data)), Context);
+parse(State, Context) when is_tuple(State) ->
+    check_scan(erlydtl_scanner:scan(State), Context);
 parse(File, Context) ->  
     {M, F} = Context#dtl_context.reader,
     case catch M:F(File) of
@@ -341,6 +338,24 @@ parse(CheckSum, Data, Context) ->
                 Err ->
                     Err
             end
+    end.
+
+check_scan({ok, Tokens}, _Context) ->
+    erlydtl_parser:parse(Tokens);
+check_scan({error, Err, State}, Context) ->
+    case Context#dtl_context.extension_module of
+	undefined ->
+	    {error, Err};
+	M ->
+	    case erlydtl_scanner:recover(M, State) of
+		{ok, NewState} ->
+		    %% io:format("recover from:~p~nto: ~p~n", [State, NewState]),
+		    parse(NewState, Context);
+		undefined ->
+		    {error, Err};
+		ExtErr ->
+		    ExtErr
+	    end
     end.
 
 custom_tags_ast(CustomTags, Context, TreeWalker) ->
