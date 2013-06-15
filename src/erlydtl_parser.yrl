@@ -1,4 +1,4 @@
-%%%-------------------------------------------------------------------
+%%% -*- mode: erlang -*- ------------------------------------------------------------------
 %%% File:      erlydtl_parser.erl
 %%% @author    Roberto Saccon <rsaccon@gmail.com> [http://rsaccon.com]
 %%% @author    Evan Miller <emmiller@gmail.com>
