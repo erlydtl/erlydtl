@@ -42,6 +42,9 @@
 %% --------------------------------------------------------------------
 -export([compile/2, compile/3, compile_dir/2, compile_dir/3, parse/1]).
 
+%% exported for use by extension modules
+-export([merge_info/2, value_ast/5]).
+
 -record(dtl_context, {
 	  local_scopes = [], 
 	  block_dict = dict:new(), 
@@ -346,6 +349,7 @@ parse(CheckSum, Data, Context) ->
             end
     end.
 
+recover(undefined, _Fun, _Args) -> undefined;
 recover(Mod, Fun, Args) 
   when is_atom(Mod), is_atom(Fun), is_list(Args) ->
     M = case code:is_loaded(Mod) of
@@ -372,19 +376,14 @@ recover(Mod, Fun, Args)
 check_scan({ok, Tokens}, Context) ->
     check_parse(erlydtl_parser:parse(Tokens), [], Context);
 check_scan({error, Err, State}, Context) ->
-    case Context#dtl_context.extension_module of
-	undefined ->
-	    {error, Err};
-	M ->
-	    case recover(M, scan, [State]) of
-		{ok, NewState} ->
-		    %% io:format("recover from:~p~nto: ~p~n", [State, NewState]),
-		    check_scan(erlydtl_scanner:resume(NewState), Context);
-		undefined ->
-		    {error, Err};
-		ExtRes ->
-		    ExtRes
-	    end
+    case recover(Context#dtl_context.extension_module, scan, [State]) of
+        undefined ->
+            {error, Err};
+        {ok, NewState} ->
+            %% io:format("recover from:~p~nto: ~p~n", [State, NewState]),
+            check_scan(erlydtl_scanner:resume(NewState), Context);
+        ExtRes ->
+            ExtRes
     end.
 
 check_parse({ok, _}=Ok, [], _Context) -> Ok;
@@ -393,30 +392,24 @@ check_parse({ok, Parsed}, Acc, _Context) -> {ok, Acc ++ Parsed};
 check_parse({ok, Parsed, C}, Acc, _Context) -> {ok, Acc ++ Parsed, C};
 check_parse({error, _}=Err, _, _Context) -> Err;
 check_parse({error, Err, State}, Acc, Context) ->
-    io:format("parse error: ~p~nstate: ~p~n",[Err, State]),
-    case Context#dtl_context.extension_module of
+    %% io:format("parse error: ~p~nstate: ~p~n",[Err, State]),
+    {State1, Parsed} = reset_parse_state(State),
+    case recover(Context#dtl_context.extension_module, parse, [State1]) of
         undefined ->
             {error, Err};
-        M ->
-            {State1, Parsed} = reset_parse_state(State),
-            case recover(M, parse, [State1]) of
-                {ok, ExtParsed} ->
-                    io:format("parse recovered: ~p~n", [ExtParsed]),
-                    {ok, Acc ++ Parsed ++ ExtParsed};
-                {error, ExtErr, ExtState} ->
-                    case reset_parse_state(ExtState) of
-                        {_, []} ->
-                            %% todo: see if this is indeed a sensible ext error,
-                            %% or if we should rather present the original Err message
-                            {error, ExtErr};
-                        {State2, ExtParsed} ->
-                            check_parse(erlydtl_parser:resume(State2), Acc ++ Parsed ++ ExtParsed, Context)
-                    end;
-                undefined ->
-                    {error, Err};
-                ExtRes ->
-                    ExtRes
-            end
+        {ok, ExtParsed} ->
+            {ok, Acc ++ Parsed ++ ExtParsed};
+        {error, ExtErr, ExtState} ->
+            case reset_parse_state(ExtState) of
+                {_, []} ->
+                    %% todo: see if this is indeed a sensible ext error,
+                    %% or if we should rather present the original Err message
+                    {error, ExtErr};
+                {State2, ExtParsed} ->
+                    check_parse(erlydtl_parser:resume(State2), Acc ++ Parsed ++ ExtParsed, Context)
+            end;
+        ExtRes ->
+            ExtRes
     end.
 
 %% backtrack up to the Rootsymbol, and keep the current top-level value stack
@@ -731,6 +724,8 @@ body_ast(DjangoParseTree, Context, TreeWalker) ->
 						       widthratio_ast(Numerator, Denominator, Scale, Context, TreeWalkerAcc);
 				       ({'with', Args, Contents}, TreeWalkerAcc) ->
 						       with_ast(Args, Contents, Context, TreeWalkerAcc);
+                                       ({'extension', Tag}, TreeWalkerAcc) ->
+                                           extension_ast(Tag, Context, TreeWalkerAcc);
 				       (ValueToken, TreeWalkerAcc) -> 
 						       {{ValueAst,ValueInfo},ValueTreeWalker} = value_ast(ValueToken, true, true, Context, TreeWalkerAcc),
 						       {{format(ValueAst, Context, ValueTreeWalker),ValueInfo},ValueTreeWalker}
@@ -794,6 +789,14 @@ value_ast(ValueToken, AsString, EmptyIfUndefined, Context, TreeWalker) ->
         {'variable', _} = Variable ->
             {Ast, VarName} = resolve_variable_ast(Variable, Context, EmptyIfUndefined),
             {{Ast, #ast_info{var_names = [VarName]}}, TreeWalker}
+    end.
+
+extension_ast(Tag, Context, TreeWalker) ->
+    case recover(Context#dtl_context.extension_module, compile_ast, [Tag, Context, TreeWalker]) of
+        undefined ->
+            throw({error, {unknown_extension, Tag}});
+        Result ->
+            Result
     end.
 
 merge_info(Info1, Info2) ->

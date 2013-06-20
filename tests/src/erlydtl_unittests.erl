@@ -1109,7 +1109,7 @@ tests() ->
 			   {"proper error message", <<"{{ bar # }}">>, [{bar, "ok"}], [], [{extension_module, erlydtl_extension_test}],
 			    {error, {1,erlydtl_extension_test,"Unexpected '#' in code at column 8"}}},
                            %% accept identifiers as expressions (this is a dummy functionality to test the parser extensibility)
-			   {"identifiers as expressions", <<"{{ test }} data {{ foo.bar or baz }}">>, [{baz, "ok"}], [], [{extension_module, erlydtl_extension_test}], <<"ok">>}
+			   {"identifiers as expressions", <<"{{ foo.bar or baz }}">>, [{baz, "ok"}], [], [{extension_module, erlydtl_extension_test}], <<"ok">>}
 			  ]}
     ].
 
