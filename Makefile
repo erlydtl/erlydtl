@@ -1,14 +1,15 @@
 ERL=erl
+ERLC=erlc
 REBAR=./rebar
-
 
 all: compile
 
-compile: 
+compile:
 	@$(REBAR) compile
 
 compile_test:
 	-mkdir -p ebintest
+	$(ERLC) -o tests/src -I include/erlydtl_preparser.hrl tests/src/erlydtl_extension_testparser.yrl
 	$(ERL) -make
 
 test: compile compile_test
