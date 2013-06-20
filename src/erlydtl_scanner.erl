@@ -2,6 +2,7 @@
 %%% File:      erlydtl_scanner.erl
 %%% @author    Roberto Saccon <rsaccon@gmail.com> [http://rsaccon.com]
 %%% @author    Evan Miller <emmiller@gmail.com>
+%%% @author    Andreas Stenius <kaos@astekk.se>
 %%% @copyright 2008 Roberto Saccon, Evan Miller
 %%% @doc 
 %%% Template language scanner
@@ -34,8 +35,9 @@
 -module(erlydtl_scanner).
 -author('rsaccon@gmail.com').
 -author('emmiller@gmail.com').
+-author('Andreas Stenius <kaos@astekk.se>').
 
--export([scan/1, recover/2]). 
+-export([scan/1, resume/1]).
 -include("erlydtl_ext.hrl").
 
 
@@ -50,33 +52,12 @@
 %% an error.
 %% @end
 %%--------------------------------------------------------------------
-scan(#scanner_state{ template=Template, scanned=Scanned, 
-		     pos=Pos, state=State}) ->
-    scan(Template, Scanned, Pos, State);
 scan(Template) ->
     scan(Template, [], {1, 1}, in_text).    
 
-recover(Mod, State) ->
-    M = case code:is_loaded(Mod) of
-	    false ->
-		case code:load_file(Mod) of
-		    {module, Mod} ->
-			Mod;
-		    _ ->
-			undefined
-		end;
-	    _ -> Mod
-	end,
-    if M /= undefined ->
-	    case erlang:function_exported(M, scan, 1) of
-		true ->
-		    M:scan(State);
-		false ->
-		    undefined
-	    end;
-       true ->
-	    undefined
-    end.
+resume(#scanner_state{ template=Template, scanned=Scanned, 
+		     pos=Pos, state=State}) ->
+    scan(Template, Scanned, Pos, State).
 
 scan([], Scanned, _, in_text) ->
     Tokens = lists:reverse(Scanned),

@@ -1104,10 +1104,12 @@ tests() ->
 			  ]},
      %% custom syntax stuff
      {"extension_module", [
-			   %% the erlydtl_extension_test module replaces a foo identifier with bar when hitting a #.
+			   %% the erlydtl_extension_test module replaces a foo identifier with bar when hitting a # following foo.
 			   {"replace parsed token", <<"{{ foo # }}">>, [{bar, "ok"}], [], [{extension_module, erlydtl_extension_test}], <<"ok">>},
 			   {"proper error message", <<"{{ bar # }}">>, [{bar, "ok"}], [], [{extension_module, erlydtl_extension_test}],
-			    {error, {1,erlydtl_extension_test,"Unexpected '#' in code at column 8"}}}
+			    {error, {1,erlydtl_extension_test,"Unexpected '#' in code at column 8"}}},
+                           %% accept identifiers as expressions (this is a dummy functionality to test the parser extensibility)
+			   {"identifiers as expressions", <<"{{ test }} data {{ foo.bar or baz }}">>, [{baz, "ok"}], [], [{extension_module, erlydtl_extension_test}], <<"ok">>}
 			  ]}
     ].
 

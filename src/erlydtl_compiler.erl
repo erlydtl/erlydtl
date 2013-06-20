@@ -2,6 +2,7 @@
 %%% File:      erlydtl_compiler.erl
 %%% @author    Roberto Saccon <rsaccon@gmail.com> [http://rsaccon.com]
 %%% @author    Evan Miller <emmiller@gmail.com>
+%%% @author    Andreas Stenius <kaos@astekk.se>
 %%% @copyright 2008 Roberto Saccon, Evan Miller
 %%% @doc  
 %%% ErlyDTL template compiler
@@ -34,6 +35,7 @@
 -module(erlydtl_compiler).
 -author('rsaccon@gmail.com').
 -author('emmiller@gmail.com').
+-author('Andreas Stenius <kaos@astekk.se>').
 
 %% --------------------------------------------------------------------
 %% Definitions
@@ -314,8 +316,6 @@ parse(Data) ->
 
 parse(Data, Context) when is_binary(Data) ->
     check_scan(erlydtl_scanner:scan(binary_to_list(Data)), Context);
-parse(State, Context) when is_tuple(State) ->
-    check_scan(erlydtl_scanner:scan(State), Context);
 parse(File, Context) ->  
     {M, F} = Context#dtl_context.reader,
     case catch M:F(File) of
@@ -346,23 +346,84 @@ parse(CheckSum, Data, Context) ->
             end
     end.
 
-check_scan({ok, Tokens}, _Context) ->
-    erlydtl_parser:parse(Tokens);
+recover(Mod, Fun, Args) 
+  when is_atom(Mod), is_atom(Fun), is_list(Args) ->
+    M = case code:is_loaded(Mod) of
+	    false ->
+		case code:load_file(Mod) of
+		    {module, Mod} ->
+			Mod;
+		    _ ->
+			undefined
+		end;
+	    _ -> Mod
+	end,
+    if M /= undefined ->
+	    case erlang:function_exported(M, Fun, length(Args)) of
+		true ->
+		    apply(M, Fun, Args);
+		false ->
+		    undefined
+	    end;
+       true ->
+	    undefined
+    end.
+
+check_scan({ok, Tokens}, Context) ->
+    check_parse(erlydtl_parser:parse(Tokens), [], Context);
 check_scan({error, Err, State}, Context) ->
     case Context#dtl_context.extension_module of
 	undefined ->
 	    {error, Err};
 	M ->
-	    case erlydtl_scanner:recover(M, State) of
+	    case recover(M, scan, [State]) of
 		{ok, NewState} ->
 		    %% io:format("recover from:~p~nto: ~p~n", [State, NewState]),
-		    parse(NewState, Context);
+		    check_scan(erlydtl_scanner:resume(NewState), Context);
 		undefined ->
 		    {error, Err};
-		ExtErr ->
-		    ExtErr
+		ExtRes ->
+		    ExtRes
 	    end
     end.
+
+check_parse({ok, _}=Ok, [], _Context) -> Ok;
+check_parse({ok, _, _}=Ok, [], _Context) -> Ok;
+check_parse({ok, Parsed}, Acc, _Context) -> {ok, Acc ++ Parsed};
+check_parse({ok, Parsed, C}, Acc, _Context) -> {ok, Acc ++ Parsed, C};
+check_parse({error, _}=Err, _, _Context) -> Err;
+check_parse({error, Err, State}, Acc, Context) ->
+    io:format("parse error: ~p~nstate: ~p~n",[Err, State]),
+    case Context#dtl_context.extension_module of
+        undefined ->
+            {error, Err};
+        M ->
+            {State1, Parsed} = reset_parse_state(State),
+            case recover(M, parse, [State1]) of
+                {ok, ExtParsed} ->
+                    io:format("parse recovered: ~p~n", [ExtParsed]),
+                    {ok, Acc ++ Parsed ++ ExtParsed};
+                {error, ExtErr, ExtState} ->
+                    case reset_parse_state(ExtState) of
+                        {_, []} ->
+                            %% todo: see if this is indeed a sensible ext error,
+                            %% or if we should rather present the original Err message
+                            {error, ExtErr};
+                        {State2, ExtParsed} ->
+                            check_parse(erlydtl_parser:resume(State2), Acc ++ Parsed ++ ExtParsed, Context)
+                    end;
+                undefined ->
+                    {error, Err};
+                ExtRes ->
+                    ExtRes
+            end
+    end.
+
+%% backtrack up to the Rootsymbol, and keep the current top-level value stack
+reset_parse_state([Ts, Tzr, _, [0 | []], [Parsed | []]]) ->
+    {[Ts, Tzr, 0, [], []], Parsed};
+reset_parse_state([Ts, Tzr, _, [S | Ss], [T | Stack]]) -> 
+    reset_parse_state([[T | Ts], Tzr, S, Ss, Stack]).
 
 custom_tags_ast(CustomTags, Context, TreeWalker) ->
     {{CustomTagsClauses, CustomTagsInfo}, TreeWalker1} = custom_tags_clauses_ast(CustomTags, Context, TreeWalker),

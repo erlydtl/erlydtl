@@ -29,7 +29,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % The parser generator will insert appropriate declarations before this line.%
 
--export([parse/1, parse_and_scan/1, format_error/1, recover/1]).
+-export([parse/1, parse_and_scan/1, format_error/1, resume/1]).
 
 -type yecc_ret() :: {'error', _} | {'ok', _}.
 
@@ -44,7 +44,7 @@ parse_and_scan({F, A}) -> % Fun or {M, F}
 parse_and_scan({M, F, A}) ->
     yeccpars0([], {{{M, F}, A}, no_line}, 0, [], []).
 
-recover([Tokens, Tzr, State, States, Vstack]) ->
+resume([Tokens, Tzr, State, States, Vstack]) ->
     yeccpars0(Tokens, Tzr, State, States, Vstack).
 
 -spec format_error(any()) -> [char() | list()].
@@ -140,7 +140,7 @@ yeccpars1(State1, State, States, Vstack, Token0, [Token | Tokens], Tzr) ->
     ?checkparse(
        yeccpars2(State, element(1, Token), [State1 | States],
 		 [Token0 | Vstack], Token, Tokens, Tzr),
-       [[Token0, Token|Tokens], Tzr, [State, State1|States], Vstack]
+       [[Token0, Token | Tokens], Tzr, State1, States, Vstack]
       );
 yeccpars1(State1, State, States, Vstack, Token0, [], {{_F,_A}, _Line}=Tzr) ->
     yeccpars1([], Tzr, State, [State1 | States], [Token0 | Vstack]);
