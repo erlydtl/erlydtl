@@ -157,7 +157,7 @@ write_binary(Module1, Bin, Options, Warnings) ->
     end.
 
 compile_multiple_to_binary(Dir, ParserResults, Context) ->
-    MatchAst = options_match_ast(), 
+    MatchAst = options_match_ast(Context), 
     {Functions, {AstInfo, _}} = lists:mapfoldl(fun({File, DjangoParseTree, CheckSum}, {AstInfo, TreeWalker}) ->
 						       FilePath = full_path(File, Context#dtl_context.doc_root),
 						       {{BodyAst, BodyInfo}, TreeWalker1} = with_dependency({FilePath, CheckSum}, body_ast(DjangoParseTree, Context, TreeWalker)),
@@ -180,7 +180,7 @@ compile_to_binary(File, DjangoParseTree, Context, CheckSum) ->
             try custom_tags_ast(BodyInfo#ast_info.custom_tags, Context, BodyTreeWalker) of
                 {{CustomTagsAst, CustomTagsInfo}, _} ->
                     Forms = forms(File, Context#dtl_context.module, {BodyAst, BodyInfo}, 
-				  {CustomTagsAst, CustomTagsInfo}, Context#dtl_context.binary_strings, CheckSum), 
+				  {CustomTagsAst, CustomTagsInfo}, CheckSum, Context), 
                     compile_forms_and_reload(File, Forms, Context#dtl_context.compiler_options)
             catch 
                 throw:Error -> Error
@@ -315,8 +315,9 @@ parse(CheckSum, Data, Context) ->
             end
     end.
 
-recover(undefined, _Fun, _Args) -> undefined;
-recover(Mod, Fun, Args) 
+call_extension(#dtl_context{ extension_module=undefined }, _Fun, _Args) ->
+    undefined;
+call_extension(#dtl_context{ extension_module=Mod }, Fun, Args) 
   when is_atom(Mod), is_atom(Fun), is_list(Args) ->
     M = case code:is_loaded(Mod) of
 	    false ->
@@ -342,11 +343,11 @@ recover(Mod, Fun, Args)
 check_scan({ok, Tokens}, Context) ->
     check_parse(erlydtl_parser:parse(Tokens), [], Context);
 check_scan({error, Err, State}, Context) ->
-    case recover(Context#dtl_context.extension_module, scan, [State]) of
+    case call_extension(Context, scan, [State]) of
         undefined ->
             {error, Err};
         {ok, NewState} ->
-            %% io:format("recover from:~p~nto: ~p~n", [State, NewState]),
+            %% io:format("call_extension from:~p~nto: ~p~n", [State, NewState]),
             check_scan(erlydtl_scanner:resume(NewState), Context);
         ExtRes ->
             ExtRes
@@ -360,7 +361,7 @@ check_parse({error, _}=Err, _, _Context) -> Err;
 check_parse({error, Err, State}, Acc, Context) ->
     %% io:format("parse error: ~p~nstate: ~p~n",[Err, State]),
     {State1, Parsed} = reset_parse_state(State),
-    case recover(Context#dtl_context.extension_module, parse, [State1]) of
+    case call_extension(Context, parse, [State1]) of
         undefined ->
             {error, Err};
         {ok, ExtParsed} ->
@@ -407,7 +408,7 @@ custom_tags_clauses_ast1([Tag|CustomTags], ExcludeTags, ClauseAcc, InfoAcc, Cont
                         {ok, DjangoParseTree, CheckSum} ->
                             {{BodyAst, BodyAstInfo}, TreeWalker1} = with_dependency(
 								      {CustomTagFile, CheckSum}, body_ast(DjangoParseTree, Context, TreeWalker)),
-                            MatchAst = options_match_ast(), 
+                            MatchAst = options_match_ast(Context), 
                             Clause = erl_syntax:clause(
 				       [key_to_string(Tag), erl_syntax:variable("_Variables"), erl_syntax:variable("RenderOptions")],
 				       none, MatchAst ++ [BodyAst]),
@@ -474,7 +475,7 @@ custom_forms(Dir, Module, Functions, AstInfo) ->
     [erl_syntax:revert(X) || X <- [ModuleAst, ExportAst, SourceFunctionAst, DependenciesFunctionAst, TranslatableStringsFunctionAst
 				   | FunctionAsts] ++ AstInfo#ast_info.pre_render_asts].
 
-forms(File, Module, {BodyAst, BodyInfo}, {CustomTagsFunctionAst, CustomTagsInfo}, BinaryStrings, CheckSum) ->
+forms(File, Module, {BodyAst, BodyInfo}, {CustomTagsFunctionAst, CustomTagsInfo}, CheckSum, Context) ->
     MergedInfo = merge_info(BodyInfo, CustomTagsInfo),
     Render0FunctionAst = erl_syntax:function(erl_syntax:atom(render),
 					     [erl_syntax:clause([], none, [erl_syntax:application(none, 
@@ -509,13 +510,13 @@ forms(File, Module, {BodyAst, BodyInfo}, {CustomTagsFunctionAst, CustomTagsInfo}
 
     VariablesAst = variables_function(MergedInfo#ast_info.var_names),
 
-    MatchAst = options_match_ast(), 
+    MatchAst = options_match_ast(Context), 
 
     BodyAstTmp = MatchAst ++ [
 			      erl_syntax:application(
 				erl_syntax:atom(erlydtl_runtime),
 				erl_syntax:atom(stringify_final),
-				[BodyAst, erl_syntax:atom(BinaryStrings)])
+				[BodyAst, erl_syntax:atom(Context#dtl_context.binary_strings)])
 			     ],
 
     RenderInternalFunctionAst = erl_syntax:function(
@@ -544,7 +545,7 @@ forms(File, Module, {BodyAst, BodyInfo}, {CustomTagsFunctionAst, CustomTagsInfo}
 				   TranslatedBlocksAst, VariablesAst, RenderInternalFunctionAst, 
 				   CustomTagsFunctionAst | BodyInfo#ast_info.pre_render_asts]].    
 
-options_match_ast() -> 
+options_match_ast(Context) -> 
     [
      erl_syntax:match_expr(
        erl_syntax:variable("_TranslationFun"),
@@ -558,6 +559,10 @@ options_match_ast() ->
 	 erl_syntax:atom(proplists),
 	 erl_syntax:atom(get_value),
 	 [erl_syntax:atom(locale), erl_syntax:variable("RenderOptions"), erl_syntax:atom(none)]))
+     | case call_extension(Context, setup_render_ast, []) of
+           undefined -> [];
+           Ast when is_list(Ast) -> Ast
+       end
     ].
 
 						% child templates should only consist of blocks at the top level
@@ -758,7 +763,7 @@ value_ast(ValueToken, AsString, EmptyIfUndefined, Context, TreeWalker) ->
     end.
 
 extension_ast(Tag, Context, TreeWalker) ->
-    case recover(Context#dtl_context.extension_module, compile_ast, [Tag, Context, TreeWalker]) of
+    case call_extension(Context, compile_ast, [Tag, Context, TreeWalker]) of
         undefined ->
             throw({error, {unknown_extension, Tag}});
         Result ->
