@@ -1129,14 +1129,10 @@ wordwrap([C | Rest], Acc, WordAcc, LineLength, WrapAt) when erlang:length(WordAc
 wordwrap([C | Rest], Acc, WordAcc, LineLength, WrapAt) ->
     wordwrap(Rest, Acc, [C | WordAcc], LineLength, WrapAt).
 
-% Taken from quote_plus of mochiweb_util
-
 urlencode(Input, Index) when is_binary(Input) ->
     case Input of
         <<_:Index/binary, Byte, _/binary>> when ?NO_ENCODE(Byte) ->
             urlencode(Input, Index + 1);
-        <<Pre:Index/binary, $\s, Post/binary>> ->
-            process_binary_match(Pre, <<"+">>, size(Post), urlencode(Post, 0));
         <<Pre:Index/binary, Hi:4, Lo:4, Post/binary>> ->
             HiDigit = hexdigit(Hi),
             LoDigit = hexdigit(Lo),
@@ -1149,8 +1145,6 @@ urlencode([], Acc) ->
     lists:reverse(Acc);
 urlencode([C | Rest], Acc) when ?NO_ENCODE(C) ->
     urlencode(Rest, [C | Acc]);
-urlencode([$\s | Rest], Acc) ->
-    urlencode(Rest, [$+ | Acc]);
 urlencode([C | Rest], Acc) ->
     <<Hi:4, Lo:4>> = <<C>>,
     urlencode(Rest, [hexdigit(Lo), hexdigit(Hi), $\% | Acc]).

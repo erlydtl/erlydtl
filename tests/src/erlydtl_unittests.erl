@@ -875,7 +875,7 @@ tests() ->
 		   <<"THAT MAN HAS A GUN.">>},
 		  {"|urlencode",
 		   <<"{{ url|urlencode }}">>, [{url, "You #$*@!!"}],
-		   <<"You+%23%24%2A%40%21%21">>},
+		   <<"You%20%23%24%2A%40%21%21">>},
 		  {"|urlize",    
 		   <<"{{ var|urlize }}">>, [{var, "Check out www.djangoproject.com"}],
 		   <<"Check out <a href=\"http://www.djangoproject.com\" rel=\"nofollow\">www.djangoproject.com</a>">>},
