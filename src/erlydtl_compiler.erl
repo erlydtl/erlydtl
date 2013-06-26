@@ -43,7 +43,12 @@
 -export([compile/2, compile/3, compile_dir/2, compile_dir/3, parse/1]).
 
 %% exported for use by extension modules
--export([merge_info/2, value_ast/5]).
+-export([
+         merge_info/2, 
+         format/3, 
+         value_ast/5,
+         resolve_scoped_variable_ast/2
+        ]).
 
 -include("erlydtl_ext.hrl").
 
@@ -170,18 +175,18 @@ compile_multiple_to_binary(Dir, ParserResults, Context) ->
 										       [erl_syntax:clause([erl_syntax:variable("_Variables"), erl_syntax:variable("RenderOptions")], none,
 													  MatchAst ++ [BodyAst])]),
 						       {{FunctionName, Function1, Function2}, {merge_info(AstInfo, BodyInfo), TreeWalker1}}
-					       end, {#ast_info{}, #treewalker{}}, ParserResults),
+					       end, {#ast_info{}, init_treewalker(Context)}, ParserResults),
     Forms = custom_forms(Dir, Context#dtl_context.module, Functions, AstInfo),
-    compile_forms_and_reload(Dir, Forms, Context#dtl_context.compiler_options).
+    compile_forms_and_reload(Dir, Forms, Context).
 
 compile_to_binary(File, DjangoParseTree, Context, CheckSum) ->
-    try body_ast(DjangoParseTree, Context, #treewalker{}) of
+    try body_ast(DjangoParseTree, Context, init_treewalker(Context)) of
         {{BodyAst, BodyInfo}, BodyTreeWalker} ->
             try custom_tags_ast(BodyInfo#ast_info.custom_tags, Context, BodyTreeWalker) of
                 {{CustomTagsAst, CustomTagsInfo}, _} ->
                     Forms = forms(File, Context#dtl_context.module, {BodyAst, BodyInfo}, 
-				  {CustomTagsAst, CustomTagsInfo}, CheckSum, Context), 
-                    compile_forms_and_reload(File, Forms, Context#dtl_context.compiler_options)
+				  {CustomTagsAst, CustomTagsInfo}, CheckSum, Context, BodyTreeWalker), 
+                    compile_forms_and_reload(File, Forms, Context)
             catch 
                 throw:Error -> Error
             end
@@ -189,14 +194,21 @@ compile_to_binary(File, DjangoParseTree, Context, CheckSum) ->
         throw:Error -> Error
     end.
 
-compile_forms_and_reload(File, Forms, CompilerOptions) ->
-    case proplists:get_value(debug_compiler, CompilerOptions) of
+compile_forms_and_reload(File, Forms, Context) ->
+    case proplists:get_value(debug_compiler, Context#dtl_context.compiler_options) of
 	true ->
-	    io:format("Template ~p compiled with options: ~p~n", [File, CompilerOptions]),
-	    [io:format("~s~n", [erl_pp:form(Form)]) || Form <- Forms];
+	    io:format("template source:~n~s~n",
+                      [try 
+                           erl_prettypr:format(erl_syntax:form_list(Forms))
+                       catch
+                           error:Err ->
+                               io_lib:format("Pretty printing failed: ~p~nContext: ~n~p~nForms: ~n~p~n",
+                                             [Err, Context, Forms])
+                       end
+                      ]);
 	_ -> nop
     end,
-    case compile:forms(Forms, CompilerOptions) of
+    case compile:forms(Forms, Context#dtl_context.compiler_options) of
         {ok, Module1, Bin} -> 
             load_code(Module1, Bin, []);
         {ok, Module1, Bin, Warnings} ->
@@ -216,7 +228,7 @@ load_code(Module, Bin, Warnings) ->
 
 init_context(IsCompilingDir, ParseTrail, DefDir, Module, Options) ->
     Ctx = #dtl_context{},
-    #dtl_context{
+    Context = #dtl_context{
 		  parse_trail = ParseTrail,
 		  module = Module,
 		  doc_root = proplists:get_value(doc_root, Options, DefDir),
@@ -234,7 +246,11 @@ init_context(IsCompilingDir, ParseTrail, DefDir, Module, Options) ->
 		  verbose = proplists:get_value(verbose, Options, Ctx#dtl_context.verbose),
 		  is_compiling_dir = IsCompilingDir,
 		  extension_module = proplists:get_value(extension_module, Options, Ctx#dtl_context.extension_module)
-		}.
+		},
+    case call_extension(Context, init_context, [Context]) of
+        {ok, C} when is_record(C, dtl_context) -> C;
+        undefined -> Context
+    end.
 
 init_dtl_context(File, Module, Options) when is_list(Module) ->
     init_dtl_context(File, list_to_atom(Module), Options);
@@ -245,6 +261,13 @@ init_dtl_context_dir(Dir, Module, Options) when is_list(Module) ->
     init_dtl_context_dir(Dir, list_to_atom(Module), Options);
 init_dtl_context_dir(Dir, Module, Options) ->
     init_context(true, [], Dir, Module, Options).
+
+init_treewalker(Context) ->
+    TreeWalker = #treewalker{},
+    case call_extension(Context, init_treewalker, [TreeWalker]) of
+        {ok, TW} when is_record(TW, treewalker) -> TW;
+        undefined -> TreeWalker
+    end.
 
 is_up_to_date(_, #dtl_context{force_recompile = true}) ->
     false;
@@ -341,7 +364,11 @@ call_extension(#dtl_context{ extension_module=Mod }, Fun, Args)
     end.
 
 check_scan({ok, Tokens}, Context) ->
-    check_parse(erlydtl_parser:parse(Tokens), [], Context);
+    Tokens1 = case call_extension(Context, post_scan, [Tokens]) of
+                  undefined -> Tokens;
+                  {ok, T} -> T
+              end,
+    check_parse(erlydtl_parser:parse(Tokens1), [], Context);
 check_scan({error, Err, State}, Context) ->
     case call_extension(Context, scan, [State]) of
         undefined ->
@@ -383,19 +410,39 @@ check_parse({error, Err, State}, Acc, Context) ->
 reset_parse_state([Ts, Tzr, _, [0 | []], [Parsed | []]]) ->
     {[Ts, Tzr, 0, [], []], Parsed};
 reset_parse_state([Ts, Tzr, _, [S | Ss], [T | Stack]]) -> 
-    reset_parse_state([[T | Ts], Tzr, S, Ss, Stack]).
+    reset_parse_state([[T | Ts], Tzr, S, Ss, Stack]);
+reset_parse_state([_, _, 0, [], []]=State) -> 
+    {State, []}.
 
 custom_tags_ast(CustomTags, Context, TreeWalker) ->
     {{CustomTagsClauses, CustomTagsInfo}, TreeWalker1} = custom_tags_clauses_ast(CustomTags, Context, TreeWalker),
-    {{erl_syntax:function(erl_syntax:atom(render_tag), CustomTagsClauses), CustomTagsInfo}, TreeWalker1}.
+    %% This doesn't work since erl_syntax:revert/1 chokes on the airity_qualifier in the -compile attribute..
+    %% bug report sent to the erlang-bugs mailing list.
+    %% {{erl_syntax:form_list(
+    %%     [erl_syntax:attribute(
+    %%        erl_syntax:atom(compile),
+    %%        [erl_syntax:tuple(
+    %%           [erl_syntax:atom(nowarn_unused_function),
+    %%            erl_syntax:arity_qualifier(
+    %%              erl_syntax:atom(render_tag),
+    %%              erl_syntax:integer(3))])]),
+    %%      erl_syntax:function(erl_syntax:atom(render_tag), CustomTagsClauses)]),
+    {{erl_syntax:function(erl_syntax:atom(render_tag), CustomTagsClauses),
+      CustomTagsInfo},
+     TreeWalker1}.
 
 custom_tags_clauses_ast(CustomTags, Context, TreeWalker) ->
     custom_tags_clauses_ast1(CustomTags, [], [], #ast_info{}, Context, TreeWalker).
 
 custom_tags_clauses_ast1([], _ExcludeTags, ClauseAcc, InfoAcc, _Context, TreeWalker) ->
-    {{lists:reverse([erl_syntax:clause([erl_syntax:variable("TagName"), erl_syntax:underscore(), erl_syntax:underscore()], none, 
-				       [erl_syntax:list([])])|ClauseAcc
-		    ]), InfoAcc}, TreeWalker};
+    {{lists:reverse(
+        [erl_syntax:clause(
+           [erl_syntax:variable("_TagName"), erl_syntax:underscore(), erl_syntax:underscore()], 
+           none, 
+           [erl_syntax:list([])])
+         |ClauseAcc]),
+      InfoAcc}, 
+     TreeWalker};
 custom_tags_clauses_ast1([Tag|CustomTags], ExcludeTags, ClauseAcc, InfoAcc, Context, TreeWalker) ->
     case lists:member(Tag, ExcludeTags) of
         true ->
@@ -408,7 +455,7 @@ custom_tags_clauses_ast1([Tag|CustomTags], ExcludeTags, ClauseAcc, InfoAcc, Cont
                         {ok, DjangoParseTree, CheckSum} ->
                             {{BodyAst, BodyAstInfo}, TreeWalker1} = with_dependency(
 								      {CustomTagFile, CheckSum}, body_ast(DjangoParseTree, Context, TreeWalker)),
-                            MatchAst = options_match_ast(Context), 
+                            MatchAst = options_match_ast(Context, TreeWalker), 
                             Clause = erl_syntax:clause(
 				       [key_to_string(Tag), erl_syntax:variable("_Variables"), erl_syntax:variable("RenderOptions")],
 				       none, MatchAst ++ [BodyAst]),
@@ -475,7 +522,7 @@ custom_forms(Dir, Module, Functions, AstInfo) ->
     [erl_syntax:revert(X) || X <- [ModuleAst, ExportAst, SourceFunctionAst, DependenciesFunctionAst, TranslatableStringsFunctionAst
 				   | FunctionAsts] ++ AstInfo#ast_info.pre_render_asts].
 
-forms(File, Module, {BodyAst, BodyInfo}, {CustomTagsFunctionAst, CustomTagsInfo}, CheckSum, Context) ->
+forms(File, Module, {BodyAst, BodyInfo}, {CustomTagsFunctionAst, CustomTagsInfo}, CheckSum, Context, TreeWalker) ->
     MergedInfo = merge_info(BodyInfo, CustomTagsInfo),
     Render0FunctionAst = erl_syntax:function(erl_syntax:atom(render),
 					     [erl_syntax:clause([], none, [erl_syntax:application(none, 
@@ -510,7 +557,7 @@ forms(File, Module, {BodyAst, BodyInfo}, {CustomTagsFunctionAst, CustomTagsInfo}
 
     VariablesAst = variables_function(MergedInfo#ast_info.var_names),
 
-    MatchAst = options_match_ast(Context), 
+    MatchAst = options_match_ast(Context, TreeWalker), 
 
     BodyAstTmp = MatchAst ++ [
 			      erl_syntax:application(
@@ -540,12 +587,16 @@ forms(File, Module, {BodyAst, BodyInfo}, {CustomTagsFunctionAst, CustomTagsInfo}
 						       erl_syntax:arity_qualifier(erl_syntax:atom(variables), erl_syntax:integer(0))
 						      ])]),
 
-    [erl_syntax:revert(X) || X <- [ModuleAst, ExportAst, Render0FunctionAst, Render1FunctionAst, Render2FunctionAst,
-				   SourceFunctionAst, DependenciesFunctionAst, TranslatableStringsAst,
-				   TranslatedBlocksAst, VariablesAst, RenderInternalFunctionAst, 
-				   CustomTagsFunctionAst | BodyInfo#ast_info.pre_render_asts]].    
+    erl_syntax:revert_forms(
+      erl_syntax:form_list(
+        [ModuleAst, ExportAst, Render0FunctionAst, Render1FunctionAst, Render2FunctionAst,
+         SourceFunctionAst, DependenciesFunctionAst, TranslatableStringsAst,
+         TranslatedBlocksAst, VariablesAst, RenderInternalFunctionAst, 
+         CustomTagsFunctionAst
+         |BodyInfo#ast_info.pre_render_asts])).
 
-options_match_ast(Context) -> 
+options_match_ast(Context) -> options_match_ast(Context, undefined).
+options_match_ast(Context, TreeWalker) -> 
     [
      erl_syntax:match_expr(
        erl_syntax:variable("_TranslationFun"),
@@ -559,7 +610,7 @@ options_match_ast(Context) ->
 	 erl_syntax:atom(proplists),
 	 erl_syntax:atom(get_value),
 	 [erl_syntax:atom(locale), erl_syntax:variable("RenderOptions"), erl_syntax:atom(none)]))
-     | case call_extension(Context, setup_render_ast, []) of
+     | case call_extension(Context, setup_render_ast, [Context, TreeWalker]) of
            undefined -> [];
            Ast when is_list(Ast) -> Ast
        end
@@ -759,7 +810,9 @@ value_ast(ValueToken, AsString, EmptyIfUndefined, Context, TreeWalker) ->
             {{Ast, #ast_info{var_names = [VarName]}}, TreeWalker};
         {'variable', _} = Variable ->
             {Ast, VarName} = resolve_variable_ast(Variable, Context, EmptyIfUndefined),
-            {{Ast, #ast_info{var_names = [VarName]}}, TreeWalker}
+            {{Ast, #ast_info{var_names = [VarName]}}, TreeWalker};
+        {extension, Tag} ->
+            extension_ast(Tag, Context, TreeWalker)
     end.
 
 extension_ast(Tag, Context, TreeWalker) ->
