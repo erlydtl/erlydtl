@@ -434,15 +434,23 @@ custom_tags_ast(CustomTags, Context, TreeWalker) ->
 custom_tags_clauses_ast(CustomTags, Context, TreeWalker) ->
     custom_tags_clauses_ast1(CustomTags, [], [], #ast_info{}, Context, TreeWalker).
 
-custom_tags_clauses_ast1([], _ExcludeTags, ClauseAcc, InfoAcc, _Context, TreeWalker) ->
-    {{lists:reverse(
-        [erl_syntax:clause(
-           [erl_syntax:variable("_TagName"), erl_syntax:underscore(), erl_syntax:underscore()], 
-           none, 
-           [erl_syntax:list([])])
-         |ClauseAcc]),
-      InfoAcc}, 
-     TreeWalker};
+custom_tags_clauses_ast1([], _ExcludeTags, ClauseAcc, InfoAcc, Context, TreeWalker) ->
+    {{DefaultAst, DefaultInfo}, TreeWalker1} =
+        case call_extension(Context, custom_tag_ast, [Context, TreeWalker]) of
+            undefined ->
+                {{erl_syntax:clause(
+                    [erl_syntax:variable("_TagName"), erl_syntax:underscore(), erl_syntax:underscore()], 
+                    none,
+                    [erl_syntax:list([])]),
+                  InfoAcc},
+                 TreeWalker};
+            {{ExtAst, ExtInfo}, ExtTreeWalker} ->
+                Clause = erl_syntax:clause(
+                           [erl_syntax:variable("TagName"), erl_syntax:variable("_Variables"), erl_syntax:variable("RenderOptions")],
+                           none, options_match_ast(Context, ExtTreeWalker) ++ [ExtAst]),
+                {{Clause, merge_info(ExtInfo, InfoAcc)}, ExtTreeWalker}
+        end,
+    {{lists:reverse([DefaultAst|ClauseAcc]), DefaultInfo}, TreeWalker1};
 custom_tags_clauses_ast1([Tag|CustomTags], ExcludeTags, ClauseAcc, InfoAcc, Context, TreeWalker) ->
     case lists:member(Tag, ExcludeTags) of
         true ->
@@ -457,7 +465,7 @@ custom_tags_clauses_ast1([Tag|CustomTags], ExcludeTags, ClauseAcc, InfoAcc, Cont
 								      {CustomTagFile, CheckSum}, body_ast(DjangoParseTree, Context, TreeWalker)),
                             MatchAst = options_match_ast(Context, TreeWalker), 
                             Clause = erl_syntax:clause(
-				       [key_to_string(Tag), erl_syntax:variable("_Variables"), erl_syntax:variable("RenderOptions")],
+				       [erl_syntax:atom(Tag), erl_syntax:variable("_Variables"), erl_syntax:variable("RenderOptions")],
 				       none, MatchAst ++ [BodyAst]),
                             custom_tags_clauses_ast1(CustomTags, [Tag|ExcludeTags],
 						     [Clause|ClauseAcc], merge_info(BodyAstInfo, InfoAcc), 
@@ -466,8 +474,20 @@ custom_tags_clauses_ast1([Tag|CustomTags], ExcludeTags, ClauseAcc, InfoAcc, Cont
                             throw(Error)
                     end;
                 false ->
-                    custom_tags_clauses_ast1(CustomTags, [Tag | ExcludeTags],
-					     ClauseAcc, InfoAcc, Context, TreeWalker)
+                    case call_extension(Context, custom_tag_ast, [Tag, Context, TreeWalker]) of
+                        undefined ->
+                            custom_tags_clauses_ast1(
+                              CustomTags, [Tag | ExcludeTags],
+                              ClauseAcc, InfoAcc, Context, TreeWalker);
+                        {{Ast, Info}, TW} ->
+                            Clause = erl_syntax:clause(
+                                       [erl_syntax:atom(Tag), erl_syntax:variable("_Variables"), erl_syntax:variable("RenderOptions")],
+                                       none, options_match_ast(Context, TW) ++ [Ast]),
+                            custom_tags_clauses_ast1(
+                             CustomTags, [Tag | ExcludeTags],
+                             [Clause|ClauseAcc], merge_info(Info, InfoAcc),
+                             Context, TW)
+                    end
             end
     end.
 
@@ -1377,11 +1397,6 @@ full_path(File, DocRoot) ->
 %% Custom tags
 %%-------------------------------------------------------------------
 
-key_to_string(Key) when is_atom(Key) ->
-    erl_syntax:string(atom_to_list(Key));
-key_to_string(Key) when is_list(Key) ->
-    erl_syntax:string(Key).
-
 tag_ast(Name, Args, Context, TreeWalker) ->
     {{InterpretedArgs, AstInfo1}, TreeWalker1} = lists:foldr(fun
 								 ({{identifier, _, Key}, {trans, StringLiteral}}, {{ArgsAcc, AstInfoAcc}, TreeWalkerAcc}) ->
@@ -1391,13 +1406,13 @@ tag_ast(Name, Args, Context, TreeWalker) ->
 								    {{Ast0, AstInfo0}, TreeWalker0} = value_ast(Value, false, false, Context, TreeWalkerAcc),
 								    {{[erl_syntax:tuple([erl_syntax:atom(Key), Ast0])|ArgsAcc], merge_info(AstInfo0, AstInfoAcc)}, TreeWalker0}
 							    end, {{[], #ast_info{}}, TreeWalker}, Args),
-
-    {RenderAst, RenderInfo} = custom_tags_modules_ast(Name, InterpretedArgs, Context),
+    TagArgs = [erl_syntax:tuple([erl_syntax:atom('__render_variables'), erl_syntax:variable("_Variables")])|InterpretedArgs],
+    {RenderAst, RenderInfo} = custom_tags_modules_ast(Name, TagArgs, Context),
     {{RenderAst, merge_info(AstInfo1, RenderInfo)}, TreeWalker1}.
 
 custom_tags_modules_ast(Name, InterpretedArgs, #dtl_context{ custom_tags_modules = [], is_compiling_dir = false }) ->
     {erl_syntax:application(none, erl_syntax:atom(render_tag),
-			    [key_to_string(Name), erl_syntax:list(InterpretedArgs),
+			    [erl_syntax:atom(Name), erl_syntax:list(InterpretedArgs),
 			     erl_syntax:variable("RenderOptions")]),
      #ast_info{custom_tags = [Name]}};
 custom_tags_modules_ast(Name, InterpretedArgs, #dtl_context{ custom_tags_modules = [], is_compiling_dir = true, module = Module }) ->
