@@ -368,13 +368,12 @@ check_scan({ok, Tokens}, Context) ->
                   undefined -> Tokens;
                   {ok, T} -> T
               end,
-    check_parse(erlydtl_parser:parse(Tokens1), [], Context);
+    check_parse(erlydtl_parser:parse(Tokens1), [], Context#dtl_context{ scanned_tokens=Tokens1 });
 check_scan({error, Err, State}, Context) ->
     case call_extension(Context, scan, [State]) of
         undefined ->
             {error, Err};
         {ok, NewState} ->
-            %% io:format("call_extension from:~p~nto: ~p~n", [State, NewState]),
             check_scan(erlydtl_scanner:resume(NewState), Context);
         ExtRes ->
             ExtRes
@@ -386,15 +385,14 @@ check_parse({ok, Parsed}, Acc, _Context) -> {ok, Acc ++ Parsed};
 check_parse({ok, Parsed, C}, Acc, _Context) -> {ok, Acc ++ Parsed, C};
 check_parse({error, _}=Err, _, _Context) -> Err;
 check_parse({error, Err, State}, Acc, Context) ->
-    %% io:format("parse error: ~p~nstate: ~p~n",[Err, State]),
-    {State1, Parsed} = reset_parse_state(State),
+    {State1, Parsed} = reset_parse_state(State, Context),
     case call_extension(Context, parse, [State1]) of
         undefined ->
             {error, Err};
         {ok, ExtParsed} ->
             {ok, Acc ++ Parsed ++ ExtParsed};
         {error, ExtErr, ExtState} ->
-            case reset_parse_state(ExtState) of
+            case reset_parse_state(ExtState, Context) of
                 {_, []} ->
                     %% todo: see if this is indeed a sensible ext error,
                     %% or if we should rather present the original Err message
@@ -407,12 +405,19 @@ check_parse({error, Err, State}, Acc, Context) ->
     end.
 
 %% backtrack up to the Rootsymbol, and keep the current top-level value stack
-reset_parse_state([Ts, Tzr, _, [0 | []], [Parsed | []]]) ->
-    {[Ts, Tzr, 0, [], []], Parsed};
-reset_parse_state([Ts, Tzr, _, [S | Ss], [T | Stack]]) -> 
-    reset_parse_state([[T | Ts], Tzr, S, Ss, Stack]);
-reset_parse_state([_, _, 0, [], []]=State) -> 
+reset_parse_state([Ts, Tzr, _, [0 | []], [Parsed | []]], Context) ->
+    {[reset_token_stream(Ts, Context#dtl_context.scanned_tokens), 
+      Tzr, 0, [], []], Parsed};
+reset_parse_state([Ts, Tzr, _, [S | Ss], [T | Stack]], Context) -> 
+    reset_parse_state([[T|Ts], Tzr, S, Ss, Stack], Context);
+reset_parse_state([_, _, 0, [], []]=State, _Context) -> 
     {State, []}.
+
+reset_token_stream([T|_], [T|Ts]) -> [T|Ts];
+reset_token_stream(Ts, [_|S]) ->
+    reset_token_stream(Ts, S).
+%% we should find the next token in the list of scanned tokens, or something is real fishy
+
 
 custom_tags_ast(CustomTags, Context, TreeWalker) ->
     {{CustomTagsClauses, CustomTagsInfo}, TreeWalker1} = custom_tags_clauses_ast(CustomTags, Context, TreeWalker),
