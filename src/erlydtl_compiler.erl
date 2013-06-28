@@ -1427,8 +1427,7 @@ tag_ast(Name, Args, Context, TreeWalker) ->
                           {{[ExtAst|ArgsAcc], merge_info(ExtInfo, AstInfoAcc)}, ExtTreeWalker}
                   end
           end, {{[], #ast_info{}}, TreeWalker}, Args),
-    TagArgs = [erl_syntax:tuple([erl_syntax:atom('__render_variables'), erl_syntax:variable("_Variables")])|InterpretedArgs],
-    {RenderAst, RenderInfo} = custom_tags_modules_ast(Name, TagArgs, Context),
+    {RenderAst, RenderInfo} = custom_tags_modules_ast(Name, InterpretedArgs, Context),
     {{RenderAst, merge_info(AstInfo1, RenderInfo)}, TreeWalker1}.
 
 custom_tags_modules_ast(Name, InterpretedArgs, #dtl_context{ custom_tags_modules = [], is_compiling_dir = false }) ->
