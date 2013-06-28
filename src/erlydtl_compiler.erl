@@ -404,14 +404,23 @@ check_parse({error, Err, State}, Acc, Context) ->
             ExtRes
     end.
 
-%% backtrack up to the Rootsymbol, and keep the current top-level value stack
-reset_parse_state([Ts, Tzr, _, [0 | []], [Parsed | []]], Context) ->
-    {[reset_token_stream(Ts, Context#dtl_context.scanned_tokens), 
+%% backtrack up to the nearest opening tag, and keep the value stack parsed ok so far
+reset_parse_state([[{Tag, _, _}|_]=Ts, Tzr, _, _, Stack], Context)
+  when Tag==open_tag; Tag==open_var ->
+    %% reached opening tag, so the stack should be sensible here
+    {[reset_token_stream(Ts, Context#dtl_context.scanned_tokens),
+      Tzr, 0, [], []], lists:flatten(Stack)};
+reset_parse_state([_, _, 0, [], []]=State, _Context) ->
+    %% top of (empty) stack
+    {State, []};
+reset_parse_state([Ts, Tzr, _, [0 | []], [Parsed | []]], Context)
+  when is_list(Parsed) ->
+    %% top of good stack
+    {[reset_token_stream(Ts, Context#dtl_context.scanned_tokens),
       Tzr, 0, [], []], Parsed};
-reset_parse_state([Ts, Tzr, _, [S | Ss], [T | Stack]], Context) -> 
-    reset_parse_state([[T|Ts], Tzr, S, Ss, Stack], Context);
-reset_parse_state([_, _, 0, [], []]=State, _Context) -> 
-    {State, []}.
+reset_parse_state([Ts, Tzr, _, [S | Ss], [T | Stack]], Context) ->
+    %% backtrack...
+    reset_parse_state([[T|Ts], Tzr, S, Ss, Stack], Context).
 
 reset_token_stream([T|_], [T|Ts]) -> [T|Ts];
 reset_token_stream(Ts, [_|S]) ->
