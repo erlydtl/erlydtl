@@ -368,13 +368,12 @@ check_scan({ok, Tokens}, Context) ->
                   undefined -> Tokens;
                   {ok, T} -> T
               end,
-    check_parse(erlydtl_parser:parse(Tokens1), [], Context);
+    check_parse(erlydtl_parser:parse(Tokens1), [], Context#dtl_context{ scanned_tokens=Tokens1 });
 check_scan({error, Err, State}, Context) ->
     case call_extension(Context, scan, [State]) of
         undefined ->
             {error, Err};
         {ok, NewState} ->
-            %% io:format("call_extension from:~p~nto: ~p~n", [State, NewState]),
             check_scan(erlydtl_scanner:resume(NewState), Context);
         ExtRes ->
             ExtRes
@@ -386,15 +385,14 @@ check_parse({ok, Parsed}, Acc, _Context) -> {ok, Acc ++ Parsed};
 check_parse({ok, Parsed, C}, Acc, _Context) -> {ok, Acc ++ Parsed, C};
 check_parse({error, _}=Err, _, _Context) -> Err;
 check_parse({error, Err, State}, Acc, Context) ->
-    %% io:format("parse error: ~p~nstate: ~p~n",[Err, State]),
-    {State1, Parsed} = reset_parse_state(State),
+    {State1, Parsed} = reset_parse_state(State, Context),
     case call_extension(Context, parse, [State1]) of
         undefined ->
             {error, Err};
         {ok, ExtParsed} ->
             {ok, Acc ++ Parsed ++ ExtParsed};
         {error, ExtErr, ExtState} ->
-            case reset_parse_state(ExtState) of
+            case reset_parse_state(ExtState, Context) of
                 {_, []} ->
                     %% todo: see if this is indeed a sensible ext error,
                     %% or if we should rather present the original Err message
@@ -406,13 +404,29 @@ check_parse({error, Err, State}, Acc, Context) ->
             ExtRes
     end.
 
-%% backtrack up to the Rootsymbol, and keep the current top-level value stack
-reset_parse_state([Ts, Tzr, _, [0 | []], [Parsed | []]]) ->
-    {[Ts, Tzr, 0, [], []], Parsed};
-reset_parse_state([Ts, Tzr, _, [S | Ss], [T | Stack]]) -> 
-    reset_parse_state([[T | Ts], Tzr, S, Ss, Stack]);
-reset_parse_state([_, _, 0, [], []]=State) -> 
-    {State, []}.
+%% backtrack up to the nearest opening tag, and keep the value stack parsed ok so far
+reset_parse_state([[{Tag, _, _}|_]=Ts, Tzr, _, _, Stack], Context)
+  when Tag==open_tag; Tag==open_var ->
+    %% reached opening tag, so the stack should be sensible here
+    {[reset_token_stream(Ts, Context#dtl_context.scanned_tokens),
+      Tzr, 0, [], []], lists:flatten(Stack)};
+reset_parse_state([_, _, 0, [], []]=State, _Context) ->
+    %% top of (empty) stack
+    {State, []};
+reset_parse_state([Ts, Tzr, _, [0 | []], [Parsed | []]], Context)
+  when is_list(Parsed) ->
+    %% top of good stack
+    {[reset_token_stream(Ts, Context#dtl_context.scanned_tokens),
+      Tzr, 0, [], []], Parsed};
+reset_parse_state([Ts, Tzr, _, [S | Ss], [T | Stack]], Context) ->
+    %% backtrack...
+    reset_parse_state([[T|Ts], Tzr, S, Ss, Stack], Context).
+
+reset_token_stream([T|_], [T|Ts]) -> [T|Ts];
+reset_token_stream(Ts, [_|S]) ->
+    reset_token_stream(Ts, S).
+%% we should find the next token in the list of scanned tokens, or something is real fishy
+
 
 custom_tags_ast(CustomTags, Context, TreeWalker) ->
     {{CustomTagsClauses, CustomTagsInfo}, TreeWalker1} = custom_tags_clauses_ast(CustomTags, Context, TreeWalker),
@@ -1398,16 +1412,22 @@ full_path(File, DocRoot) ->
 %%-------------------------------------------------------------------
 
 tag_ast(Name, Args, Context, TreeWalker) ->
-    {{InterpretedArgs, AstInfo1}, TreeWalker1} = lists:foldr(fun
-								 ({{identifier, _, Key}, {trans, StringLiteral}}, {{ArgsAcc, AstInfoAcc}, TreeWalkerAcc}) ->
-								    {{TransAst, TransAstInfo}, TreeWalker0} = translated_ast(StringLiteral, Context, TreeWalkerAcc),
-								    {{[erl_syntax:tuple([erl_syntax:atom(Key), TransAst])|ArgsAcc], merge_info(TransAstInfo, AstInfoAcc)}, TreeWalker0};
-								 ({{identifier, _, Key}, Value}, {{ArgsAcc, AstInfoAcc}, TreeWalkerAcc}) ->
-								    {{Ast0, AstInfo0}, TreeWalker0} = value_ast(Value, false, false, Context, TreeWalkerAcc),
-								    {{[erl_syntax:tuple([erl_syntax:atom(Key), Ast0])|ArgsAcc], merge_info(AstInfo0, AstInfoAcc)}, TreeWalker0}
-							    end, {{[], #ast_info{}}, TreeWalker}, Args),
-    TagArgs = [erl_syntax:tuple([erl_syntax:atom('__render_variables'), erl_syntax:variable("_Variables")])|InterpretedArgs],
-    {RenderAst, RenderInfo} = custom_tags_modules_ast(Name, TagArgs, Context),
+    {{InterpretedArgs, AstInfo1}, TreeWalker1} = 
+        lists:foldr(
+          fun ({{identifier, _, Key}, {trans, StringLiteral}}, {{ArgsAcc, AstInfoAcc}, TreeWalkerAcc}) ->
+                  {{TransAst, TransAstInfo}, TreeWalker0} = translated_ast(StringLiteral, Context, TreeWalkerAcc),
+                  {{[erl_syntax:tuple([erl_syntax:atom(Key), TransAst])|ArgsAcc], merge_info(TransAstInfo, AstInfoAcc)}, TreeWalker0};
+              ({{identifier, _, Key}, Value}, {{ArgsAcc, AstInfoAcc}, TreeWalkerAcc}) ->
+                  {{Ast0, AstInfo0}, TreeWalker0} = value_ast(Value, false, false, Context, TreeWalkerAcc),
+                  {{[erl_syntax:tuple([erl_syntax:atom(Key), Ast0])|ArgsAcc], merge_info(AstInfo0, AstInfoAcc)}, TreeWalker0};
+              ({extension, Tag}, {{ArgsAcc, AstInfoAcc}, TreeWalkerAcc}=Acc) ->
+                  case call_extension(Context, compile_ast, [Tag, Context, TreeWalkerAcc]) of
+                      undefined -> Acc;
+                      {{ExtAst, ExtInfo}, ExtTreeWalker} ->
+                          {{[ExtAst|ArgsAcc], merge_info(ExtInfo, AstInfoAcc)}, ExtTreeWalker}
+                  end
+          end, {{[], #ast_info{}}, TreeWalker}, Args),
+    {RenderAst, RenderInfo} = custom_tags_modules_ast(Name, InterpretedArgs, Context),
     {{RenderAst, merge_info(AstInfo1, RenderInfo)}, TreeWalker1}.
 
 custom_tags_modules_ast(Name, InterpretedArgs, #dtl_context{ custom_tags_modules = [], is_compiling_dir = false }) ->
