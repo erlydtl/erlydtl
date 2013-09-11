@@ -47,7 +47,8 @@
          merge_info/2, 
          format/3, 
          value_ast/5,
-         resolve_scoped_variable_ast/2
+         resolve_scoped_variable_ast/2,
+         interpret_args/3
         ]).
 
 -include("erlydtl_ext.hrl").
@@ -1433,22 +1434,21 @@ full_path(File, DocRoot) ->
 %% Custom tags
 %%-------------------------------------------------------------------
 
+interpret_args(Args, Context, TreeWalker) ->
+    lists:foldr(
+      fun ({{identifier, _, Key}, {trans, StringLiteral}}, {{ArgsAcc, AstInfoAcc}, TreeWalkerAcc}) ->
+              {{TransAst, TransAstInfo}, TreeWalker0} = translated_ast(StringLiteral, Context, TreeWalkerAcc),
+              {{[erl_syntax:tuple([erl_syntax:atom(Key), TransAst])|ArgsAcc], merge_info(TransAstInfo, AstInfoAcc)}, TreeWalker0};
+          ({{identifier, _, Key}, Value}, {{ArgsAcc, AstInfoAcc}, TreeWalkerAcc}) ->
+              {{Ast0, AstInfo0}, TreeWalker0} = value_ast(Value, false, false, Context, TreeWalkerAcc),
+              {{[erl_syntax:tuple([erl_syntax:atom(Key), Ast0])|ArgsAcc], merge_info(AstInfo0, AstInfoAcc)}, TreeWalker0};
+          ({extension, Tag}, {{ArgsAcc, AstInfoAcc}, TreeWalkerAcc}) ->
+              {{ExtAst, ExtInfo}, ExtTreeWalker} = extension_ast(Tag, Context, TreeWalkerAcc),
+              {{[ExtAst|ArgsAcc], merge_info(ExtInfo, AstInfoAcc)}, ExtTreeWalker}
+      end, {{[], #ast_info{}}, TreeWalker}, Args).
+
 tag_ast(Name, Args, Context, TreeWalker) ->
-    {{InterpretedArgs, AstInfo1}, TreeWalker1} = 
-        lists:foldr(
-          fun ({{identifier, _, Key}, {trans, StringLiteral}}, {{ArgsAcc, AstInfoAcc}, TreeWalkerAcc}) ->
-                  {{TransAst, TransAstInfo}, TreeWalker0} = translated_ast(StringLiteral, Context, TreeWalkerAcc),
-                  {{[erl_syntax:tuple([erl_syntax:atom(Key), TransAst])|ArgsAcc], merge_info(TransAstInfo, AstInfoAcc)}, TreeWalker0};
-              ({{identifier, _, Key}, Value}, {{ArgsAcc, AstInfoAcc}, TreeWalkerAcc}) ->
-                  {{Ast0, AstInfo0}, TreeWalker0} = value_ast(Value, false, false, Context, TreeWalkerAcc),
-                  {{[erl_syntax:tuple([erl_syntax:atom(Key), Ast0])|ArgsAcc], merge_info(AstInfo0, AstInfoAcc)}, TreeWalker0};
-              ({extension, Tag}, {{ArgsAcc, AstInfoAcc}, TreeWalkerAcc}=Acc) ->
-                  case call_extension(Context, compile_ast, [Tag, Context, TreeWalkerAcc]) of
-                      undefined -> Acc;
-                      {{ExtAst, ExtInfo}, ExtTreeWalker} ->
-                          {{[ExtAst|ArgsAcc], merge_info(ExtInfo, AstInfoAcc)}, ExtTreeWalker}
-                  end
-          end, {{[], #ast_info{}}, TreeWalker}, Args),
+    {{InterpretedArgs, AstInfo1}, TreeWalker1} = interpret_args(Args, Context, TreeWalker),
     {RenderAst, RenderInfo} = custom_tags_modules_ast(Name, InterpretedArgs, Context),
     {{RenderAst, merge_info(AstInfo1, RenderInfo)}, TreeWalker1}.
 
