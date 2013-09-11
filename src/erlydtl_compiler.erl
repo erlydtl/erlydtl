@@ -1442,12 +1442,9 @@ tag_ast(Name, Args, Context, TreeWalker) ->
               ({{identifier, _, Key}, Value}, {{ArgsAcc, AstInfoAcc}, TreeWalkerAcc}) ->
                   {{Ast0, AstInfo0}, TreeWalker0} = value_ast(Value, false, false, Context, TreeWalkerAcc),
                   {{[erl_syntax:tuple([erl_syntax:atom(Key), Ast0])|ArgsAcc], merge_info(AstInfo0, AstInfoAcc)}, TreeWalker0};
-              ({extension, Tag}, {{ArgsAcc, AstInfoAcc}, TreeWalkerAcc}=Acc) ->
-                  case call_extension(Context, compile_ast, [Tag, Context, TreeWalkerAcc]) of
-                      undefined -> Acc;
-                      {{ExtAst, ExtInfo}, ExtTreeWalker} ->
-                          {{[ExtAst|ArgsAcc], merge_info(ExtInfo, AstInfoAcc)}, ExtTreeWalker}
-                  end
+              ({extension, Tag}, {{ArgsAcc, AstInfoAcc}, TreeWalkerAcc}) ->
+                  {{ExtAst, ExtInfo}, ExtTreeWalker} = extension_ast(Tag, Context, TreeWalkerAcc),
+                  {{[ExtAst|ArgsAcc], merge_info(ExtInfo, AstInfoAcc)}, ExtTreeWalker}
           end, {{[], #ast_info{}}, TreeWalker}, Args),
     {RenderAst, RenderInfo} = custom_tags_modules_ast(Name, InterpretedArgs, Context),
     {{RenderAst, merge_info(AstInfo1, RenderInfo)}, TreeWalker1}.
