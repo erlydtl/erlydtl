@@ -4,6 +4,7 @@
 %%% @author    Evan Miller <emmiller@gmail.com>
 %%% @author    Andreas Stenius <kaos@astekk.se>
 %%% @copyright 2008 Roberto Saccon, Evan Miller
+%%% @copyright 2013 Andreas Stenius
 %%% @doc 
 %%% Template language scanner
 %%% @end  
@@ -11,6 +12,7 @@
 %%% The MIT License
 %%%
 %%% Copyright (c) 2007 Roberto Saccon, Evan Miller
+%%% Copyright (c) 2013 Andreas Stenius
 %%%
 %%% Permission is hereby granted, free of charge, to any person obtaining a copy
 %%% of this software and associated documentation files (the "Software"), to deal
@@ -31,19 +33,185 @@
 %%% THE SOFTWARE.
 %%%
 %%% @since 2007-11-11 by Roberto Saccon, Evan Miller
+%%% @since 2013-09-12 by Andreas Stenius
 %%%-------------------------------------------------------------------
 -module(erlydtl_scanner).
 -author('rsaccon@gmail.com').
 -author('emmiller@gmail.com').
 -author('Andreas Stenius <kaos@astekk.se>').
 
--export([scan/1, resume/1]).
+-export([scan/1, resume/1, scan_ex/1]).
 -include("erlydtl_ext.hrl").
 
+-ifdef (TEST).
+-include_lib("eunit/include/eunit.hrl").
+-endif.
+
+-record(tag, {in, tag, open, close, on_open, on_close, on_scan }).
+-record(state, {
+          template=[],
+          pos={1, 1},
+          scanned=[],
+          scope=[#tag{ tag=text, on_scan=fun scan_text/2 }],
+          tags=
+              [#tag{ in=text, tag=comment, open="<!--{#", close="#}-->" },
+               #tag{ in=text, tag=comment, open="{#", close="#}" },
+               #tag{ in=text, tag=code, open="{{", close="}}",
+                     on_open=open_var, on_close=close_var,
+                     on_scan=fun scan_code/2 },
+               #tag{ in=code, tag=string, open="\"", close="\"",
+                     on_open=string_literal,
+                     on_scan=fun scan_string/2 },
+               #tag{ in=code, tag=string, open="\'", close="\'",
+                     on_open=string_literal,
+                     on_scan=fun scan_string/2 },
+               #tag{ in=code, tag=identifier, open=fun is_alpha/1,
+                     on_open=identifier,
+                     on_scan=fun scan_identifier/2 },
+               #tag{ in=code, tag=number, open=fun is_digit/1,
+                     on_open=number_literal,
+                     on_scan=fun scan_number/2 },
+               #tag{ in=string, tag=escape, open="\\", close="",
+                     on_scan=fun scan_string/2 }
+              ]
+         }).
 
 %%====================================================================
 %% API
 %%====================================================================
+
+scan_ex(Template) ->
+    do_scan({fun open_tag/1, #state{ template=Template }}).
+
+do_scan({_, #state{ template=[], scanned=Scanned}}) ->
+    {ok, [process_token(T) || T <- lists:reverse(Scanned)]};
+do_scan({Next, State}) when is_function(Next, 1)-> do_scan(Next(State));
+do_scan(Err) -> Err.
+
+process_token({string, Pos, Text}) -> {string, Pos, lists:reverse(Text)};
+process_token({identifier, Pos, Chars}) -> {identifier, Pos, list_to_atom(lists:reverse(Chars))};
+process_token(Token) -> Token.
+    
+open_tag(#state{ template=Template, scope=[#tag{ tag=In }|_], tags=Tags }=State) ->
+    case find_open_tag(Template, [T || T <- Tags, T#tag.in == In]) of
+        undefined -> {fun close_tag/1, State};
+        Tag -> {fun open_tag/1, do_open_tag(Tag, State)}
+    end.
+
+close_tag(#state{ scope=[#tag{ close=undefined }|_] }=State) ->
+    {fun scan_tag/1, State};
+close_tag(#state{ template=Template, scope=[T|_] }=State) ->
+    case lists:prefix(T#tag.close, Template) of
+        true -> {fun open_tag/1, do_close_tag(State)};
+        false -> {fun scan_tag/1, State}
+    end.
+
+scan_tag(#state{ scope=[#tag{ on_scan=Scan }|_] }=State) ->
+    {fun open_tag/1, do_scan_tag(Scan, State)}.
+
+find_open_tag(Template, Tags) ->
+    case lists:dropwhile(
+           fun(#tag{ open=Prefix }) when is_list(Prefix) ->
+                   not lists:prefix(Prefix, Template);
+              (#tag{ open=OpenTest }) when is_function(OpenTest, 1) ->
+                   not OpenTest(hd(Template))
+           end, Tags)
+    of
+        [Tag|_] -> Tag;
+        [] -> undefined
+    end.
+
+do_open_tag(#tag{ open=Prefix, on_open=Open }=Tag,
+            #state{ scope=Scope }=State) ->
+    move(Prefix, State#state{
+                   scanned=scan_event(Open, Prefix, State),
+                   scope=[Tag|Scope] }).
+
+do_close_tag(#state{ scope=[#tag{ close=Prefix, 
+                                  on_close=Close }
+                            |Scope] }=State) ->
+    move(Prefix, State#state{ 
+                   scanned=scan_event(Close, Prefix, State),
+                   scope=Scope }).
+
+do_scan_tag(undefined, #state{ template=[C|_] }=State) -> move(C, State);
+do_scan_tag(OnScan, #state{ template=[C|_] }=State)
+  when is_function(OnScan, 2) -> move(C, OnScan(C, State)).
+
+scan_event(undefined, _, #state{ scanned=Scanned }) -> Scanned;
+scan_event(Type, Prefix, #state{ pos=Pos, scanned=Scanned })
+  when is_list(Prefix) ->
+    [{Type, Pos, list_to_atom(Prefix)}|Scanned];
+scan_event(Type, Prefix, #state{ template=[C|_], pos=Pos, scanned=Scanned })
+  when is_function(Prefix, 1) ->
+    [{Type, Pos, [C]}|Scanned].
+
+move([C|Cs], State) -> move(Cs, move(C, State));
+move([], State) -> State;
+move(F, #state{ template=[C|_] }=State)
+  when is_function(F, 1) -> move(C, State);
+move(undefined, State) -> State;
+move(C, #state{ template=[C|Template], pos=Pos }=State) -> 
+    State#state{ template=Template, pos=update_pos(C, Pos) }.
+
+update_pos($\n, {Row, _Col}) -> {Row + 1, 1};
+update_pos(_, {Row, Col}) -> {Row, Col + 1}.
+
+append_char(C, Type, #state{ scanned=[{Type, Pos, Chars}|Scanned] }=State) ->
+    State#state{ scanned=[{Type, Pos, [C|Chars]}|Scanned] };
+append_char(C, Type, #state{ pos=Pos, scanned=Scanned }=State) ->
+    State#state{ scanned=[{Type, Pos, [C]}|Scanned] }.
+
+%%% Tag callbacks
+scan_text(C, State) ->
+    append_char(C, string, State).
+
+scan_code(_, State) ->
+    State.
+
+scan_string(_, State) ->
+    State.
+
+is_alpha(C) -> ((C >= $a) andalso (C =< $z)) orelse ((C >= $A) andalso (C =< $Z)) orelse (C == $_).
+is_digit(C) -> (C >= $0) andalso (C =< $9).
+
+scan_identifier(C, State) ->
+    case is_alpha(C) orelse is_digit(C) of
+        true -> append_char(C, identifier, State);
+        false -> do_close_tag(State)
+    end.
+
+scan_number(_, State) ->
+    State.
+
+
+-ifdef (TEST).
+
+simple_test() ->
+    T = "foo {{ bar }}",
+    E = {ok, [{string, {1, 1}, "foo "},
+              {open_var, {1, 5}, '{{'},
+              {identifier, {1, 8}, bar},
+              {close_var, {1, 12}, '}}'}]},
+    ?assertEqual(E, scan(T)),
+    ?assertEqual(E, scan_ex(T)).
+    
+
+-endif.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 %%--------------------------------------------------------------------
 %% @spec scan(T::template()) -> {ok, S::tokens()} | {error, Reason}
 %% @type template() = string() | binary(). Template to parse
