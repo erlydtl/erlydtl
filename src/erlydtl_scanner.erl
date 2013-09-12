@@ -57,19 +57,22 @@
               [#tag{ in=text, tag=comment, open="<!--{#", close="#}-->" },
                #tag{ in=text, tag=comment, open="{#", close="#}" },
                #tag{ in=text, tag=code, open="{{", close="}}",
-                     on_open=open_var, on_close=close_var,
-                     on_scan=fun scan_code/2 },
+                     on_open={open_var, '{{'}, on_close={close_var, '}}'},
+                     on_scan=fun scan_code/1 },
+               #tag{ in=text, tag=code, open="{%", close="%}",
+                     on_open={open_tag, '{%'}, on_close={close_tag, '%}'},
+                     on_scan=fun scan_code/1 },
                #tag{ in=code, tag=string, open="\"", close="\"",
-                     on_open=string_literal,
+                     on_open=string_literal, on_close=[append_char, reverse_chars],
                      on_scan=fun scan_string/2 },
                #tag{ in=code, tag=string, open="\'", close="\'",
-                     on_open=string_literal,
+                     on_open=string_literal, on_close=[append_char, reverse_chars],
                      on_scan=fun scan_string/2 },
-               #tag{ in=code, tag=identifier, open=fun is_alpha/1,
-                     on_open=identifier,
+               #tag{ in=code, tag=identifier, open=fun is_identifier/1,
+                     on_open=identifier, on_close=[reverse_chars, fun process_identifier/2],
                      on_scan=fun scan_identifier/2 },
-               #tag{ in=code, tag=number, open=fun is_digit/1,
-                     on_open=number_literal,
+               #tag{ in=code, tag=number, open=fun is_number/1,
+                     on_open=number_literal, on_close=reverse_chars,
                      on_scan=fun scan_number/2 },
                #tag{ in=string, tag=escape, open="\\", close="",
                      on_scan=fun scan_string/2 }
@@ -84,14 +87,10 @@ scan_ex(Template) ->
     do_scan({fun open_tag/1, #state{ template=Template }}).
 
 do_scan({_, #state{ template=[], scanned=Scanned}}) ->
-    {ok, [process_token(T) || T <- lists:reverse(Scanned)]};
+    {ok, lists:reverse(Scanned)};
 do_scan({Next, State}) when is_function(Next, 1)-> do_scan(Next(State));
 do_scan(Err) -> Err.
 
-process_token({string, Pos, Text}) -> {string, Pos, lists:reverse(Text)};
-process_token({identifier, Pos, Chars}) -> {identifier, Pos, list_to_atom(lists:reverse(Chars))};
-process_token(Token) -> Token.
-    
 open_tag(#state{ template=Template, scope=[#tag{ tag=In }|_], tags=Tags }=State) ->
     case find_open_tag(Template, [T || T <- Tags, T#tag.in == In]) of
         undefined -> {fun close_tag/1, State};
@@ -107,14 +106,17 @@ close_tag(#state{ template=Template, scope=[T|_] }=State) ->
     end.
 
 scan_tag(#state{ scope=[#tag{ on_scan=Scan }|_] }=State) ->
-    {fun open_tag/1, do_scan_tag(Scan, State)}.
+    case do_scan_tag(Scan, State) of
+        State1 when is_record(State1, state) -> {fun open_tag/1, State1};
+        Err -> Err
+    end.
 
 find_open_tag(Template, Tags) ->
     case lists:dropwhile(
            fun(#tag{ open=Prefix }) when is_list(Prefix) ->
                    not lists:prefix(Prefix, Template);
               (#tag{ open=OpenTest }) when is_function(OpenTest, 1) ->
-                   not OpenTest(hd(Template))
+                   not OpenTest(Template)
            end, Tags)
     of
         [Tag|_] -> Tag;
@@ -123,28 +125,39 @@ find_open_tag(Template, Tags) ->
 
 do_open_tag(#tag{ open=Prefix, on_open=Open }=Tag,
             #state{ scope=Scope }=State) ->
-    move(Prefix, State#state{
-                   scanned=scan_event(Open, Prefix, State),
-                   scope=[Tag|Scope] }).
+    move(Prefix, scan_event([reverse_string, Open], State#state{ scope=[Tag|Scope] })).
 
 do_close_tag(#state{ scope=[#tag{ close=Prefix, 
                                   on_close=Close }
                             |Scope] }=State) ->
-    move(Prefix, State#state{ 
-                   scanned=scan_event(Close, Prefix, State),
-                   scope=Scope }).
+    move(Prefix, scan_event(Close, State#state{ scope=Scope })).
 
 do_scan_tag(undefined, #state{ template=[C|_] }=State) -> move(C, State);
 do_scan_tag(OnScan, #state{ template=[C|_] }=State)
-  when is_function(OnScan, 2) -> move(C, OnScan(C, State)).
+  when is_function(OnScan, 2) -> OnScan(C, State);
+do_scan_tag(OnScan, State) when is_function(OnScan, 1) -> OnScan(State).
 
-scan_event(undefined, _, #state{ scanned=Scanned }) -> Scanned;
-scan_event(Type, Prefix, #state{ pos=Pos, scanned=Scanned })
-  when is_list(Prefix) ->
-    [{Type, Pos, list_to_atom(Prefix)}|Scanned];
-scan_event(Type, Prefix, #state{ template=[C|_], pos=Pos, scanned=Scanned })
-  when is_function(Prefix, 1) ->
-    [{Type, Pos, [C]}|Scanned].
+scan_event([E|Es], State) ->
+    scan_event(Es, scan_event(E, State));
+scan_event([], State) -> State;
+scan_event(undefined, State) -> State;
+scan_event(append_char, #state{ template=[C|_], scanned=[{Type, Pos, Chars}|Scanned] }=State) ->
+    State#state{ scanned=[{Type, Pos, [C|Chars]}|Scanned] };
+scan_event(reverse_chars, #state{ scanned=[{Type, Pos, Chars}|Scanned] }=State) ->
+    State#state{ scanned=[{Type, Pos, lists:reverse(Chars)}|Scanned] };
+scan_event(reverse_string, #state{ scanned=[{string, Pos, Text}|Scanned] }=State) ->
+    State#state{ scanned=[{string, Pos, lists:reverse(Text)}|Scanned] };
+scan_event(reverse_string, State) -> State;
+scan_event(to_atom, #state{ scanned=[{Type, Pos, Text}|Scanned] }=State) ->
+    State#state{ scanned=[{Type, Pos, list_to_atom(Text)}|Scanned] };
+scan_event({Type, no_value}, #state{ pos=Pos, scanned=Scanned }=State) ->
+    State#state{ scanned=[{Type, Pos}|Scanned] };
+scan_event({Type, Init}, #state{ pos=Pos, scanned=Scanned }=State) ->
+    State#state{ scanned=[{Type, Pos, Init}|Scanned] };
+scan_event(Fun, #state{ scanned=[Token|Scanned] }=State) when is_function(Fun, 2) ->
+    State#state{ scanned=[Fun(Token, State)|Scanned] };
+scan_event(Type, #state{ template=[C|_], pos=Pos, scanned=Scanned }=State) ->
+    State#state{ scanned=[{Type, Pos, [C]}|Scanned] }.
 
 move([C|Cs], State) -> move(Cs, move(C, State));
 move([], State) -> State;
@@ -158,36 +171,135 @@ update_pos($\n, {Row, _Col}) -> {Row + 1, 1};
 update_pos(_, {Row, Col}) -> {Row, Col + 1}.
 
 append_char(C, Type, #state{ scanned=[{Type, Pos, Chars}|Scanned] }=State) ->
-    State#state{ scanned=[{Type, Pos, [C|Chars]}|Scanned] };
+    move(C, State#state{ scanned=[{Type, Pos, [C|Chars]}|Scanned] });
 append_char(C, Type, #state{ pos=Pos, scanned=Scanned }=State) ->
-    State#state{ scanned=[{Type, Pos, [C]}|Scanned] }.
+    move(C, State#state{ scanned=[{Type, Pos, [C]}|Scanned] }).
 
 %%% Tag callbacks
 scan_text(C, State) ->
     append_char(C, string, State).
 
-scan_code(_, State) ->
-    State.
+scan_code(#state{ template=Template }=State) ->
+    case reserved(Template) of
+        undefined -> {error, State};
+        {Cs, skip} -> move(Cs, State);
+        Cs -> move(Cs, scan_event({list_to_atom(Cs), no_value}, State))
+    end.
 
-scan_string(_, State) ->
-    State.
+scan_string(C, State) ->
+    append_char(C, string_literal, State).
 
 is_alpha(C) -> ((C >= $a) andalso (C =< $z)) orelse ((C >= $A) andalso (C =< $Z)) orelse (C == $_).
 is_digit(C) -> (C >= $0) andalso (C =< $9).
 
+is_identifier([$_, $(|_]) -> false;
+is_identifier([C|_]) -> is_alpha(C).
+    
 scan_identifier(C, State) ->
     case is_alpha(C) orelse is_digit(C) of
         true -> append_char(C, identifier, State);
         false -> do_close_tag(State)
     end.
 
-scan_number(_, State) ->
-    State.
+process_identifier({identifier, Pos, Name}, #state{ scanned=[_, PrevToken|_] }) ->
+    case lists:keyfind(Name, 2, keywords(element(1, PrevToken))) of
+        false -> {identifier, Pos, list_to_atom(Name)};
+        {Keyword, _} -> {Keyword, Pos, Name}
+    end.
+
+is_number([C|_]) -> is_digit(C).
+
+scan_number(C, State) ->
+    case is_digit(C) of
+        true -> append_char(C, number_literal, State);
+        false -> do_close_tag(State)
+    end.
+
+reserved(Template) ->
+    case lists:dropwhile(
+           fun({Prefix, _}) -> not lists:prefix(Prefix, Template);
+              (Prefix) -> not lists:prefix(Prefix, Template) 
+           end, reserved_tokens())
+    of
+        [{_, skip}=Res|_] -> Res;
+        [{_, Res}|_] -> Res;
+        [Res|_] -> Res;
+        [] -> undefined
+    end.
+
+reserved_tokens() ->
+    ["==", "!=", ">=", "<=", "<", ">", "(", ")", ",", "|", "=", ":", ".", 
+     {"_(", "_"},
+     {" ", skip}].
+
+keywords(open_tag) ->
+    [{only_keyword, "only"},
+     {parsed_keyword, "parsed"},
+     {noop_keyword, "noop"},
+     {reversed_keyword, "reversed"},
+     {openblock_keyword, "openblock"},
+     {closeblock_keyword, "closeblock"},
+     {openvariable_keyword, "openvariable"},
+     {closevariable_keyword, "closevariable"},
+     {openbrace_keyword, "openbrace"},
+     {closebrace_keyword, "closebrace"},
+     {opencomment_keyword, "opencomment"},
+     {closecomment_keyword, "closecomment"},
+     %% The rest must be preceded by an open_tag.
+     %% This allows variables to have the same names as tags.
+     {autoescape_keyword, "autoescape"},
+     {endautoescape_keyword, "endautoescape"},
+     {block_keyword, "block"},
+     {endblock_keyword, "endblock"},
+     {comment_keyword, "comment"},
+     {endcomment_keyword, "endcomment"},
+     {cycle_keyword, "cycle"},
+     {extends_keyword, "extends"},
+     {filter_keyword, "filter"},
+     {endfilter_keyword, "endfilter"},
+     {firstof_keyword, "firstof"},
+     {for_keyword, "for"},
+     {empty_keyword, "empty"},
+     {endfor_keyword, "endfor"},
+     {if_keyword, "if"},
+     {elif_keyword, "elif"},
+     {else_keyword, "else"},
+     {endif_keyword, "endif"},
+     {ifchanged_keyword, "ifchanged"},
+     {endifchanged_keyword, "endifchanged"},
+     {ifequal_keyword, "ifequal"},
+     {endifequal_keyword, "endifequal"},
+     {ifnotequal_keyword, "ifnotequal"},
+     {endifnotequal_keyword, "endifnotequal"},
+     {include_keyword, "include"},
+     {now_keyword, "now"},
+     {regroup_keyword, "regroup"},
+     {endregroup_keyword, "endregroup"},
+     {spaceless_keyword, "spaceless"},
+     {endspaceless_keyword, "endspaceless"},
+     {ssi_keyword, "ssi"},
+     {templatetag_keyword, "templatetag"},
+     {widthratio_keyword, "widthratio"},
+     {call_keyword, "call"},
+     {endwith_keyword, "endwith"},
+     {trans_keyword, "trans"},
+     {blocktrans_keyword, "blocktrans"},
+     {endblocktrans_keyword, "endblocktrans"}
+     |keywords()];
+keywords(_) -> keywords().
+keywords() ->
+    [{in_keyword, "in"},
+     {not_keyword, "not"},
+     {or_keyword, "or"},
+     {and_keyword, "and"},
+     {as_keyword, "as"},
+     {by_keyword, "by"},
+     {with_keyword, "with"}].
 
 
 -ifdef (TEST).
 
-simple_test() ->
+identifier_test() ->
     T = "foo {{ bar }}",
     E = {ok, [{string, {1, 1}, "foo "},
               {open_var, {1, 5}, '{{'},
@@ -196,11 +308,42 @@ simple_test() ->
     ?assertEqual(E, scan(T)),
     ?assertEqual(E, scan_ex(T)).
     
+string_literal_test() ->
+    T = "{{ \"test\" }}",
+    E = {ok, [{open_var, {1, 1}, '{{'},
+              {string_literal, {1, 4}, "\"test\""},
+              {close_var, {1, 11}, '}}'}]},
+    ?assertEqual(E, scan(T)),
+    ?assertEqual(E, scan_ex(T)).
+    
+number_literal_test() ->
+    T = "{{ 12345 }}",
+    E = {ok, [{open_var, {1, 1}, '{{'},
+              {number_literal, {1, 4}, "12345"},
+              {close_var, {1, 10}, '}}'}]},
+    ?assertEqual(E, scan(T)),
+    ?assertEqual(E, scan_ex(T)).
 
+attribute_test() ->    
+    T = "{{ foo.bar }}",
+    E = {ok, [{open_var, {1, 1}, '{{'},
+              {identifier, {1, 4}, foo},
+              {'.', {1, 7}},
+              {identifier, {1, 8}, bar},
+              {close_var, {1, 12}, '}}'}]},
+    ?assertEqual(E, scan(T)),
+    ?assertEqual(E, scan_ex(T)).
+
+keyword_test() ->    
+    T = "{% if 1 %}",
+    E = {ok, [{open_tag, {1, 1}, '{%'},
+              {if_keyword, {1, 4}, "if"},
+              {number_literal, {1, 7}, "1"},
+              {close_tag, {1, 9}, '%}'}]},
+    ?assertEqual(E, scan(T)),
+    ?assertEqual(E, scan_ex(T)).
+    
 -endif.
-
-
-
 
 
 
