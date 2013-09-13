@@ -131,6 +131,8 @@ setup("ifequal_preset") ->
 setup("ifnotequal") ->
     RenderVars = [{var1, "foo"}, {var2, "foo"}, {var3, "bar"}],
     {ok, RenderVars};        
+setup("now") ->
+    {ok, [], [], skip_check};
 setup("var") ->
     RenderVars = [{var1, "foostring1"}, {var2, "foostring2"}, {var_not_used, "foostring3"}],
     {ok, RenderVars};
@@ -285,6 +287,8 @@ test_render(Name, Module) ->
                             end;
                        RenderResult =:= Data ->
                             io:format("ok");
+                       RenderResult =:= skip_check ->
+                            io:format("ok (not checked for regression)");
                        true ->
                             io:format("failed"),
                             {error, io_lib:format(
