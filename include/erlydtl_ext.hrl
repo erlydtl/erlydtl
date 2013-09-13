@@ -40,7 +40,7 @@
 -record(tag, {
           tag :: atom(),
           valid_in :: atom(),
-          open :: string(),
+          open :: string() | open_callback(),
           close :: string(),
           on_open :: tag_event() | list(tag_event()),
           on_close :: tag_event() | list(tag_event()),
@@ -64,3 +64,4 @@
                    | fun((token(), #scanner_state{}) -> token()).
 -type scan_callback() :: fun((#scanner_state{}) -> #scanner_state{})
                        | fun((char(), #scanner_state{}) -> #scanner_state{}).
+-type open_callback() :: fun((test|open, #scanner_state{}) -> boolean()|#scanner_state{}).
