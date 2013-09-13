@@ -46,6 +46,7 @@
 -compile({no_auto_import, [is_number/1]}).
 
 -ifdef (TEST).
+-export([scan_old/1, resume_old/1]).
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
@@ -543,9 +544,9 @@ verbatim2_test() ->
 scan_old(Template) ->
     scan(Template, [], {1, 1}, in_text).    
 
-%% resume_old(#scanner_state_old{ template=Template, scanned=Scanned, 
-%%                            pos=Pos, state=State}) ->
-%%     scan(Template, Scanned, Pos, State).
+resume_old(#scanner_state_old{ template=Template, scanned=Scanned, 
+                               pos=Pos, state=State}) ->
+    scan(Template, Scanned, Pos, State).
 
 scan([], Scanned, _, in_text) ->
     Tokens = lists:reverse(Scanned),
