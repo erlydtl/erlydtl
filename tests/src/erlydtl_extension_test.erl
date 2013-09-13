@@ -5,11 +5,11 @@
 
 %% look for a foo identifer followed by a #
 scan(#scanner_state{ template="#" ++ T, 
-		     scanned=[{identifier, Loc, "oof"}|Scanned], 
+		     scanned=[{identifier, Loc, foo}|Scanned], 
 		     pos={L,C} }=S) ->
     %% return new state with the hash dropped, and the foo identifer replaced with bar
     {ok, S#scanner_state{ template=T,
-			  scanned=[{identifier, Loc, "rab"}|Scanned],
+			  scanned=[{identifier, Loc, bar}|Scanned],
 			  pos={L, C+1} }};
 scan(#scanner_state{ template="#" ++ _T, pos={L, C} }) ->
     %% give error when # not follows foo

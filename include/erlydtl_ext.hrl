@@ -37,9 +37,31 @@
           extension = undefined
          }).    
 
+-record(tag, {
+          tag :: atom(),
+          valid_in :: atom(),
+          open :: string() | open_callback(),
+          close :: string(),
+          on_open :: tag_event() | list(tag_event()),
+          on_close :: tag_event() | list(tag_event()),
+          on_scan :: scan_callback()
+         }).
+
 -record(scanner_state, {
-          template=[],
-          scanned=[],
-          pos={1,1},
-          state=in_text
-        }).
+          template=[] :: string(),
+          pos={1, 1} :: token_pos(),
+          scanned=[] :: [token()],
+          scope=[] :: [#tag{}],
+          tags=[] :: [#tag{}]
+         }).
+
+-type token_type() :: atom().
+-type token_pos() :: {Row::pos_integer(), Column::pos_integer()}.
+-type token_value() :: term().
+-type token() :: {token_type(), token_pos()}
+               | {token_type(), token_pos(), token_value()}.
+-type tag_event() :: token_type() | {token_type(), token_value() | no_value}
+                   | fun((token(), #scanner_state{}) -> token()).
+-type scan_callback() :: fun((#scanner_state{}) -> #scanner_state{})
+                       | fun((char(), #scanner_state{}) -> #scanner_state{}).
+-type open_callback() :: fun((test|open, #scanner_state{}) -> boolean()|#scanner_state{}).

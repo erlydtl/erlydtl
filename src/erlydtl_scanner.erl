@@ -4,6 +4,7 @@
 %%% @author    Evan Miller <emmiller@gmail.com>
 %%% @author    Andreas Stenius <kaos@astekk.se>
 %%% @copyright 2008 Roberto Saccon, Evan Miller
+%%% @copyright 2013 Andreas Stenius
 %%% @doc 
 %%% Template language scanner
 %%% @end  
@@ -11,6 +12,7 @@
 %%% The MIT License
 %%%
 %%% Copyright (c) 2007 Roberto Saccon, Evan Miller
+%%% Copyright (c) 2013 Andreas Stenius
 %%%
 %%% Permission is hereby granted, free of charge, to any person obtaining a copy
 %%% of this software and associated documentation files (the "Software"), to deal
@@ -31,6 +33,7 @@
 %%% THE SOFTWARE.
 %%%
 %%% @since 2007-11-11 by Roberto Saccon, Evan Miller
+%%% @since 2013-09-12 by Andreas Stenius
 %%%-------------------------------------------------------------------
 -module(erlydtl_scanner).
 -author('rsaccon@gmail.com').
@@ -40,10 +43,496 @@
 -export([scan/1, resume/1]).
 -include("erlydtl_ext.hrl").
 
+-compile({no_auto_import, [is_number/1]}).
+
+-ifdef (TEST).
+-export([scan_old/1, resume_old/1]).
+-include_lib("eunit/include/eunit.hrl").
+-endif.
+
 
 %%====================================================================
 %% API
 %%====================================================================
+
+scan(Template) ->
+    do_scan({fun open_tag/1,
+             #scanner_state{ 
+                template=Template,
+                scope=[#tag{ tag=text, on_scan=fun scan_text/1 }],
+                tags=tags()
+               }}).
+
+resume(State) when is_record(State, scanner_state) ->
+    do_scan({fun open_tag/1, State}).
+
+%%====================================================================
+%% Internal functions
+%%====================================================================
+
+do_scan({_, #scanner_state{ template=[] }=State}) ->
+    #scanner_state{ scanned=Scanned } = scan_token(reverse_string, State),
+    {ok, lists:reverse(Scanned)};
+do_scan({Next, State}) when is_function(Next, 1)-> do_scan(Next(State));
+do_scan(Err) -> Err.
+
+
+%%% Main scanner processing states
+
+open_tag(#scanner_state{ scope=[#tag{ tag=In }|_], tags=Tags }=State) ->
+    case find_open_tag(State, [T || T <- Tags, T#tag.valid_in == In]) of
+        undefined -> {fun close_tag/1, State};
+        Tag -> {fun open_tag/1, do_open_tag(Tag, State)}
+    end.
+
+close_tag(#scanner_state{ scope=[#tag{ close=undefined }|_] }=State) ->
+    {fun scan_tag/1, State};
+close_tag(#scanner_state{ template=Template, scope=[T|_] }=State) ->
+    case lists:prefix(T#tag.close, Template) of
+        true -> {fun open_tag/1, do_close_tag(State)};
+        false -> {fun scan_tag/1, State}
+    end.
+
+scan_tag(#scanner_state{ scope=[#tag{ on_scan=Scan }|_] }=State) ->
+    case do_scan_tag(Scan, State) of
+        State1 when is_record(State1, scanner_state) -> {fun open_tag/1, State1};
+        Err -> Err
+    end.
+
+
+%%% State processing helpers
+
+find_open_tag(#scanner_state{ template=Template }=State, Tags) ->
+    case lists:dropwhile(
+           fun(#tag{ open=Prefix }) when is_list(Prefix) ->
+                   not lists:prefix(Prefix, Template);
+              (#tag{ open=OpenTest }) when is_function(OpenTest, 2) ->
+                   not OpenTest(test, State)
+           end, Tags)
+    of
+        [Tag|_] -> Tag;
+        [] -> undefined
+    end.
+
+do_open_tag(#tag{ open=Prefix, on_open=Open }=Tag,
+            #scanner_state{ scope=Scope }=State) ->
+    move(Prefix, scan_token(Open, State#scanner_state{ scope=[Tag|Scope] })).
+
+do_close_tag(#scanner_state{ scope=[#tag{ close=Prefix, 
+                                  on_close=Close }
+                            |Scope] }=State) ->
+    move(Prefix, scan_token(Close, State#scanner_state{ scope=Scope })).
+
+do_scan_tag(undefined, #scanner_state{ template=[C|_] }=State) -> move(C, State);
+do_scan_tag(OnScan, #scanner_state{ template=[C|_] }=State)
+  when is_function(OnScan, 2) -> OnScan(C, State);
+do_scan_tag(OnScan, State) when is_function(OnScan, 1) -> OnScan(State).
+
+
+%%% Save/process scanned token
+scan_token([E|Es], State) ->
+    scan_token(Es, scan_token(E, State));
+scan_token([], State) -> State;
+scan_token(undefined, State) -> State;
+scan_token(append_char, #scanner_state{ template=[C|_], scanned=[{Type, Pos, Chars}|Scanned] }=State) ->
+    State#scanner_state{ scanned=[{Type, Pos, [C|Chars]}|Scanned] };
+scan_token({append_char, C}, #scanner_state{ scanned=[{Type, Pos, Chars}|Scanned] }=State) ->
+    State#scanner_state{ scanned=[{Type, Pos, [C|Chars]}|Scanned] };
+scan_token(reverse_chars, #scanner_state{ scanned=[{Type, Pos, Chars}|Scanned] }=State) ->
+    State#scanner_state{ scanned=[{Type, Pos, lists:reverse(Chars)}|Scanned] };
+scan_token(reverse_string, #scanner_state{ scanned=[{string, Pos, Text}|Scanned] }=State) ->
+    State#scanner_state{ scanned=[{string, Pos, lists:reverse(Text)}|Scanned] };
+scan_token(reverse_string, State) -> State;
+scan_token(to_atom, #scanner_state{ scanned=[{Type, Pos, Text}|Scanned] }=State) ->
+    State#scanner_state{ scanned=[{Type, Pos, list_to_atom(Text)}|Scanned] };
+scan_token({Type, no_value}, #scanner_state{ pos=Pos, scanned=Scanned }=State) ->
+    State#scanner_state{ scanned=[{Type, Pos}|Scanned] };
+scan_token({Type, Init}, #scanner_state{ pos=Pos, scanned=Scanned }=State) ->
+    State#scanner_state{ scanned=[{Type, Pos, Init}|Scanned] };
+scan_token(Fun, #scanner_state{ scanned=[Token|Scanned] }=State) when is_function(Fun, 2) ->
+    State#scanner_state{ scanned=[Fun(Token, State)|Scanned] };
+scan_token(Type, #scanner_state{ template=[C|_], pos=Pos, scanned=Scanned }=State) ->
+    State#scanner_state{ scanned=[{Type, Pos, [C]}|Scanned] }.
+
+%%% Move along past processed data in the template
+move([C|Cs], State) -> move(Cs, move(C, State));
+move([], State) -> State;
+move(F, State) when is_function(F, 2) -> F(open, State);
+move(undefined, State) -> State;
+move(C, #scanner_state{ template=[C|Template], pos=Pos }=State) -> 
+    State#scanner_state{ template=Template, pos=update_pos(C, Pos) };
+move(Count, #scanner_state{ template=[C|_] }=State) when Count > 0 ->
+    move(Count - 1, move(C, State));
+move(0, State) -> State.
+
+
+%%% Keep track of our position in the template
+update_pos($\n, {Row, _Col}) -> {Row + 1, 1};
+update_pos(_, {Row, Col}) -> {Row, Col + 1}.
+
+%%% Add more data to a scanned token
+append_char(C, Type, #scanner_state{ scanned=[{Type, Pos, Chars}|Scanned] }=State) ->
+    move(C, State#scanner_state{ scanned=[{Type, Pos, [C|Chars]}|Scanned] });
+append_char(C, Type, #scanner_state{ pos=Pos, scanned=Scanned }=State) ->
+    move(C, State#scanner_state{ scanned=[{Type, Pos, [C]}|Scanned] }).
+
+append_next(Type, #scanner_state{ template=[C|_] }=State) -> append_char(C, Type, State).
+append_text(Text, Type, State) ->
+    lists:foldl(fun(C, S) -> append_char(C, Type, S) end, State, Text).
+
+
+%%====================================================================
+%% Tag callbacks and helpers
+%%====================================================================
+
+%% TEXT
+scan_text(State) ->
+    append_next(string, State).
+
+%% CODE
+scan_code(#scanner_state{ template=Template }=State) ->
+    case scan_next_code(Template) of
+        undefined ->
+            {Row, Col} = State#scanner_state.pos,
+            {error, {Row, ?MODULE, lists:concat(["Illegal character in column ", Col])}, State};
+        {Cs, skip} -> move(Cs, State);
+        Cs -> move(Cs, scan_token({list_to_atom(Cs), no_value}, State))
+    end.
+
+scan_next_code(Template) ->
+    case lists:dropwhile(
+           fun({Prefix, _}) -> not lists:prefix(Prefix, Template);
+              (Prefix) -> not lists:prefix(Prefix, Template) 
+           end, code_tokens())
+    of
+        [{_, skip}=Res|_] -> Res;
+        [{_, Res}|_] -> Res;
+        [Res|_] -> Res;
+        [] -> undefined
+    end.
+
+code_tokens() ->
+    ["==", "!=", ">=", "<=", "<", ">", "(", ")", ",", "|", "=", ":", ".", 
+     {"_(", "_"},
+     {" ", skip}].
+
+%% STRING
+scan_string(State) ->
+    append_next(string_literal, State).
+
+scan_escape(State) ->
+    do_close_tag(append_next(string_literal, State)).
+
+%% IDENTIFIER
+scan_identifier(C, State) ->
+    case is_alpha(C) orelse is_digit(C) of
+        true -> append_char(C, identifier, State);
+        false -> do_close_tag(State)
+    end.
+
+is_alpha(C) -> ((C >= $a) andalso (C =< $z)) orelse ((C >= $A) andalso (C =< $Z)) orelse (C == $_).
+is_digit(C) -> (C >= $0) andalso (C =< $9).
+
+is_identifier(test, #scanner_state{ template=T }) -> is_identifier(T);
+is_identifier(open, State) -> move(1, State).
+
+is_identifier([$_, $(|_]) -> false;
+is_identifier([C|_]) -> is_alpha(C).
+
+process_identifier({identifier, Pos, Name}, #scanner_state{ scanned=[_, PrevToken|_] }) ->
+    case lists:keyfind(Name, 2, keywords(element(1, PrevToken))) of
+        false -> {identifier, Pos, list_to_atom(Name)};
+        {Keyword, _} -> {Keyword, Pos, Name}
+    end.
+
+%% NUMBER
+scan_number(C, State) ->
+    case is_digit(C) of
+        true -> append_char(C, number_literal, State);
+        false -> do_close_tag(State)
+    end.
+
+is_number(test, #scanner_state{ template=T }) -> is_number(T);
+is_number(open, State) -> move(1, State).
+
+is_number([C|_]) -> is_digit(C) orelse (C == $-).
+
+
+%% VERBATIM
+scan_verbatim(#scanner_state{ template=Template,
+                              scanned=[{{verbatim, Tag}=Type, Pos, Text}
+                                       |Scanned]}=State) ->
+    case find_end_verbatim(Tag, Template) of
+        {true, Cs} ->
+            move(Cs, do_close_tag(
+                       State#scanner_state{
+                         scanned=[{string, Pos, Text}|drop_verbatim_tag(Scanned)]
+                        }));
+        {false, []} ->
+            append_text(Template, Type, State);
+        {false, Cs} ->
+            append_text(Cs, Type, State)
+    end.
+
+is_verbatim(test, #scanner_state{ scanned=Scanned }) ->
+    find_verbatim_tag(Scanned) /= undefined;
+is_verbatim(open, State) -> State.
+
+on_verbatim({verbatim, Pos, Text}, #scanner_state{ scanned=[_|Scanned] }) ->
+    {{verbatim, find_verbatim_tag(Scanned)}, Pos, Text}.
+
+find_verbatim_tag(Scanned) -> element(1, split_verbatim_tag(Scanned)).
+drop_verbatim_tag(Scanned) -> element(2, split_verbatim_tag(Scanned)).
+
+split_verbatim_tag([{close_tag, _, _},
+                    {identifier, _, verbatim},
+                    {open_tag, _, _}|S]) ->
+    {'$noname', S};
+split_verbatim_tag([{close_tag, _, _},
+                    {identifier, _, Tag},
+                    {identifier, _, verbatim},
+                    {open_tag, _, _}|S]) ->
+    {Tag, S};
+split_verbatim_tag(Scanned) -> {undefined, Scanned}.
+
+find_end_verbatim('$noname', Template) ->
+    find_end_verbatim(["{%", "endverbatim", "%}"], Template, []);
+find_end_verbatim(Tag, Template) ->
+    find_end_verbatim(["{%", "endverbatim", atom_to_list(Tag), "%}"], Template, []).
+
+find_end_verbatim([], _, Acc) -> {true, lists:flatten(lists:reverse(Acc))};
+find_end_verbatim(Tags, " " ++ Template, Acc) ->
+    find_end_verbatim(Tags, Template, [" "|Acc]);
+find_end_verbatim([Tag|Tags], Template, Acc) ->
+    case lists:prefix(Tag, Template) of
+        true -> find_end_verbatim(Tags, lists:nthtail(length(Tag), Template), [Tag|Acc]);
+        false -> {false, lists:flatten(
+                           lists:reverse(
+                             [lists:sublist(
+                                Template, string:str(tl(Template), "{%"))
+                              |Acc]))}
+    end.
+
+
+%% KEYWORDS
+keywords(open_tag) ->
+    %% The rest must be preceded by an open_tag.
+    %% This allows variables to have the same names as tags.
+    [{autoescape_keyword, "autoescape"},
+     {endautoescape_keyword, "endautoescape"},
+     {block_keyword, "block"},
+     {endblock_keyword, "endblock"},
+     {comment_keyword, "comment"},
+     {endcomment_keyword, "endcomment"},
+     {cycle_keyword, "cycle"},
+     {extends_keyword, "extends"},
+     {filter_keyword, "filter"},
+     {endfilter_keyword, "endfilter"},
+     {firstof_keyword, "firstof"},
+     {for_keyword, "for"},
+     {empty_keyword, "empty"},
+     {endfor_keyword, "endfor"},
+     {if_keyword, "if"},
+     {elif_keyword, "elif"},
+     {else_keyword, "else"},
+     {endif_keyword, "endif"},
+     {ifchanged_keyword, "ifchanged"},
+     {endifchanged_keyword, "endifchanged"},
+     {ifequal_keyword, "ifequal"},
+     {endifequal_keyword, "endifequal"},
+     {ifnotequal_keyword, "ifnotequal"},
+     {endifnotequal_keyword, "endifnotequal"},
+     {include_keyword, "include"},
+     {now_keyword, "now"},
+     {regroup_keyword, "regroup"},
+     {endregroup_keyword, "endregroup"},
+     {spaceless_keyword, "spaceless"},
+     {endspaceless_keyword, "endspaceless"},
+     {ssi_keyword, "ssi"},
+     {templatetag_keyword, "templatetag"},
+     {widthratio_keyword, "widthratio"},
+     {call_keyword, "call"},
+     {endwith_keyword, "endwith"},
+     {trans_keyword, "trans"},
+     {blocktrans_keyword, "blocktrans"},
+     {endblocktrans_keyword, "endblocktrans"}
+     |keywords()];
+keywords(_) -> keywords().
+keywords() ->
+    [{in_keyword, "in"},
+     {not_keyword, "not"},
+     {or_keyword, "or"},
+     {and_keyword, "and"},
+     {as_keyword, "as"},
+     {by_keyword, "by"},
+     {with_keyword, "with"},
+     %% was: These must be succeeded by a close_tag
+     %% but: that's currently not supported here..
+     %% todo: figure out how to fix it
+     {only_keyword, "only"},
+     {parsed_keyword, "parsed"},
+     {noop_keyword, "noop"},
+     {reversed_keyword, "reversed"},
+     {openblock_keyword, "openblock"},
+     {closeblock_keyword, "closeblock"},
+     {openvariable_keyword, "openvariable"},
+     {closevariable_keyword, "closevariable"},
+     {openbrace_keyword, "openbrace"},
+     {closebrace_keyword, "closebrace"},
+     {opencomment_keyword, "opencomment"},
+     {closecomment_keyword, "closecomment"}
+    ].
+
+
+%%% Builtin top level block tags and classes..
+tags() ->
+    [#tag{ valid_in=text, tag=verbatim, open=fun is_verbatim/2,
+           on_open=[{verbatim, []}, fun on_verbatim/2],
+           on_scan=fun scan_verbatim/1 },
+     #tag{ valid_in=text, tag=comment, open="<!--{#", close="#}-->" },
+     #tag{ valid_in=text, tag=comment, open="{#", close="#}" },
+     #tag{ valid_in=text, tag=code,
+           open="<!--{{", close="}}-->",
+           on_open=[reverse_string, {open_var, '<!--{{'}],
+           on_close={close_var, '}}-->'},
+           on_scan=fun scan_code/1 },
+     #tag{ valid_in=text, tag=code,
+           open="{{", close="}}",
+           on_open=[reverse_string, {open_var, '{{'}],
+           on_close={close_var, '}}'},
+           on_scan=fun scan_code/1 },
+     #tag{ valid_in=text, tag=code,
+           open="{%", close="%}",
+           on_open=[reverse_string, {open_tag, '{%'}],
+           on_close={close_tag, '%}'},
+           on_scan=fun scan_code/1 },
+     #tag{ valid_in=code, tag=identifier, open=fun is_identifier/2,
+           on_open=identifier,
+           on_close=[reverse_chars, fun process_identifier/2],
+           on_scan=fun scan_identifier/2 },
+     #tag{ valid_in=code, tag=number, open=fun is_number/2,
+           on_open=number_literal, on_close=reverse_chars,
+           on_scan=fun scan_number/2 },
+     #tag{ valid_in=code, tag=string,
+           open="\"", close="\"",
+           on_open=string_literal,
+           on_close=[append_char, reverse_chars],
+           on_scan=fun scan_string/1 },
+     #tag{ valid_in=code, tag=string,
+           open="\'", close="\'",
+           on_open={string_literal, "\""},
+           on_close=[{append_char, $"}, reverse_chars],
+           on_scan=fun scan_string/1 },
+     #tag{ valid_in=string, tag=escape,
+           open="\\", on_open=append_char,
+           on_scan=fun scan_escape/1 }
+    ].
+
+
+
+-ifdef (TEST).
+
+text_test() ->
+    T = "foo bar",
+    E = {ok, [{string, {1, 1}, "foo bar"}]},
+    ?assertEqual(E, scan_old(T)),
+    ?assertEqual(E, scan(T)).
+    
+identifier_test() ->
+    T = "foo {{ bar }}",
+    E = {ok, [{string, {1, 1}, "foo "},
+              {open_var, {1, 5}, '{{'},
+              {identifier, {1, 8}, bar},
+              {close_var, {1, 12}, '}}'}]},
+    ?assertEqual(E, scan_old(T)),
+    ?assertEqual(E, scan(T)).
+
+string_literal_test() ->
+    T = "{{ \"test\" }}",
+    E = {ok, [{open_var, {1, 1}, '{{'},
+              {string_literal, {1, 4}, "\"test\""},
+              {close_var, {1, 11}, '}}'}]},
+    ?assertEqual(E, scan_old(T)),
+    ?assertEqual(E, scan(T)).
+
+number_literal_test() ->
+    T = "{{ 12345 }}",
+    E = {ok, [{open_var, {1, 1}, '{{'},
+              {number_literal, {1, 4}, "12345"},
+              {close_var, {1, 10}, '}}'}]},
+    ?assertEqual(E, scan_old(T)),
+    ?assertEqual(E, scan(T)).
+
+attribute_test() ->    
+    T = "{{ foo.bar }}",
+    E = {ok, [{open_var, {1, 1}, '{{'},
+              {identifier, {1, 4}, foo},
+              {'.', {1, 7}},
+              {identifier, {1, 8}, bar},
+              {close_var, {1, 12}, '}}'}]},
+    ?assertEqual(E, scan_old(T)),
+    ?assertEqual(E, scan(T)).
+
+keyword_test() ->    
+    T = "{% if 1 %}",
+    E = {ok, [{open_tag, {1, 1}, '{%'},
+              {if_keyword, {1, 4}, "if"},
+              {number_literal, {1, 7}, "1"},
+              {close_tag, {1, 9}, '%}'}]},
+    ?assertEqual(E, scan_old(T)),
+    ?assertEqual(E, scan(T)).
+
+invalid_character_test() ->    
+    T = "{{ ~ }}",
+    EMsg = {1, ?MODULE, "Illegal character in column 4"},
+    ?assertMatch({error, EMsg, _}, scan_old(T)),
+    ?assertMatch({error, EMsg, #scanner_state{}}, scan(T)).
+
+escape_test() ->
+    T = "{{ \"\\\" '\" }}",
+    E = {ok, [{open_var, {1, 1}, '{{'},
+              {string_literal, {1, 4}, "\"\\\" '\""},
+              {close_var, {1, 11}, '}}'}]},
+    ?assertEqual(E, scan_old(T)),
+    ?assertEqual(E, scan(T)).
+
+strings_test() ->    
+    T = "{% cycle 'a' 'b' %}",
+    E = {ok, [{open_tag, {1, 1}, '{%'},
+              {cycle_keyword, {1, 4}, "cycle"},
+              {string_literal, {1, 10}, "\"a\""},
+              {string_literal, {1, 14}, "\"b\""},
+              {close_tag, {1, 18}, '%}'}]},
+    ?assertEqual(E, scan_old(T)),
+    ?assertEqual(E, scan(T)).
+    
+verbatim_test() ->
+    T = "foo{% verbatim %}bar{% endverbatim %}baz",
+    E = {ok, [{string, {1, 1}, "foo"},
+              {string, {1, 18}, "barbaz"}]},
+    ?assertEqual(E, scan_old(T)),
+    ?assertEqual(E, scan(T)).
+    
+verbatim2_test() ->
+    T = "foo{% verbatim %}{% endverbatim %}bar",
+    E = {ok, [{string, {1, 1}, "foo"},
+              {string, {1, 18}, "bar"}]},
+    ?assertEqual(E, scan_old(T)),
+    ?assertEqual(E, scan(T)).
+    
+
+%%====================================================================
+%% The previous scanner
+%% Kept as reference during tests for a while..
+%%====================================================================
+
+-record(scanner_state_old, {
+          template=[],
+          scanned=[],
+          pos={1,1},
+          state=in_text
+         }).
+
 %%--------------------------------------------------------------------
 %% @spec scan(T::template()) -> {ok, S::tokens()} | {error, Reason}
 %% @type template() = string() | binary(). Template to parse
@@ -52,11 +541,11 @@
 %% an error.
 %% @end
 %%--------------------------------------------------------------------
-scan(Template) ->
+scan_old(Template) ->
     scan(Template, [], {1, 1}, in_text).    
 
-resume(#scanner_state{ template=Template, scanned=Scanned, 
-		     pos=Pos, state=State}) ->
+resume_old(#scanner_state_old{ template=Template, scanned=Scanned, 
+                               pos=Pos, state=State}) ->
     scan(Template, Scanned, Pos, State).
 
 scan([], Scanned, _, in_text) ->
@@ -92,11 +581,11 @@ scan("#}" ++ T, Scanned, {Row, Column}, {in_comment, "#}"}) ->
 
 scan("<!--{%" ++ T, Scanned, {Row, Column}, in_text) ->
     scan(T, [{open_tag, {Row, Column}, '<!--{%'} | Scanned], 
-	 {Row, Column + length("<!--{%")}, {in_code, "%}-->"});
+         {Row, Column + length("<!--{%")}, {in_code, "%}-->"});
 
 scan("{%" ++ T, Scanned, {Row, Column}, in_text) ->
     scan(T, [{open_tag, {Row, Column}, '{%'} | Scanned], 
-	 {Row, Column + length("{%")}, {in_code, "%}"});
+         {Row, Column + length("{%")}, {in_code, "%}"});
 
 scan([_ | T], Scanned, {Row, Column}, {in_comment, Closer}) ->
     scan(T, Scanned, {Row, Column + 1}, {in_comment, Closer});
@@ -131,11 +620,11 @@ scan([$\\ | T], Scanned, {Row, Column}, {in_single_quote, Closer}) ->
 scan([H | T], Scanned, {Row, Column}, {in_single_quote_slash, Closer}) ->
     scan(T, append_char(Scanned, H), {Row, Column + 1}, {in_single_quote, Closer});
 
-						% end quote
+                                                % end quote
 scan("\"" ++ T, Scanned, {Row, Column}, {in_double_quote, Closer}) ->
     scan(T, append_char(Scanned, 34), {Row, Column + 1}, {in_code, Closer});
 
-						% treat single quotes the same as double quotes
+                                                % treat single quotes the same as double quotes
 scan("\'" ++ T, Scanned, {Row, Column}, {in_single_quote, Closer}) ->
     scan(T, append_char(Scanned, 34), {Row, Column + 1}, {in_code, Closer});
 
@@ -148,14 +637,14 @@ scan([H | T], Scanned, {Row, Column}, {in_single_quote, Closer}) ->
 
 scan("}}-->" ++ T, Scanned, {Row, Column}, {_, "}}-->"}) ->
     scan(T, [{close_var, {Row, Column}, '}}-->'} | Scanned], 
-	 {Row, Column + length("}}-->")}, in_text);
+         {Row, Column + length("}}-->")}, in_text);
 
 scan("}}" ++ T, Scanned, {Row, Column}, {_, "}}"}) ->
     scan(T, [{close_var, {Row, Column}, '}}'} | Scanned], {Row, Column + 2}, in_text);
 
 scan("%}-->" ++ T, Scanned, {Row, Column}, {_, "%}-->"}) ->
     scan(T, [{close_tag, {Row, Column}, '%}-->'} | Scanned], 
-	 {Row, Column + length("%}-->")}, in_text);
+         {Row, Column + length("%}-->")}, in_text);
 
 scan("%}" ++ T, [{identifier, _, "mitabrev"}, {open_tag, _, '{%'}|Scanned], {Row, Column}, {_, "%}"}) ->
     scan(T, [{string, {Row, Column + 2}, ""}|Scanned], {Row, Column + 2}, {in_verbatim, undefined});
@@ -166,7 +655,7 @@ scan("%}" ++ T, [{identifier, _, ReversedTag}, {identifier, _, "mitabrev"}, {ope
 
 scan("%}" ++ T, Scanned, {Row, Column}, {_, "%}"}) ->
     scan(T, [{close_tag, {Row, Column}, '%}'} | Scanned], 
-	 {Row, Column + 2}, in_text);
+         {Row, Column + 2}, in_text);
 
 scan("{%" ++ T, Scanned, {Row, Column}, {in_verbatim, Tag}) ->
     scan(T, Scanned, {Row, Column + 2}, {in_verbatim_code, lists:reverse("{%"), Tag});
@@ -179,7 +668,7 @@ scan("endverbatim%}" ++ T, Scanned, {Row, Column}, {in_verbatim_code, _BackTrack
 
 scan("endverbatim " ++ T, Scanned, {Row, Column}, {in_verbatim_code, BackTrack, Tag}) ->
     scan(T, Scanned, {Row, Column + length("endverbatim ")}, 
-	 {in_endverbatim_code, "", lists:reverse("endverbatim ", BackTrack), Tag});
+         {in_endverbatim_code, "", lists:reverse("endverbatim ", BackTrack), Tag});
 
 scan(" " ++ T, Scanned, {Row, Column}, {in_endverbatim_code, "", BackTrack, Tag}) ->
     scan(T, Scanned, {Row, Column + 1}, {in_endverbatim_code, "", [$\ |BackTrack], Tag});
@@ -264,7 +753,7 @@ scan([H | T], Scanned, {Row, Column}, {in_code, Closer}) ->
             scan(T, [{number_literal, {Row, Column}, [H]} | Scanned], {Row, Column + 1}, {in_number, Closer});
         _ ->
             {error, {Row, ?MODULE, lists:concat(["Illegal character in column ", Column])},
-	     #scanner_state{ template=[H|T], scanned=Scanned, pos={Row, Column}, state={in_code, Closer}}}
+             #scanner_state_old{ template=[H|T], scanned=Scanned, pos={Row, Column}, state={in_code, Closer}}}
     end;
 
 scan([H | T], Scanned, {Row, Column}, {in_number, Closer}) ->
@@ -273,7 +762,7 @@ scan([H | T], Scanned, {Row, Column}, {in_number, Closer}) ->
             scan(T, append_char(Scanned, H), {Row, Column + 1}, {in_number, Closer});
         _ ->
             {error, {Row, ?MODULE, lists:concat(["Illegal character in column ", Column])},
-	     #scanner_state{ template=[H|T], scanned=Scanned, pos={Row, Column}, state={in_code, Closer}}}
+             #scanner_state_old{ template=[H|T], scanned=Scanned, pos={Row, Column}, state={in_code, Closer}}}
     end;
 
 scan([H | T], Scanned, {Row, Column}, {in_identifier, Closer}) ->
@@ -284,10 +773,10 @@ scan([H | T], Scanned, {Row, Column}, {in_identifier, Closer}) ->
             scan(T, append_char(Scanned, H), {Row, Column + 1}, {in_identifier, Closer});
         _ ->
             {error, {Row, ?MODULE, lists:concat(["Illegal character in column ", Column])},
-	     #scanner_state{ template=[H|T], scanned=Scanned, pos={Row, Column}, state={in_code, Closer}}}
+             #scanner_state_old{ template=[H|T], scanned=Scanned, pos={Row, Column}, state={in_code, Closer}}}
     end.
 
-						% internal functions
+%%% internal functions
 
 append_char([{Type, Pos, Chars}|Scanned], Char) ->
     [{Type, Pos, [Char | Chars]} | Scanned].
@@ -338,7 +827,7 @@ mark_keywords([{identifier, Pos, "by" = String}|T], Acc) ->
     mark_keywords(T, [{by_keyword, Pos, String}|Acc]);
 mark_keywords([{identifier, Pos, "with" = String}|T], Acc) ->
     mark_keywords(T, [{with_keyword, Pos, String}|Acc]);
-						% These must be succeeded by a close_tag
+%% These must be succeeded by a close_tag
 mark_keywords([{identifier, Pos, "only" = String}, {close_tag, _, _} = CloseTag|T], Acc) ->
     mark_keywords(T, lists:reverse([{only_keyword, Pos, String}, CloseTag], Acc));
 mark_keywords([{identifier, Pos, "parsed" = String}, {close_tag, _, _} = CloseTag|T], Acc) ->
@@ -363,8 +852,8 @@ mark_keywords([{identifier, Pos, "opencomment" = String}, {close_tag, _, _} = Cl
     mark_keywords(T, lists:reverse([{opencomment_keyword, Pos, String}, CloseTag], Acc));
 mark_keywords([{identifier, Pos, "closecomment" = String}, {close_tag, _, _} = CloseTag|T], Acc) ->
     mark_keywords(T, lists:reverse([{closecomment_keyword, Pos, String}, CloseTag], Acc));
-						% The rest must be preceded by an open_tag.
-						% This allows variables to have the same names as tags.
+%% The rest must be preceded by an open_tag.
+%% This allows variables to have the same names as tags.
 mark_keywords([{open_tag, _, _} = OpenToken, {identifier, Pos, "autoescape" = String}|T], Acc) ->
     mark_keywords(T, lists:reverse([OpenToken, {autoescape_keyword, Pos, String}], Acc));
 mark_keywords([{open_tag, _, _} = OpenToken, {identifier, Pos, "endautoescape" = String}|T], Acc) ->
@@ -453,3 +942,5 @@ atomize_identifiers([{identifier, Pos, String}|T], Acc) ->
     atomize_identifiers(T, [{identifier, Pos, list_to_atom(String)}|Acc]);
 atomize_identifiers([H|T], Acc) ->
     atomize_identifiers(T, [H|Acc]).
+
+-endif. %% TEST

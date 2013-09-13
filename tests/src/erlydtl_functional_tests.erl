@@ -131,6 +131,8 @@ setup("ifequal_preset") ->
 setup("ifnotequal") ->
     RenderVars = [{var1, "foo"}, {var2, "foo"}, {var3, "bar"}],
     {ok, RenderVars};        
+setup("now") ->
+    {ok, [], [], skip_check};
 setup("var") ->
     RenderVars = [{var1, "foostring1"}, {var2, "foostring2"}, {var_not_used, "foostring3"}],
     {ok, RenderVars};
@@ -159,11 +161,11 @@ setup("trans") ->
 setup("locale") ->
     {ok, _RenderVars = [{locale, "ru"}]};
 setup("custom_tag1") ->
-    {ok, [{a, <<"a1">>}], [{locale, ru}], [<<"b1">>, <<"\n">>]};
+    {ok, [{a, <<"a1">>}], [{locale, ru}], <<"b1\n">>};
 setup("custom_tag2") ->
-    {ok, [{a, <<"a1">>}], [{locale, ru}, {foo, bar}], [<<"b2">>, <<"\n">>]};
+    {ok, [{a, <<"a1">>}], [{locale, ru}, {foo, bar}], <<"b2\n">>};
 setup("custom_tag3") ->
-    {ok, [{a, <<"a1">>}], [{locale, ru}], [<<"b3">>, <<"\n">>]};
+    {ok, [{a, <<"a1">>}], [{locale, ru}], <<"b3\n">>};
 setup("ssi") ->
     RenderVars = [{path, filename:absname(filename:join(["tests", "input", "ssi_include.html"]))}],
     {ok, RenderVars};
@@ -182,19 +184,26 @@ setup(_) ->
 
 run_tests() ->    
     io:format("Running functional tests...~n"),
-    case filelib:ensure_dir(filename:join([templates_outdir(), "foo"])) of
-        ok ->
+    case [filelib:ensure_dir(
+            filename:join([templates_dir(Dir), "foo"]))
+          || Dir <- ["output", "expect"]] -- [ok,ok]
+    of
+        [] ->
             case fold_tests() of
                 {N, []}->
                     Msg = lists:concat(["All ", N, " functional tests passed~n~n"]),
                     io:format(Msg),
                     {ok, Msg};
-                {_, Errs} ->
-                    io:format("Errors: ~p~n~n",[Errs]),
+                {N, Errs} ->
+                    io:format(
+                      "~b / ~b functional tests failed.~nErrors: ~n",
+                      [length(Errs), N]),
+                    [io:format("  ~s [~s] ~s~n", [Name, Error, Reason])
+                     || {Name, Error, Reason} <- Errs],
                     failed
             end;
-        {error, Reason} ->
-            io:format("Error: ~p~n~n", [Reason]),
+        Err ->
+            [io:format("Ensure dir failed: ~p~n~n", [Reason]) || {error, Reason} <- Err],
             failed
     end.
 
@@ -209,97 +218,104 @@ run_test(Name) ->
 
 fold_tests() ->
     lists:foldl(fun(Name, {AccCount, AccErrs}) ->
-                case test_compile_render(Name) of
-                    ok -> 
-                        {AccCount + 1, AccErrs};
-                    {error, Reason} -> 
-                        {AccCount + 1, [{Name, Reason} | AccErrs]}
-                end
-        end, {0, []}, test_list()
-    ).
+                        Res = case catch test_compile_render(Name) of
+                                  ok -> {AccCount + 1, AccErrs};
+                                  {'EXIT', Reason} ->
+                                      {AccCount + 1, [{Name, crash,
+                                                       io_lib:format("~p", [Reason])}
+                                                      | AccErrs]};
+                                  {Error, Reason} ->
+                                      {AccCount + 1, [{Name, Error, Reason}
+                                                      | AccErrs]}
+                              end,
+                        io:format("~n"), Res
+                end, {0, []}, test_list()).
 
 test_compile_render(Name) ->  
     File = filename:join([templates_docroot(), Name]),
     Module = "example_" ++ Name,
+    io:format(" Template: ~p, ... ", [Name]),
     case setup_compile(Name) of
         {CompileStatus, CompileVars} ->
             Options = [
                 {vars, CompileVars}, 
                 {force_recompile, true},
                 {custom_tags_modules, [erlydtl_custom_tags]}],
-            io:format(" Template: ~p, ... compiling ... ", [Name]),
+            io:format("compiling ... "),
             case erlydtl:compile(File, Module, Options) of
                 ok ->
-                    case CompileStatus of
-                        ok -> test_render(Name, list_to_atom(Module));
-                        _ -> {error, "compiling should have failed :" ++ File}
+                    if CompileStatus =:= ok -> test_render(Name, list_to_atom(Module));
+                       true ->
+                            io:format("missing error"),
+                            {error, "compiling should have failed :" ++ File}
                     end;
                 {error, Err} ->
-                    case CompileStatus of
-                        error ->
-                            io:format("~n"),  
-                            ok;
-                        _ ->
-                            io:format("~nCompile errror: ~p~n",[Err]), 
-                            Err
+                    if CompileStatus =:= error -> io:format("ok");
+                       true -> 
+                            io:format("failed"),
+                            {compile_error, io_lib:format("~p", [Err])}
                     end
             end;
-        skip ->
-            ok;
-        _ ->
-            {error, "no 'setup' clause defined for this test"}
+        skip -> io:format("skipped")
     end.
-
 
 test_render(Name, Module) ->
     File = filename:join([templates_docroot(), Name]),
     {RenderStatus, Vars, Opts, RenderResult} =
         case setup(Name) of
-            {RS, V}       -> {RS, V, [], undefined};
-            {RS, V, O}    -> {RS, V, O, undefined};
+            {RS, V}       -> {RS, V, [], get_expected_result(Name)};
+            {RS, V, O}    -> {RS, V, O, get_expected_result(Name)};
             {RS, V, O, R} -> {RS, V, O, R}
         end,
+    io:format("rendering ... "), 
     case catch Module:render(Vars, Opts) of
-        {ok, Data} ->
-            io:format("rendering~n"), 
-            case RenderStatus of
-                ok ->
-                    case RenderResult of
-                        undefined ->
-                            {File, _} = Module:source(),
-                            OutFile = filename:join([templates_outdir(), filename:basename(File)]),
-                            case file:open(OutFile, [write]) of
-                                {ok, IoDev} ->
-                                    file:write(IoDev, Data),
-                                    file:close(IoDev),
-                                    ok;
-                                Err ->
-                                    Err
+        {ok, Output} ->
+            Data = iolist_to_binary(Output),
+            if RenderStatus =:= ok ->
+                    if RenderResult =:= undefined ->
+                            Devs = [begin 
+                                        FileName = filename:join([templates_dir(Dir), Name]),
+                                        {ok, IoDev} = file:open(FileName, [write]),
+                                        IoDev
+                                    end || Dir <- ["output", "expect"]],
+                            try
+                                [file:write(IoDev, Data) || IoDev <- Devs],
+                                io:format("~n    #### NOTE: created new expected output file: \"tests/expect/~s\"."
+                                          "~n    Please verify contents.", [Name])
+                            after
+                                [file:close(IoDev) || IoDev <- Devs]
                             end;
-                        _ when Data =:= RenderResult ->
-                            ok;
-                        _ ->
-                            {error, lists:flatten(io_lib:format("Test ~s failed\n"
-                                "Expected: ~p\n"
-                                "Value:    ~p\n", [Name, RenderResult, Data]))}
-                        end;
-                _ ->
-                    {error, "rendering should have failed :" ++ File}
+                       RenderResult =:= Data ->
+                            io:format("ok");
+                       RenderResult =:= skip_check ->
+                            io:format("ok (not checked for regression)");
+                       true ->
+                            io:format("failed"),
+                            {error, io_lib:format(
+                                      "Expected output does not match rendered output~n"
+                                      "==Expected==~n~s~n--Actual--~n~s~n==End==~n",
+                                      [RenderResult, Data])}
+                    end;
+               true ->
+                    io:format("missing error"),
+                    {missing_error, "rendering should have failed :" ++ File}
             end;
         {'EXIT', Reason} ->
-            io:format("~n"),
-            {error, lists:flatten(io_lib:format("failed invoking render method of ~p ~p", [Module, Reason]))};
+            io:format("failed"),
+            {render_error, io_lib:format("failed invoking render method of ~p ~p", [Module, Reason])};
         Err ->
-            io:format("~n"),
-            case RenderStatus of
-                error ->  ok;
-                _ -> Err
+            if RenderStatus =:= error -> io:format("ok");
+               true -> io:format("failed"),
+                       {render_error, io_lib:format("~p", [Err])}
             end
     end.   
 
+get_expected_result(Name) ->
+    FileName = filename:join([templates_dir("expect"), Name]),
+    case filelib:is_regular(FileName) of
+        true -> {ok, Data} = file:read_file(FileName), Data;
+        false -> undefined
+    end.
 
-templates_docroot() ->
-    filename:join([erlydtl_deps:get_base_dir(), "tests", "input"]).
-
-templates_outdir() ->   
-    filename:join([erlydtl_deps:get_base_dir(), "tests", "output"]).
+templates_docroot() -> templates_dir("input").
+templates_dir(Name) -> filename:join([erlydtl_deps:get_base_dir(), "tests", Name]).
