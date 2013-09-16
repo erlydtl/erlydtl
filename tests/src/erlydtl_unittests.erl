@@ -1121,14 +1121,23 @@ run_tests() ->
 			 io:format(" Test group ~p...~n", [Group]),
 			 lists:foldl(fun
 					 ({Name, DTL, Vars, Output}, Acc) ->
-					    process_unit_test(erlydtl:compile(DTL, erlydtl_running_test, DefaultOptions),
-							      Vars, [], Output, Acc, Group, Name);
+					    try
+                            process_unit_test(
+                              erlydtl:compile(DTL, erlydtl_running_test, DefaultOptions),
+                              Vars, [], Output, Acc, Group, Name)
+                        catch _:Error -> [Error|Acc] end;
 					 ({Name, DTL, Vars, RenderOpts, Output}, Acc) ->
-					    process_unit_test(erlydtl:compile(DTL, erlydtl_running_test, DefaultOptions),
-							      Vars, RenderOpts, Output, Acc, Group, Name);
+					    try
+                            process_unit_test(
+                              erlydtl:compile(DTL, erlydtl_running_test, DefaultOptions),
+                              Vars, RenderOpts, Output, Acc, Group, Name)
+                        catch _:Error -> [Error|Acc] end;
 					 ({Name, DTL, Vars, RenderOpts, CompilerOpts, Output}, Acc) ->
-					    process_unit_test(erlydtl:compile(DTL, erlydtl_running_test, CompilerOpts ++ DefaultOptions),
-							      Vars, RenderOpts, Output, Acc, Group, Name)
+					    try
+                            process_unit_test(
+                              erlydtl:compile(DTL, erlydtl_running_test, CompilerOpts ++ DefaultOptions),
+                              Vars, RenderOpts, Output, Acc, Group, Name)
+                        catch _:Error -> [Error|Acc] end
 				    end, GroupAcc, Assertions)
 		 end, [], tests()),
 
