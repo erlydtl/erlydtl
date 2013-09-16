@@ -1125,24 +1125,28 @@ run_tests() ->
                             process_unit_test(
                               erlydtl:compile(DTL, erlydtl_running_test, DefaultOptions),
                               Vars, [], Output, Acc, Group, Name)
-                        catch _:Error -> [Error|Acc] end;
+                        catch Class:Error -> format_error(Group, Name, Class, Error, Acc) end;
 					 ({Name, DTL, Vars, RenderOpts, Output}, Acc) ->
 					    try
                             process_unit_test(
                               erlydtl:compile(DTL, erlydtl_running_test, DefaultOptions),
                               Vars, RenderOpts, Output, Acc, Group, Name)
-                        catch _:Error -> [Error|Acc] end;
+                        catch Class:Error -> format_error(Group, Name, Class, Error, Acc) end;
 					 ({Name, DTL, Vars, RenderOpts, CompilerOpts, Output}, Acc) ->
 					    try
                             process_unit_test(
                               erlydtl:compile(DTL, erlydtl_running_test, CompilerOpts ++ DefaultOptions),
                               Vars, RenderOpts, Output, Acc, Group, Name)
-                        catch _:Error -> [Error|Acc] end
+                        catch Class:Error -> format_error(Group, Name, Class, Error, Acc) end
 				    end, GroupAcc, Assertions)
 		 end, [], tests()),
 
-    io:format("Unit test failures: ~p~n", [lists:reverse(Failures)]).
+    io:format("Unit test failures: ~b~n", [length(Failures)]),
+    [io:format("  ~s:~s ~s~n", [Group, Name, Error]) || {Group, Name, Error} <- lists:reverse(Failures)].
 
+format_error(Group, Name, Class, Error, Acc) ->
+    [{Group, Name, io_lib:format("~n    ~s:~s~n    ~p", [Class, Error, erlang:get_stacktrace()])}|Acc].
+    
 process_unit_test(CompiledTemplate, Vars, RenderOpts, Output,Acc, Group, Name) ->
     case CompiledTemplate of
 	{ok, _} ->
@@ -1152,16 +1156,18 @@ process_unit_test(CompiledTemplate, Vars, RenderOpts, Output,Acc, Group, Name) -
 		{Output, Output} ->
 		    Acc;
 		{Output, Unexpected} ->
-		    [{Group, Name, 'binary', Unexpected, Output} | Acc];
+		    [{Group, Name, io_lib:format("Unexpected result with binary variables: ~nExpected: ~p~nActual: ~p",
+                                         [Output, Unexpected])} | Acc];
 		{Unexpected, Output} ->
-		    [{Group, Name, 'list', Unexpected, Output} | Acc];
+		    [{Group, Name, io_lib:format("Unexpected result with list variables: ~nExpected: ~p~nActual: ~p",
+                                         [Output, Unexpected])} | Acc];
 		{Unexpected1, Unexpected2} ->
-		    [{Group, Name, 'list', Unexpected1, Output},
-		     {Group, Name, 'binary', Unexpected2, Output} | Acc]
+		    [{Group, Name, io_lib:format("Unexpected result: ~nExpected: ~p~nActual (list): ~p~nActual (binary): ~p",
+                                         [Output, Unexpected1, Unexpected2])} | Acc]
 	    end;
 	Output -> Acc;
 	Err ->
-	    [{Group, Name, Err} | Acc]
+	    [{Group, Name, io_lib:format("Render error: ~p~n", [Err])} | Acc]
     end.
 
 
