@@ -1300,10 +1300,7 @@ for_loop_ast(IteratorList, LoopValue, IsReversed, Contents, {EmptyContentsAst, E
 
     {{LoopValueAst, LoopValueInfo}, TreeWalker2} = value_ast(LoopValue, false, true, Context, TreeWalker1),
 
-    LoopValueAst0 = case IsReversed of
-			true -> erl_syntax:application(erl_syntax:atom(lists), erl_syntax:atom(reverse), [LoopValueAst]);
-			false -> LoopValueAst
-		    end,
+    LoopValueAst0 = erl_syntax:application(erl_syntax:atom(erlydtl_runtime), erl_syntax:atom(to_list), [LoopValueAst, erl_syntax:atom(IsReversed)]),
 
     CounterVars0 = case resolve_scoped_variable_ast('forloop', Context) of
 		       undefined ->

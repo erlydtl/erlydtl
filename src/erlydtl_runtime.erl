@@ -34,8 +34,7 @@ find_value(Key, {GBSize, GBData}) when is_integer(GBSize) ->
             undefined
     end;
 find_value(Key, Tuple) when is_tuple(Tuple) ->
-    Module = element(1, Tuple),
-    case Module of
+    case element(1, Tuple) of
         dict -> 
             case dict:find(Key, Tuple) of
                 {ok, Val} ->
@@ -202,6 +201,18 @@ stringify_final([El | Rest], Out, true = BinaryStrings) when is_tuple(El) ->
     stringify_final(Rest, [list_to_binary(io_lib:print(El)) | Out], BinaryStrings);
 stringify_final([El | Rest], Out, BinaryStrings) ->
     stringify_final(Rest, [El | Out], BinaryStrings).
+
+to_list(Value, true) ->
+    lists:reverse(to_list(Value, false));
+to_list(Value, false) when is_list(Value) ->
+    Value;
+to_list(Value, false) when is_tuple(Value) ->
+    case element(1, Value) of
+        'Elixir.Ecto.Associations.HasMany' ->
+            Value:to_list();
+        _ ->
+            tuple_to_list(Value)
+    end.
 
 init_counter_stats(List) ->
     init_counter_stats(List, undefined).
