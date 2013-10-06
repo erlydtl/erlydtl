@@ -45,7 +45,15 @@ find_value(Key, Tuple) when is_tuple(Tuple) ->
         Module ->
             case lists:member({Key, 1}, Module:module_info(exports)) of
                 true ->
-                    Tuple:Key();
+                    case Tuple:Key() of
+                        Val when is_tuple(Val) ->
+                            case element(1, Val) of
+                                'Elixir.Ecto.Associations.BelongsTo' -> Val:get();
+                                'Elixir.Ecto.Associations.HasOne' -> Val:get();
+                                _ -> Val
+                            end;
+                        Val -> Val
+                    end;
                 _ ->
                     undefined
             end
