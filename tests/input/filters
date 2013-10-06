@@ -7,8 +7,8 @@ Centered:
 {{ "center"|center:20 }}
 </pre>
 
-Date format:  {{ date_var1|date:"r" }}
-DateTime format: {{ datetime_var1|date:"r" }}
+Date format:  {{ date_var1|date:"D, d M Y" }}
+DateTime format: {{ datetime_var1|date:"D, d M Y H:i:s" }}
 
 Escape JS: {{ "\" '"|escapejs }}
 
