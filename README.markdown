@@ -60,7 +60,7 @@ with one of the following signatures:
     some_tag(TagVars, Options) -> iolist()
 
 The `TagVars` are variables provided to a custom tag in the template's body
-(e.g. `{% foo bar=100 %}` results in `TagVars = [{"bar", 100}]`).
+(e.g. `{% foo bar=100 %}` results in `TagVars = [{bar, 100}]`).
 The `Options` are options passed as the second argument to the `render/2` call
 at render-time. (These may include any options, not just `locale` and
 `translation_fun`.)
