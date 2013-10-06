@@ -47,7 +47,8 @@
          merge_info/2, 
          format/3, 
          value_ast/5,
-         resolve_scoped_variable_ast/2
+         resolve_scoped_variable_ast/2,
+         interpret_args/3
         ]).
 
 -include("erlydtl_ext.hrl").
@@ -368,13 +369,12 @@ check_scan({ok, Tokens}, Context) ->
                   undefined -> Tokens;
                   {ok, T} -> T
               end,
-    check_parse(erlydtl_parser:parse(Tokens1), [], Context);
+    check_parse(erlydtl_parser:parse(Tokens1), [], Context#dtl_context{ scanned_tokens=Tokens1 });
 check_scan({error, Err, State}, Context) ->
     case call_extension(Context, scan, [State]) of
         undefined ->
             {error, Err};
         {ok, NewState} ->
-            %% io:format("call_extension from:~p~nto: ~p~n", [State, NewState]),
             check_scan(erlydtl_scanner:resume(NewState), Context);
         ExtRes ->
             ExtRes
@@ -386,15 +386,14 @@ check_parse({ok, Parsed}, Acc, _Context) -> {ok, Acc ++ Parsed};
 check_parse({ok, Parsed, C}, Acc, _Context) -> {ok, Acc ++ Parsed, C};
 check_parse({error, _}=Err, _, _Context) -> Err;
 check_parse({error, Err, State}, Acc, Context) ->
-    %% io:format("parse error: ~p~nstate: ~p~n",[Err, State]),
-    {State1, Parsed} = reset_parse_state(State),
+    {State1, Parsed} = reset_parse_state(State, Context),
     case call_extension(Context, parse, [State1]) of
         undefined ->
             {error, Err};
         {ok, ExtParsed} ->
             {ok, Acc ++ Parsed ++ ExtParsed};
         {error, ExtErr, ExtState} ->
-            case reset_parse_state(ExtState) of
+            case reset_parse_state(ExtState, Context) of
                 {_, []} ->
                     %% todo: see if this is indeed a sensible ext error,
                     %% or if we should rather present the original Err message
@@ -406,13 +405,29 @@ check_parse({error, Err, State}, Acc, Context) ->
             ExtRes
     end.
 
-%% backtrack up to the Rootsymbol, and keep the current top-level value stack
-reset_parse_state([Ts, Tzr, _, [0 | []], [Parsed | []]]) ->
-    {[Ts, Tzr, 0, [], []], Parsed};
-reset_parse_state([Ts, Tzr, _, [S | Ss], [T | Stack]]) -> 
-    reset_parse_state([[T | Ts], Tzr, S, Ss, Stack]);
-reset_parse_state([_, _, 0, [], []]=State) -> 
-    {State, []}.
+%% backtrack up to the nearest opening tag, and keep the value stack parsed ok so far
+reset_parse_state([[{Tag, _, _}|_]=Ts, Tzr, _, _, Stack], Context)
+  when Tag==open_tag; Tag==open_var ->
+    %% reached opening tag, so the stack should be sensible here
+    {[reset_token_stream(Ts, Context#dtl_context.scanned_tokens),
+      Tzr, 0, [], []], lists:flatten(Stack)};
+reset_parse_state([_, _, 0, [], []]=State, _Context) ->
+    %% top of (empty) stack
+    {State, []};
+reset_parse_state([Ts, Tzr, _, [0 | []], [Parsed | []]], Context)
+  when is_list(Parsed) ->
+    %% top of good stack
+    {[reset_token_stream(Ts, Context#dtl_context.scanned_tokens),
+      Tzr, 0, [], []], Parsed};
+reset_parse_state([Ts, Tzr, _, [S | Ss], [T | Stack]], Context) ->
+    %% backtrack...
+    reset_parse_state([[T|Ts], Tzr, S, Ss, Stack], Context).
+
+reset_token_stream([T|_], [T|Ts]) -> [T|Ts];
+reset_token_stream(Ts, [_|S]) ->
+    reset_token_stream(Ts, S).
+%% we should find the next token in the list of scanned tokens, or something is real fishy
+
 
 custom_tags_ast(CustomTags, Context, TreeWalker) ->
     {{CustomTagsClauses, CustomTagsInfo}, TreeWalker1} = custom_tags_clauses_ast(CustomTags, Context, TreeWalker),
@@ -826,11 +841,9 @@ value_ast(ValueToken, AsString, EmptyIfUndefined, Context, TreeWalker) ->
         {'apply_filter', Variable, Filter} ->
             filter_ast(Variable, Filter, Context, TreeWalker);
         {'attribute', _} = Variable ->
-            {Ast, VarName} = resolve_variable_ast(Variable, Context, EmptyIfUndefined),
-            {{Ast, #ast_info{var_names = [VarName]}}, TreeWalker};
+            resolve_variable_ast(Variable, Context, TreeWalker, EmptyIfUndefined);
         {'variable', _} = Variable ->
-            {Ast, VarName} = resolve_variable_ast(Variable, Context, EmptyIfUndefined),
-            {{Ast, #ast_info{var_names = [VarName]}}, TreeWalker};
+            resolve_variable_ast(Variable, Context, TreeWalker, EmptyIfUndefined);
         {extension, Tag} ->
             extension_ast(Tag, Context, TreeWalker)
     end.
@@ -1012,8 +1025,8 @@ filter_tag_ast(FilterList, Contents, Context, TreeWalker) ->
 								 ([{identifier, _, 'safeseq'}], {{AstAcc, InfoAcc}, TreeWalkerAcc}) ->
 								    {{AstAcc, InfoAcc}, TreeWalkerAcc#treewalker{safe = true}};
 								 (Filter, {{AstAcc, InfoAcc}, TreeWalkerAcc}) ->
-								    {Ast, AstInfo} = filter_ast1(Filter, AstAcc, Context),
-								    {{Ast, merge_info(InfoAcc, AstInfo)}, TreeWalkerAcc}
+								    {{Ast, AstInfo}, TW} = filter_ast1(Filter, AstAcc, Context, TreeWalkerAcc),
+								    {{Ast, merge_info(InfoAcc, AstInfo)}, TW}
 							    end, {{erl_syntax:application(
 								     erl_syntax:atom(erlang),
 								     erl_syntax:atom(iolist_to_binary),
@@ -1076,36 +1089,44 @@ filter_ast_noescape(Variable, [{identifier, _, 'safeseq'}], Context, TreeWalker)
     value_ast(Variable, true, false, Context, TreeWalker#treewalker{safe = true});
 filter_ast_noescape(Variable, Filter, Context, TreeWalker) ->
     {{VariableAst, Info1}, TreeWalker2} = value_ast(Variable, true, false, Context, TreeWalker),
-    {VarValue, Info2} = filter_ast1(Filter, VariableAst, Context),
-    {{VarValue, merge_info(Info1, Info2)}, TreeWalker2}.
+    {{VarValue, Info2}, TreeWalker3} = filter_ast1(Filter, VariableAst, Context, TreeWalker2),
+    {{VarValue, merge_info(Info1, Info2)}, TreeWalker3}.
 
-filter_ast1([{identifier, _, Name}, {string_literal, _, ArgName}], VariableAst, #dtl_context{ binary_strings = true } = Context) ->
-    filter_ast2(Name, VariableAst, [binary_string(unescape_string_literal(ArgName))], [], Context);
-filter_ast1([{identifier, _, Name}, {string_literal, _, ArgName}], VariableAst, #dtl_context{ binary_strings = false } = Context) ->
-    filter_ast2(Name, VariableAst, [erl_syntax:string(unescape_string_literal(ArgName))], [], Context);
-filter_ast1([{identifier, _, Name}, {number_literal, _, ArgName}], VariableAst, Context) ->
-    filter_ast2(Name, VariableAst, [erl_syntax:integer(list_to_integer(ArgName))], [], Context);
-filter_ast1([{identifier, _, Name}, ArgVariable], VariableAst, Context) ->
-    {ArgAst, ArgVarName} = resolve_variable_ast(ArgVariable, Context, false),
-    filter_ast2(Name, VariableAst, [ArgAst], [ArgVarName], Context);
-filter_ast1([{identifier, _, Name}], VariableAst, Context) ->
-    filter_ast2(Name, VariableAst, [], [], Context).
+filter_ast1([{identifier, _, Name}, {string_literal, _, ArgName}], VariableAst,
+            #dtl_context{ binary_strings = true } = Context, TreeWalker) ->
+    filter_ast2(Name, VariableAst, [binary_string(unescape_string_literal(ArgName))], #ast_info{}, Context, TreeWalker);
+filter_ast1([{identifier, _, Name}, {string_literal, _, ArgName}], VariableAst,
+            #dtl_context{ binary_strings = false } = Context, TreeWalker) ->
+    filter_ast2(Name, VariableAst, [erl_syntax:string(unescape_string_literal(ArgName))], #ast_info{}, Context, TreeWalker);
+filter_ast1([{identifier, _, Name}, {number_literal, _, ArgName}], VariableAst, Context, TreeWalker) ->
+    filter_ast2(Name, VariableAst, [erl_syntax:integer(list_to_integer(ArgName))], #ast_info{}, Context, TreeWalker);
+filter_ast1([{identifier, _, Name}, ArgVariable], VariableAst, Context, TreeWalker) ->
+    {{ArgAst, ArgInfo}, TreeWalker2} = resolve_variable_ast(ArgVariable, Context, TreeWalker, false),
+    filter_ast2(Name, VariableAst, [ArgAst], ArgInfo, Context, TreeWalker2);
+filter_ast1([{identifier, _, Name}], VariableAst, Context, TreeWalker) ->
+    filter_ast2(Name, VariableAst, [], #ast_info{}, Context, TreeWalker).
 
-filter_ast2(Name, VariableAst, [], VarNames, #dtl_context{ filter_modules = [Module|Rest] } = Context) ->
+filter_ast2(Name, VariableAst, [], VarInfo, #dtl_context{ filter_modules = [Module|Rest] } = Context, TreeWalker) ->
     case lists:member({Name, 1}, Module:module_info(exports)) of
         true ->
-            {erl_syntax:application(erl_syntax:atom(Module), erl_syntax:atom(Name), 
-				    [VariableAst]), #ast_info{var_names = VarNames}};
+            {{erl_syntax:application(
+                erl_syntax:atom(Module), erl_syntax:atom(Name),
+                [VariableAst]),
+              VarInfo},
+             TreeWalker};
         false ->
-            filter_ast2(Name, VariableAst, [], VarNames, Context#dtl_context{ filter_modules = Rest })
+            filter_ast2(Name, VariableAst, [], VarInfo, Context#dtl_context{ filter_modules = Rest }, TreeWalker)
     end;
-filter_ast2(Name, VariableAst, [Arg], VarNames, #dtl_context{ filter_modules = [Module|Rest] } = Context) ->
+filter_ast2(Name, VariableAst, [Arg], VarInfo, #dtl_context{ filter_modules = [Module|Rest] } = Context, TreeWalker) ->
     case lists:member({Name, 2}, Module:module_info(exports)) of
         true ->
-            {erl_syntax:application(erl_syntax:atom(Module), erl_syntax:atom(Name),
-				    [VariableAst, Arg]), #ast_info{var_names = VarNames}};
+            {{erl_syntax:application(
+                erl_syntax:atom(Module), erl_syntax:atom(Name),
+                [VariableAst, Arg]),
+              VarInfo},
+             TreeWalker};
         false ->
-            filter_ast2(Name, VariableAst, [Arg], VarNames, Context#dtl_context{ filter_modules = Rest })
+            filter_ast2(Name, VariableAst, [Arg], VarInfo, Context#dtl_context{ filter_modules = Rest }, TreeWalker)
     end.
 
 search_for_escape_filter(Variable, Filter, #dtl_context{auto_escape = on}) ->
@@ -1128,40 +1149,56 @@ search_for_safe_filter({apply_filter, Variable, Filter}, _) ->
 search_for_safe_filter(_Variable, _Filter) ->
     on.
 
-resolve_variable_ast(VarTuple, Context, true) ->
-    resolve_variable_ast1(VarTuple, Context, 'fetch_value');
-resolve_variable_ast(VarTuple, Context, false) ->
-    resolve_variable_ast1(VarTuple, Context, 'find_value').
+finder_function(true) -> {erlydtl_runtime, fetch_value};
+finder_function(false) -> {erlydtl_runtime, find_value}.
 
-resolve_variable_ast1({attribute, {{identifier, {Row, Col}, AttrName}, Variable}}, Context, FinderFunction) ->
-    {VarAst, VarName} = resolve_variable_ast1(Variable, Context, FinderFunction),
+finder_function(EmptyIfUndefined, Context) ->
+    case call_extension(Context, finder_function, [EmptyIfUndefined]) of
+        undefined -> finder_function(EmptyIfUndefined);
+        Result -> Result
+    end.
+
+resolve_variable_ast({extension, Tag}, Context, TreeWalker, _) ->
+    extension_ast(Tag, Context, TreeWalker);
+resolve_variable_ast(VarTuple, Context, TreeWalker, EmptyIfUndefined)
+  when is_boolean(EmptyIfUndefined) ->
+    resolve_variable_ast(VarTuple, Context, TreeWalker, finder_function(EmptyIfUndefined, Context));
+resolve_variable_ast(VarTuple, Context, TreeWalker, FinderFunction) ->
+    resolve_variable_ast1(VarTuple, Context, TreeWalker, FinderFunction).
+
+resolve_variable_ast1({attribute, {{identifier, {Row, Col}, AttrName}, Variable}}, Context, TreeWalker, FinderFunction) ->
+    {{VarAst, VarInfo}, TreeWalker1} = resolve_variable_ast(Variable, Context, TreeWalker, FinderFunction),
     FileNameAst = case Context#dtl_context.parse_trail of 
 		      [] -> erl_syntax:atom(undefined); 
 		      [H|_] -> erl_syntax:string(H)
 		  end,
-    {erl_syntax:application(erl_syntax:atom(erlydtl_runtime), erl_syntax:atom(FinderFunction),
-			    [erl_syntax:atom(AttrName), VarAst, FileNameAst,
-			     erl_syntax:tuple([erl_syntax:integer(Row), erl_syntax:integer(Col)])
-			    ]), VarName};
+    {Runtime, Finder} = FinderFunction,
+    {{erl_syntax:application(
+        erl_syntax:atom(Runtime),
+        erl_syntax:atom(Finder),
+        [erl_syntax:atom(AttrName), VarAst, FileNameAst,
+         erl_syntax:tuple([erl_syntax:integer(Row), erl_syntax:integer(Col)])
+        ]),
+      VarInfo},
+     TreeWalker1};
 
-resolve_variable_ast1({variable, {identifier, {Row, Col}, VarName}}, Context, FinderFunction) ->
+resolve_variable_ast1({variable, {identifier, {Row, Col}, VarName}}, Context, TreeWalker, FinderFunction) ->
     VarValue = case resolve_scoped_variable_ast(VarName, Context) of
-		   undefined ->
-		       FileNameAst = case Context#dtl_context.parse_trail of 
-					 [] -> erl_syntax:atom(undefined); 
-					 [H|_] -> erl_syntax:string(H)
-				     end,
-		       erl_syntax:application(erl_syntax:atom(erlydtl_runtime), erl_syntax:atom(FinderFunction),
-					      [erl_syntax:atom(VarName), erl_syntax:variable("_Variables"), FileNameAst,
-					       erl_syntax:tuple([erl_syntax:integer(Row), erl_syntax:integer(Col)])
-					      ]);
-		   Val ->
-		       Val
-	       end,
-    {VarValue, VarName};
-
-resolve_variable_ast1(What, _Context, _FinderFunction) ->
-    error_logger:error_msg("~p:resolve_variable_ast unhandled: ~p~n", [?MODULE, What]).
+                   undefined ->
+                       FileNameAst = case Context#dtl_context.parse_trail of
+                                         [] -> erl_syntax:atom(undefined);
+                                         [H|_] -> erl_syntax:string(H)
+                                     end,
+                       {Runtime, Finder} = FinderFunction,
+                       erl_syntax:application(
+                         erl_syntax:atom(Runtime), erl_syntax:atom(Finder),
+                         [erl_syntax:atom(VarName), erl_syntax:variable("_Variables"), FileNameAst,
+                          erl_syntax:tuple([erl_syntax:integer(Row), erl_syntax:integer(Col)])
+                         ]);
+                   Val ->
+                       Val
+               end,
+    {{VarValue, #ast_info{ var_names=[VarName] }}, TreeWalker}.
 
 resolve_scoped_variable_ast(VarName, Context) ->
     lists:foldl(fun(Scope, Value) ->
@@ -1327,7 +1364,7 @@ cycle_ast(Names, Context, TreeWalker) ->
 						   {{S, _}, _} = string_ast(unescape_string_literal(Str), Context, TreeWalker),
 						   {S, VarNamesAcc};
 						({variable, _}=Var, VarNamesAcc) ->
-						   {V, VarName} = resolve_variable_ast(Var, Context, true),
+						   {{V, #ast_info{ var_names=[VarName] }}, _} = resolve_variable_ast(Var, Context, TreeWalker, true),
 						   {V, [VarName|VarNamesAcc]};
 						({number_literal, _, Num}, VarNamesAcc) ->
 						   {format(erl_syntax:integer(Num), Context, TreeWalker), VarNamesAcc};
@@ -1397,17 +1434,22 @@ full_path(File, DocRoot) ->
 %% Custom tags
 %%-------------------------------------------------------------------
 
+interpret_args(Args, Context, TreeWalker) ->
+    lists:foldr(
+      fun ({{identifier, _, Key}, {trans, StringLiteral}}, {{ArgsAcc, AstInfoAcc}, TreeWalkerAcc}) ->
+              {{TransAst, TransAstInfo}, TreeWalker0} = translated_ast(StringLiteral, Context, TreeWalkerAcc),
+              {{[erl_syntax:tuple([erl_syntax:atom(Key), TransAst])|ArgsAcc], merge_info(TransAstInfo, AstInfoAcc)}, TreeWalker0};
+          ({{identifier, _, Key}, Value}, {{ArgsAcc, AstInfoAcc}, TreeWalkerAcc}) ->
+              {{Ast0, AstInfo0}, TreeWalker0} = value_ast(Value, false, false, Context, TreeWalkerAcc),
+              {{[erl_syntax:tuple([erl_syntax:atom(Key), Ast0])|ArgsAcc], merge_info(AstInfo0, AstInfoAcc)}, TreeWalker0};
+          ({extension, Tag}, {{ArgsAcc, AstInfoAcc}, TreeWalkerAcc}) ->
+              {{ExtAst, ExtInfo}, ExtTreeWalker} = extension_ast(Tag, Context, TreeWalkerAcc),
+              {{[ExtAst|ArgsAcc], merge_info(ExtInfo, AstInfoAcc)}, ExtTreeWalker}
+      end, {{[], #ast_info{}}, TreeWalker}, Args).
+
 tag_ast(Name, Args, Context, TreeWalker) ->
-    {{InterpretedArgs, AstInfo1}, TreeWalker1} = lists:foldr(fun
-								 ({{identifier, _, Key}, {trans, StringLiteral}}, {{ArgsAcc, AstInfoAcc}, TreeWalkerAcc}) ->
-								    {{TransAst, TransAstInfo}, TreeWalker0} = translated_ast(StringLiteral, Context, TreeWalkerAcc),
-								    {{[erl_syntax:tuple([erl_syntax:atom(Key), TransAst])|ArgsAcc], merge_info(TransAstInfo, AstInfoAcc)}, TreeWalker0};
-								 ({{identifier, _, Key}, Value}, {{ArgsAcc, AstInfoAcc}, TreeWalkerAcc}) ->
-								    {{Ast0, AstInfo0}, TreeWalker0} = value_ast(Value, false, false, Context, TreeWalkerAcc),
-								    {{[erl_syntax:tuple([erl_syntax:atom(Key), Ast0])|ArgsAcc], merge_info(AstInfo0, AstInfoAcc)}, TreeWalker0}
-							    end, {{[], #ast_info{}}, TreeWalker}, Args),
-    TagArgs = [erl_syntax:tuple([erl_syntax:atom('__render_variables'), erl_syntax:variable("_Variables")])|InterpretedArgs],
-    {RenderAst, RenderInfo} = custom_tags_modules_ast(Name, TagArgs, Context),
+    {{InterpretedArgs, AstInfo1}, TreeWalker1} = interpret_args(Args, Context, TreeWalker),
+    {RenderAst, RenderInfo} = custom_tags_modules_ast(Name, InterpretedArgs, Context),
     {{RenderAst, merge_info(AstInfo1, RenderInfo)}, TreeWalker1}.
 
 custom_tags_modules_ast(Name, InterpretedArgs, #dtl_context{ custom_tags_modules = [], is_compiling_dir = false }) ->
@@ -1444,8 +1486,8 @@ call_ast(Module, TreeWalkerAcc) ->
     call_ast(Module, erl_syntax:variable("_Variables"), #ast_info{}, TreeWalkerAcc).
 
 call_with_ast(Module, Variable, Context, TreeWalker) ->
-    {VarAst, VarName} = resolve_variable_ast(Variable, Context, false),
-    call_ast(Module, VarAst, #ast_info{var_names=[VarName]}, TreeWalker).
+    {{VarAst, VarInfo}, TreeWalker2} = resolve_variable_ast(Variable, Context, TreeWalker, false),
+    call_ast(Module, VarAst, VarInfo, TreeWalker2).
 
 call_ast(Module, Variable, AstInfo, TreeWalker) ->
     AppAst = erl_syntax:application(

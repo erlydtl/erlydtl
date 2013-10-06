@@ -19,7 +19,8 @@
           locale = none,
           verbose = false,
           is_compiling_dir = false,
-          extension_module = undefined
+          extension_module = undefined,
+          scanned_tokens = []
          }).
 
 -record(ast_info, {
