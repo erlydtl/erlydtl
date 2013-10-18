@@ -57,6 +57,7 @@ process_ast(Fname,[Head|Tail], Acc) ->
 process_token(Fname, {block,{identifier,{_Line,_Col},_Identifier},Children}, Acc ) -> process_ast(Fname, Children, Acc);
 process_token(Fname, {trans,{string_literal,{Line,Col},String}}, Acc ) -> [{unescape(String), {Fname, Line, Col}} | Acc];
 process_token(_Fname, {apply_filter, _Value, _Filter}, Acc) -> Acc;
+process_token(_Fname, {date, now, _Filter}, Acc) -> Acc;
 process_token(Fname, {_Instr, _Cond, Children}, Acc) -> process_ast(Fname, Children, Acc);
 process_token(Fname, {_Instr, _Cond, Children, Children2}, Acc) -> 
 	AccModified = process_ast(Fname, Children, Acc),
