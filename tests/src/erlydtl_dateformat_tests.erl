@@ -18,7 +18,7 @@ run_tests() ->
           {"s", "00"}, {"S", "th"}, {"t", "31"},
           {"w", "0"}, {"W", "27"}, {"y", "79"}, {"Y", "1979"}, {"z", "189"},
           {"jS F Y H:i", "8th July 1979 00:00"},
-          {"jS o\\f F", "8th of July"},
+          {"jS \\o\\f F", "8th of July"},
           % We expect these to come back verbatim
           {"x", "x"}, {"C", "C"}, {";", ";"}, {"%", "%"}
 
@@ -43,7 +43,7 @@ run_tests() ->
           {"s", "12"}, {"S", "th"}, {"t", "31"},
           {"w", "0"}, {"W", "27"}, {"y", "79"}, {"Y", "1979"}, {"z", "189"},
           {"jS F Y H:i", "8th July 1979 22:07"},
-          {"jS o\\f F", "8th of July"},
+          {"jS \\o\\f F", "8th of July"},
           % We expect these to come back verbatim
           {"x", "x"}, {"C", "C"}, {";", ";"}, {"%", "%"}
           % TODO : timzeone related tests.
@@ -67,7 +67,7 @@ run_tests() ->
           {"s", "09"}, {"S", "th"}, {"t", "31"},
           {"w", "4"}, {"W", "52"}, {"y", "08"}, {"Y", "2008"}, {"z", "360"},
           {"jS F Y H:i", "25th December 2008 07:00"},
-          {"jS o\\f F", "25th of December"},
+          {"jS \\o\\f F", "25th of December"},
           % We expect these to come back verbatim
           {"x", "x"}, {"C", "C"}, {";", ";"}, {"%", "%"}
           % TODO : timzeone related tests.
@@ -91,7 +91,7 @@ run_tests() ->
           {"s", "59"}, {"S", "th"}, {"t", "29"},
           {"w", "0"}, {"W", "9"}, {"y", "04"}, {"Y", "2004"}, {"z", "58"},
           {"jS F Y H:i", "29th February 2004 12:00"},
-          {"jS o\\f F", "29th of February"},
+          {"jS \\o\\f F", "29th of February"},
           % We expect these to come back verbatim
           {"x", "x"}, {"C", "C"}, {";", ";"}, {"%", "%"}
           % TODO : timzeone related tests.
@@ -115,7 +115,7 @@ run_tests() ->
           {"s", "09"}, {"S", "th"}, {"t", "29"},
           {"w", "0"}, {"W", "9"}, {"y", "04"}, {"Y", "2004"}, {"z", "58"},
           {"jS F Y H:i", "29th February 2004 12:00"},
-          {"jS o\\f F", "29th of February"},
+          {"jS \\o\\f F", "29th of February"},
           % We expect these to come back verbatim
           {"x", "x"}, {"C", "C"}, {";", ";"}, {"%", "%"}
           % TODO : timzeone related tests.
@@ -157,6 +157,38 @@ run_tests() ->
       % freeform tests
       { "weeknum 4.1",  {2008,  2, 28}, [{"W", "9"}] },
       { "weeknum 4.2",  {1975,  7, 24}, [{"W","30"}] },
+
+      % Yearweek tests.  Largely based on examples from :
+      %   http://en.wikipedia.org/wiki/ISO_week_date
+      { "weeknum_year 1.1",  {2005,  1,  1}, [{"o", "2004"}] },
+      { "weeknum_year 1.2",  {2005,  1,  2}, [{"o", "2004"}] },
+      { "weeknum_year 1.3",  {2005, 12, 31}, [{"o", "2005"}] },
+      { "weeknum_year 1.4",  {2007,  1,  1}, [{"o", "2007"}]  },
+      { "weeknum_year 1.5",  {2007, 12, 30}, [{"o", "2007"}] },
+      { "weeknum_year 1.6",  {2007, 12, 31}, [{"o", "2008"}]  },
+      { "weeknum_year 1.6",  {2008,  1,  1}, [{"o", "2008"}]  },
+      { "weeknum_year 1.7",  {2008, 12, 29}, [{"o", "2009"}]  },
+      { "weeknum_year 1.8",  {2008, 12, 31}, [{"o", "2009"}]  },
+      { "weeknum_year 1.9",  {2009,  1,  1}, [{"o", "2009"}]  },
+      { "weeknum_year 1.10", {2009, 12, 31}, [{"o", "2009"}] },
+      { "weeknum_year 1.11", {2010,  1,  3}, [{"o", "2009"}] },
+      % Examples where the ISO year is three days into
+      % the next Gregorian year
+      { "weeknum_year 2.1",  {2009, 12, 31}, [{"o", "2009"}] },
+      { "weeknum_year 2.2",  {2010,  1,  1}, [{"o", "2009"}] },
+      { "weeknum_year 2.3",  {2010,  1,  2}, [{"o", "2009"}] },
+      { "weeknum_year 2.4",  {2010,  1,  3}, [{"o", "2009"}] },
+      { "weeknum_year 2.5",  {2010,  1,  5}, [{"o", "2010"}] },
+      % Example where the ISO year is three days into
+      % the previous Gregorian year
+      { "weeknum_year 3.1",  {2008, 12, 28}, [{"o", "2008"}] },
+      { "weeknum_year 3.2",  {2008, 12, 29}, [{"o", "2009"}] },
+      { "weeknum_year 3.3",  {2008, 12, 30}, [{"o", "2009"}] },
+      { "weeknum_year 3.4",  {2008, 12, 31}, [{"o", "2009"}] },
+      { "weeknum_year 3.5",  {2009,  1,  1}, [{"o", "2009"}] },
+      % freeform tests
+      { "weeknum_year 4.1",  {2008,  2, 28}, [{"o", "2008"}] },
+      { "weeknum_year 4.2",  {1975,  7, 24}, [{"o", "1975"}] },
 
       % Ordinal suffix tests.
       { "Ordinal suffix 1", {1984,1,1},  [{"S", "st"}] },

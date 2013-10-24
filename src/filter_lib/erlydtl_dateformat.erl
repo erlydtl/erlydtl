@@ -1,5 +1,5 @@
 -module(erlydtl_dateformat).
--export([format/1, format/2]).
+-export([format/1, format/2, weeknum_year/3, year_weeknum/3]).
 
 -define(TAG_SUPPORTED(C),
     C =:= $a orelse
@@ -37,7 +37,9 @@
     C =:= $y orelse
     C =:= $Y orelse
     C =:= $z orelse
-    C =:= $Z
+    C =:= $Z orelse
+    C =:= $o orelse
+    C =:= $e
 ).
 
 %
@@ -288,6 +290,14 @@ tag_to_value($z, {Y,M,D}, _) ->
 tag_to_value($Z, _, _) ->
    "TODO";
 
+%% e – the name of the timezone of the given datetime object
+tag_to_value($e, _, _) ->
+    "TODO";
+
+%% o – the ISO 8601 year number
+tag_to_value($o, {Y,M,D}, _) ->
+    integer_to_list(weeknum_year(Y,M,D));
+
 tag_to_value(C, Date, Time) ->
     io:format("Unimplemented tag : ~p [Date : ~p] [Time : ~p]",
         [C, Date, Time]),
@@ -295,7 +305,7 @@ tag_to_value(C, Date, Time) ->
 
 % Date helper functions
 day_of_year(Y,M,D) ->
-   day_of_year(Y,M,D,0).
+       day_of_year(Y,M,D,0).
 day_of_year(_Y,M,D,Count) when M =< 1 ->
    D + Count;
 day_of_year(Y,M,D,Count) when M =< 12 ->
@@ -320,7 +330,59 @@ year_weeknum(Y,M,D) ->
               _ -> Wk
             end
     end.
-   
+
+weeknum_year(Y,M,D) ->
+    WeekNum = year_weeknum(Y,M,D),
+    case M of
+        1 ->
+            case WeekNum of
+                53  -> Y - 1;
+                52  -> Y - 1;
+                _  -> Y
+        end;
+        12 ->
+            case WeekNum of
+                2  -> Y + 1;
+                1  -> Y + 1;
+                _  -> Y
+        end;
+        _ -> Y
+    end.
+            
+
+%%weeknum_year(Year,Month,Date) ->
+%%   FirstMondayy = first_monday(Year),
+%%   LastyeSunday = last_sunday(Year),
+%%   % if Today < FirstMonday but still in Year, then WeekNumYear = Year - 1;
+%%    % if Today > LastSunday but still in Year, then WeekNumYear = Year + 1;
+%%    % else WeekNumYear = Year;
+%%    % WeekNumYear.
+%%
+%%    end.
+%%
+%%first_monday(Year) ->
+%%    First = (calendar:day_of_the_week(Y, 1, 1),
+%%    case First >= 1 of
+%%        true -> 
+%%            case First == 1 of
+%%                true -> 1;
+%%                false -> 
+%%        false ->
+%%            case First > 1 
+%%        
+
+        
+
+%Dates in January    Effect
+%M   T   W   T   F   S   S   Week number     Week assigned to
+%1   2   3   4   5   6   7   1   New year
+%    1   2   3   4   5   6   1   New year
+%        1   2   3   4   5   1   New year
+%            1   2   3   4   1   New year
+%                1   2   3   53  Previous year
+%                    1   2   53 or 52    Previous year
+%                        1   52  Previous year
+
 weeks_in_year(Y) ->
     D1 = calendar:day_of_the_week(Y, 1, 1),
     D2 = calendar:day_of_the_week(Y, 12, 31),
