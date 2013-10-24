@@ -305,7 +305,7 @@ tag_to_value(C, Date, Time) ->
 
 % Date helper functions
 day_of_year(Y,M,D) ->
-       day_of_year(Y,M,D,0).
+   day_of_year(Y,M,D,0).
 day_of_year(_Y,M,D,Count) when M =< 1 ->
    D + Count;
 day_of_year(Y,M,D,Count) when M =< 12 ->
