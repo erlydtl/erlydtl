@@ -349,40 +349,6 @@ weeknum_year(Y,M,D) ->
         _ -> Y
     end.
             
-
-%%weeknum_year(Year,Month,Date) ->
-%%   FirstMondayy = first_monday(Year),
-%%   LastyeSunday = last_sunday(Year),
-%%   % if Today < FirstMonday but still in Year, then WeekNumYear = Year - 1;
-%%    % if Today > LastSunday but still in Year, then WeekNumYear = Year + 1;
-%%    % else WeekNumYear = Year;
-%%    % WeekNumYear.
-%%
-%%    end.
-%%
-%%first_monday(Year) ->
-%%    First = (calendar:day_of_the_week(Y, 1, 1),
-%%    case First >= 1 of
-%%        true -> 
-%%            case First == 1 of
-%%                true -> 1;
-%%                false -> 
-%%        false ->
-%%            case First > 1 
-%%        
-
-        
-
-%Dates in January    Effect
-%M   T   W   T   F   S   S   Week number     Week assigned to
-%1   2   3   4   5   6   7   1   New year
-%    1   2   3   4   5   6   1   New year
-%        1   2   3   4   5   1   New year
-%            1   2   3   4   1   New year
-%                1   2   3   53  Previous year
-%                    1   2   53 or 52    Previous year
-%                        1   52  Previous year
-
 weeks_in_year(Y) ->
     D1 = calendar:day_of_the_week(Y, 1, 1),
     D2 = calendar:day_of_the_week(Y, 12, 31),
