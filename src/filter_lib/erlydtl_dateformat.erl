@@ -1,5 +1,5 @@
 -module(erlydtl_dateformat).
--export([format/1, format/2, weeknum_year/3, year_weeknum/3]).
+-export([format/1, format/2]).
 
 -define(TAG_SUPPORTED(C),
     C =:= $a orelse
@@ -38,8 +38,7 @@
     C =:= $Y orelse
     C =:= $z orelse
     C =:= $Z orelse
-    C =:= $o orelse
-    C =:= $e
+    C =:= $o
 ).
 
 %
@@ -289,10 +288,6 @@ tag_to_value($z, {Y,M,D}, _) ->
 % always positive.
 tag_to_value($Z, _, _) ->
    "TODO";
-
-%% e – the name of the timezone of the given datetime object
-tag_to_value($e, _, _) ->
-    "TODO";
 
 %% o – the ISO 8601 year number
 tag_to_value($o, {Y,M,D}, _) ->
