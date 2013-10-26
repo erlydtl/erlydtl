@@ -37,7 +37,8 @@
     C =:= $y orelse
     C =:= $Y orelse
     C =:= $z orelse
-    C =:= $Z
+    C =:= $Z orelse
+    C =:= $o
 ).
 
 %
@@ -288,6 +289,10 @@ tag_to_value($z, {Y,M,D}, _) ->
 tag_to_value($Z, _, _) ->
    "TODO";
 
+%% o – the ISO 8601 year number
+tag_to_value($o, {Y,M,D}, _) ->
+    integer_to_list(weeknum_year(Y,M,D));
+
 tag_to_value(C, Date, Time) ->
     io:format("Unimplemented tag : ~p [Date : ~p] [Time : ~p]",
         [C, Date, Time]),
@@ -320,7 +325,25 @@ year_weeknum(Y,M,D) ->
               _ -> Wk
             end
     end.
-   
+
+weeknum_year(Y,M,D) ->
+    WeekNum = year_weeknum(Y,M,D),
+    case M of
+        1 ->
+            case WeekNum of
+                53  -> Y - 1;
+                52  -> Y - 1;
+                _  -> Y
+        end;
+        12 ->
+            case WeekNum of
+                2  -> Y + 1;
+                1  -> Y + 1;
+                _  -> Y
+        end;
+        _ -> Y
+    end.
+            
 weeks_in_year(Y) ->
     D1 = calendar:day_of_the_week(Y, 1, 1),
     D2 = calendar:day_of_the_week(Y, 12, 31),

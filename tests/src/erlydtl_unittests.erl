@@ -85,7 +85,7 @@ tests() ->
 		  ]},
      {"now", [
 	      {"now functional",
-	       <<"It is the {% now \"jS o\\f F Y\" %}.">>, [{var1, ""}], generate_test_date()}
+	       <<"It is the {% now \"jS \\o\\f F Y\" %}.">>, [{var1, ""}], generate_test_date()}
 	     ]},
      {"if", [
 	     {"If/else",
