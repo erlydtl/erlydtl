@@ -328,19 +328,11 @@ year_weeknum(Y,M,D) ->
 
 weeknum_year(Y,M,D) ->
     WeekNum = year_weeknum(Y,M,D),
-    case M of
-        1 ->
-            case WeekNum of
-                53  -> Y - 1;
-                52  -> Y - 1;
-                _  -> Y
-        end;
-        12 ->
-            case WeekNum of
-                2  -> Y + 1;
-                1  -> Y + 1;
-                _  -> Y
-        end;
+    case {M, WeekNum} of
+        {1, 53} -> Y - 1;
+        {1, 52} -> Y - 1;
+        {12, 1} -> Y + 1;
+        {12, 2} -> Y + 1;
         _ -> Y
     end.
             
