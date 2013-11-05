@@ -80,6 +80,6 @@ compile_tsd(Source, Target, Config) ->
     case erlydtl_tsd_compiler:compile(Source, [{out_dir, ebin}]) of
         ok -> ok;
         Err ->
-            ?DEBUG("compile ~p -> ~p fail: ~p~n", [Source, Target, Err]),
-            rebar_base_compiler:error_tuple(Config, Source, [Err], [], [])
+            ?DEBUG("compile ~p -> ~p ~n  fail: ~P~n", [Source, Target, Err, 10]),
+            rebar_base_compiler:error_tuple(Config, Source, [], [], [])
     end.

@@ -45,7 +45,7 @@
                      fun_expr/1, case_expr/2, char/1, underscore/0,
                      function/2, attribute/2, arity_qualifier/2,
                      revert_forms/1, form_list/1]).
--import(proplists, [get_value/2, get_all_values/2]).
+-import(proplists, [get_value/3, get_all_values/2]).
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
@@ -62,11 +62,11 @@
 compile(Input) ->
     compile(Input, []).
 
-compile(Bin, _Options) when is_binary(Bin) ->
-    {ok, Scanner} = scan_and_parse(binary_to_list(Bin)),
+compile(Data, _Options) when is_binary(Data) ->
+    {ok, Scanner} = scan_and_parse(binary_to_list(Data)),
     Forms = compile_module(Scanner),
-    case compile:forms(revert_forms(Forms), []) of
-        {ok, Mod, Bin} ->
+    case compile:forms(revert_forms(Forms), [return]) of
+        {ok, Mod, Bin, _} ->
             code:purge(Mod),
             case code:load_binary(Mod, atom_to_list(Mod) ++ ".erl", Bin) of
                 {module, Mod} -> {ok, Mod, Bin};
@@ -88,15 +88,24 @@ compile(File, Options) ->
         Err -> Err
     end.
 
+compile_to_source(Bin) when is_binary(Bin) ->
+    {ok, Scanner} = scan_and_parse(binary_to_list(Bin)),
+    io_lib:format("~s~n", [erl_prettypr:format(compile_module(Scanner))]);
 compile_to_source(Filename) ->
     {ok, Data} = file:read_file(Filename),
-    {ok, Scanner} = scan_and_parse(binary_to_list(Data)),
-    io_lib:format("~s~n", [erl_prettypr:format(compile_module(Scanner))]).
+    compile_to_source(Data).
 
 
 %% ===================================================================
 %% Internal functions
 %% ===================================================================
+
+get_value(Key, Props) ->
+    get_value(Key, Props, default(Key)).
+
+default(function) -> [scan];
+default(init_state) -> [root];
+default(_) -> undefined.
 
 scan_and_parse(String) ->
     {ok, Tokens, _} = erlydtl_tsd_scanner:string(String),
@@ -265,21 +274,9 @@ compile_actions(Actions, Prefix) ->
                                [variable('S'),
                                 atom(element(2, hd(Actions)))
                                ]));
-        true -> append_tags(Tags, N)
+        N == 1, length(Tags) == 1 -> hd(Tags);
+        true -> throw({multiple_append_actions, Prefix})
      end}.
-
-append_tags([], N) ->
-    application(
-      atom(lists), atom(nthtail), 
-      [application(
-         atom(min),
-         [integer(N),
-          application(atom(length), [variable('S')])
-         ]),
-       variable('S')
-      ]);
-append_tags([Tag|Tags], N) ->
-    infix_expr(Tag, operator('++'), append_tags(Tags, N)).
 
 compile_action({Action, Tag, Value}, _Prefix, N) ->
     compile_action({Action, Tag}, {prefix, Value}, N);
@@ -294,55 +291,47 @@ compile_action({add, Tag}, Prefix, _N) ->
              true -> []
           end
        ]), 0};
-compile_action({append, Tag}, Prefix, N) ->
+compile_action({append, Tag}, Prefix, _N) ->
     P = case Prefix of
             any_prefix -> [variable('H')];
             {prefix, S} -> string(lists:reverse(S))
         end,
-    NewTag = tuple(
-               [atom(Tag), variable('P'),
-                if is_list(P) -> list(P);
-                   true -> P
-                end]),
-    {if_expr(
+    {case_expr(
+       variable('S'),
        [clause(
-          [],
-          [infix_expr(
-             integer(N + 1),
-             operator('=<'),
-             application(atom(length), [variable('S')]))
+          [list(
+             [match_expr(
+                tuple([atom(Tag), underscore(), variable('L')]),
+                variable('M'))],
+             variable('Ss'))
           ],
-          [case_expr(
-             application(
-               atom(lists), atom(nth),
-               [integer(N + 1), variable('S')]),
-             [clause(
-                [match_expr(
-                   tuple([atom(Tag), underscore(), variable('L')]),
-                   variable('M'))],
-                none,
-                [list([application(
-                         atom(setelement),
-                         [integer(3),
-                          variable('M'),
-                          if is_list(P) -> list(P, variable('L'));
-                             true -> infix_expr(P, operator('++'),
-                                                variable('L'))
-                          end])
-                      ])
-                ]),
-              clause(
-                [variable('O')],
-                none,
-                [list([NewTag, application(
-                                 atom(post_process),
-                                 [variable('O'),
-                                  atom(Tag)
-                                 ]) ])
-                ])
-             ])
+          none,
+          [list([application(
+                   atom(setelement),
+                   [integer(3),
+                    variable('M'),
+                    if is_list(P) -> list(P, variable('L'));
+                       true -> infix_expr(P, operator('++'),
+                                          variable('L'))
+                    end])
+                ],
+                variable('Ss'))
           ]),
-        clause([], [list([NewTag])])
+        clause(
+          [underscore()],
+          none,
+          [list(
+             [tuple(
+                [atom(Tag), variable('P'),
+                 if is_list(P) -> list(P);
+                    true -> P
+                 end])
+             ],
+             application(
+               atom(post_process),
+               [variable('S'),
+                atom(Tag)]))
+          ])
        ]), 1}.
 
 compile_match_state(any_stateless, _Prefix, {state,S})
@@ -508,14 +497,11 @@ compile_rule_test_() ->
           keep_state} },
         "t([H | T], S, {R, C} = P, in_text = St) ->\n"
         "    t(T,\n"
-        "      if 1 =< length(S) ->\n"
-        "\t     case lists:nth(1, S) of\n"
-        "\t       {string, _, L} = M -> [setelement(3, M, [H | L])];\n"
-        "\t       O -> [{string, P, [H]}, post_process(O, string)]\n"
-        "\t     end;\n"
-        "\t true -> [{string, P, [H]}]\n"
-        "      end\n"
-        "\t++ lists:nthtail(min(1, length(S)), S),\n"
+        "      case S of\n"
+        "\t[{string, _, L} = M | Ss] ->\n"
+        "\t    [setelement(3, M, [H | L]) | Ss];\n"
+        "\t_ -> [{string, P, [H]} | post_process(S, string)]\n"
+        "      end,\n"
         "      case H of\n"
         "\t$\\n -> {R + 1, 1};\n"
         "\t_ -> {R, C + 1}\n"
@@ -556,17 +542,13 @@ compile_rule_test_() ->
           {state,in_code}} },
         "t(\"\\\"\" ++ T, S, {R, C} = P, {in_double_quote, E}) ->\n"
         "    t(T,\n"
-        "      if 1 =< length(S) ->\n"
-        "\t     case lists:nth(1, S) of\n"
-        "\t       {string_literal, _, L} = M ->\n"
-        "\t\t   [setelement(3, M, \"\\\"\" ++ L)];\n"
-        "\t       O ->\n"
-        "\t\t   [{string_literal, P, \"\\\"\"},\n"
-        "\t\t    post_process(O, string_literal)]\n"
-        "\t     end;\n"
-        "\t true -> [{string_literal, P, \"\\\"\"}]\n"
-        "      end\n"
-        "\t++ lists:nthtail(min(1, length(S)), S),\n"
+        "      case S of\n"
+        "\t[{string_literal, _, L} = M | Ss] ->\n"
+        "\t    [setelement(3, M, \"\\\"\" ++ L) | Ss];\n"
+        "\t_ ->\n"
+        "\t    [{string_literal, P, \"\\\"\"} | post_process(S,\n"
+        "\t\t\t\t\t\t      string_literal)]\n"
+        "      end,\n"
         "      {R, C + 1}, {in_code, E})."),
      ?_test_rule(
         "== any: ==, in_code.",
@@ -661,14 +643,11 @@ compile_rule_test_() ->
           keep_state} },
         "t(\"\\n\" ++ T, S, {R, C} = P, {_, E} = St) ->\n"
         "    t(T,\n"
-        "      if 1 =< length(S) ->\n"
-        "\t     case lists:nth(1, S) of\n"
-        "\t       {foo, _, L} = M -> [setelement(3, M, \"\\n\" ++ L)];\n"
-        "\t       O -> [{foo, P, \"\\n\"}, post_process(O, foo)]\n"
-        "\t     end;\n"
-        "\t true -> [{foo, P, \"\\n\"}]\n"
-        "      end\n"
-        "\t++ lists:nthtail(min(1, length(S)), S),\n"
+        "      case S of\n"
+        "\t[{foo, _, L} = M | Ss] ->\n"
+        "\t    [setelement(3, M, \"\\n\" ++ L) | Ss];\n"
+        "\t_ -> [{foo, P, \"\\n\"} | post_process(S, foo)]\n"
+        "      end,\n"
         "      {R + 1, 1}, St)."),
      ?_test_rule(
         "_( any: \\_ (, in_code.",
@@ -751,8 +730,11 @@ compile_tag_test_() ->
 
 scanner_test_() ->
     {setup,
-     fun() -> {module, _} = compile_file("erlydtl_new_scanner.tsd") end,
-     fun({module, M}) ->
+     fun () ->
+             compile(filename:join(code:lib_dir(erlydtl, src),
+                                   "erlydtl_new_scanner.tsd"))
+     end,
+     fun ({ok, M, _, _}) ->
              F = scan,
              [?_test_scan(
                  "foo bar",
@@ -811,7 +793,8 @@ scanner_test_() ->
               %%    "foo{% verbatim %}{% endverbatim %}bar",
               %%    {ok, [{string, {1, 1}, "foo"},
               %%          {string, {1, 18}, "bar"}]})
-             ]
+             ];
+         (Err) -> ?_test(throw({setup_error, Err}))
      end}.
 
 -endif.
