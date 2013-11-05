@@ -59,8 +59,7 @@ compile(Config, _AppFile) ->
     rebar_base_compiler:run(Config,
                             [],
                             "src", ".tsd", "ebin", ".beam",
-                            fun compile_tsd/3,
-                            []).
+                            fun compile_tsd/3).
 
 
 %% ===================================================================
