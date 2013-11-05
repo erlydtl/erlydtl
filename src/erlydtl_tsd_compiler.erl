@@ -35,7 +35,7 @@
 %%%-------------------------------------------------------------------
 -module(erlydtl_tsd_compiler).
 
--export([compile_file/1, compile_string/1]).
+-export([compile/1, compile/2]).
 -export([compile_to_source/1]).
 
 -import(erl_syntax, [application/2, application/3, clause/3, clause/2,
@@ -54,24 +54,49 @@
 -record(rule, {prefix, in_state, guard, body}).
 -record(tag, {tag, guard, body}).
 
-compile_file(File) ->
-    {ok, Data} = file:read_file(File),
-    compile_string(binary_to_list(Data)).
 
-compile_string(String) ->
-    {ok, Scanner} = scan_and_parse(String),
+%% ===================================================================
+%% API
+%% ===================================================================
+
+compile(Input) ->
+    compile(Input, []).
+
+compile(Bin, _Options) when is_binary(Bin) ->
+    {ok, Scanner} = scan_and_parse(binary_to_list(Bin)),
     Forms = compile_module(Scanner),
-    case compile:forms(revert_forms(Forms)) of
+    case compile:forms(revert_forms(Forms), []) of
         {ok, Mod, Bin} ->
             code:purge(Mod),
-            code:load_binary(Mod, atom_to_list(Mod) ++ ".erl", Bin);
+            case code:load_binary(Mod, atom_to_list(Mod) ++ ".erl", Bin) of
+                {module, Mod} -> {ok, Mod, Bin};
+                Err -> Err
+            end;
+        Err -> Err
+    end;
+compile(File, Options) ->
+    {ok, Data} = file:read_file(File),
+    case compile(Data, Options) of
+        {ok, Mod, Bin} ->
+            case proplists:get_value(out_dir, Options) of
+                undefined -> ok;
+                OutDir ->
+                    OutFile = filename:join(
+                                [OutDir, atom_to_list(Mod) ++ ".beam"]),
+                    file:write_file(OutFile, Bin)
+            end;
         Err -> Err
     end.
 
 compile_to_source(Filename) ->
     {ok, Data} = file:read_file(Filename),
     {ok, Scanner} = scan_and_parse(binary_to_list(Data)),
-    io:format("~s~n~n", [erl_prettypr:format(compile_module(Scanner))]).
+    io_lib:format("~s~n", [erl_prettypr:format(compile_module(Scanner))]).
+
+
+%% ===================================================================
+%% Internal functions
+%% ===================================================================
 
 scan_and_parse(String) ->
     {ok, Tokens, _} = erlydtl_tsd_scanner:string(String),
