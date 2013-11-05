@@ -1,0 +1,220 @@
+%%%-------------------------------------------------------------------
+%%% File:      erlydtl_tsd_compiler.erl
+%%% @author    Andreas Stenius <kaos@astekk.se>
+%%% @copyright 2013 Andreas Stenius
+%%% @doc
+%%% Template Scanner Definition compiler
+%%% @end
+%%%
+%%% The MIT License
+%%%
+%%% Copyright (c) 2013 Andreas Stenius
+%%%
+%%% Permission is hereby granted, free of charge, to any person obtaining a copy
+%%% of this software and associated documentation files (the "Software"), to deal
+%%% in the Software without restriction, including without limitation the rights
+%%% to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+%%% copies of the Software, and to permit persons to whom the Software is
+%%% furnished to do so, subject to the following conditions:
+%%%
+%%% The above copyright notice and this permission notice shall be included in
+%%% all copies or substantial portions of the Software.
+%%%
+%%% THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+%%% IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+%%% FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+%%% AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+%%% LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+%%% OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+%%% THE SOFTWARE.
+%%%
+%%% @since 2013-11-05 by Andreas Stenius
+%%%
+%%% Rules based on the original erlydtl_scanner by Robert Saccon and Evan Miller.
+%%%-------------------------------------------------------------------
+
+-module erlydtl_new_scanner.
+-function scan.
+-init_state in_text.
++form -export([resume/1]) end.
+
++form \
+-record(scanner_state, { \
+          template=[], \
+          scanned=[], \
+          pos={1,1}, \
+          state=in_text \
+         }) \
+end.
+
++form \
+resume(#scanner_state{ template=Template, scanned=Scanned, \
+                       pos=Pos, state=State }) -> \
+    scan(Template, Scanned, Pos, State) \
+end.
+
+%% Rule syntax: Prefix|any|- InState[-]|any[+|-] [, Guard] : (: Body)|([Action...,] NewState [until Closer]).
+%% `state-' means a state without a closer state.
+%% Where Guard and Body are erlang expressions: expr <erlang code...> end
+
+%% Open tags
+{{ in_text-: open_var, in_code until }}.
+{% in_text-: open_tag, in_code until %}.
+
+%% Comments
+{# in_text-: in_comment until #}.
+
+%% `any+' will match the closer with the prefix..
+#} any+: skip, in_text-.
+
+%% must come before the `space any' rule (until I've added rule priorities)..
+any in_comment: skip.
+%% /comments
+
+%% The rest is "just" text..
+any in_text-: +string.
+
+%% Quoted strings
+" in_code: string_literal, in_double_quote.
+" in_double_quote: +string_literal, in_code.
+\\ in_double_quote: +string_literal, in_double_quote_escape.
+any in_double_quote: +string_literal.
+any in_double_quote_escape: +string_literal, in_double_quote.
+
+' in_code: string_literal-", in_single_quote.
+' in_single_quote: +string_literal-", in_code.
+\\ in_single_quote: +string_literal, in_single_quote_escape.
+any in_single_quote: +string_literal.
+any in_single_quote_escape: +string_literal, in_single_quote.
+
+%% Close tags
+}} any+: close_var, in_text-.
+%} any+: close_tag, in_text-. %% todo, check for `{% verbatim %}' tag
+
+%% Get back to `in_code' on these tokens:
+== any: ==, in_code.
+>= any: >=, in_code.
+<= any: <=, in_code.
+> any: >, in_code.
+< any: <, in_code.
+( any: (, in_code.
+) any: ), in_code.
+\, any: \,, in_code.
+| any: |, in_code.
+= any: =, in_code.
+\: any: \:, in_code.
+\. any: \., in_code.
+\_( any: \_ (, in_code.
+
+%% Eat space (and get back to `in_code')
+%% note that `any' here will match states *with* a closer, i.e. not `in_text'.
+%% (`any-' would match any stateless state.)
+\s any: skip, in_code.
+
+any in_code,
+  expr \
+    (H >= $a andalso H =< $z) orelse \
+    (H >= $A andalso H =< $Z) orelse \
+     H == $_ \
+  end: identifier, in_identifier.
+
+any in_code,
+  expr \
+    (H >= $0 andalso H =< $9) orelse H == $- \
+  end: number_literal, in_number.
+
+any in_code::
+  expr \
+    {error, {R, erlydtl_new_scanner, \
+             lists:concat(["Illegal character in column ", C])}, \
+     #scanner_state{ template=[H|T], scanned=S, pos=P, state=St } \
+    } \
+  end.
+
+any in_number, expr H >= $0 andalso H =< $9 end: +number_literal.
+any in_number::
+  expr \
+    {error, {R, erlydtl_new_scanner, \
+             lists:concat(["Illegal character in column ", C])}, \
+     #scanner_state{ template=[H|T], scanned=S, pos=P, state=St } \
+    } \
+  end.
+
+any in_identifier,
+  expr \
+    (H >= $a andalso H =< $z) orelse \
+    (H >= $A andalso H =< $Z) orelse \
+    (H >= $0 andalso H =< $9) orelse \
+     H == $_ \
+  end : +identifier, in_identifier.
+
+: in_text- ::
+  expr \
+    {ok, lists:reverse(post_process(S,eof))} \
+  end.
+
+: in_comment :: expr {error, "Reached end of file inside a comment."} end.
+: any :: expr {error, "Reached end of file inside a code block."} end.
+
+
+%% Process tokens as we parse them
+
+string: lists reverse.
+string_literal: lists reverse.
+number_literal: lists reverse.
+open_var: to_atom.
+close_var: to_atom.
+open_tag: to_atom.
+close_tag: to_atom.
+
+open_tag identifier, close_tag::expr is_keyword(T, all) end.
+open_tag identifier::expr is_keyword(T, open_tag) end.
+identifier, close_tag::expr is_keyword(T, close_tag) end.
+identifier::expr is_keyword(T, any) end.
+
+
+%% Utility functions
+
++form to_atom(L) when is_list(L) -> list_to_atom(L) end.
++form to_keyword(L, P) -> {to_atom(L ++ "_keyword"), P, L} end.
++form atomize(L, T) -> setelement(3, T, to_atom(L)) end.
+
+%% ouch.. not DRY at all.. but didn't like the idea of using ++ either.
+%% maybe refactor to `is_keyword(Class, "in") when Class == any; Class == all -> true;`
+%% could be more efficient as well.. (needs benchmarking)
++form \
+keywords(any) -> \
+  ["in", "not", "or", "and", "as", "by", "with"]; \
+keywords(close_tag) -> \
+  ["only", "parsed", "noop", "reversed", "openblock", "closeblock", \
+   "openvariable", "closevariable", "openbrace", "closebrace", \
+   "opencomment", "closecomment"]; \
+keywords(open_tag) -> \
+  ["autoescape", "endautoescape", "block", "endblock", "comment", \
+   "endcomment", "cycle", "extends", "filter", "endfilter", "firstof", \
+   "for", "empty", "endfor", "if", "elif", "else", "endif", \
+   "ifchanged", "endifchanged", "ifequal", "endifequal", "ifnotequal", \
+   "endifnotequal", "include", "now", "regroup", "endregroup", \
+   "spaceless", "endspaceless", "ssi", "templatetag", "widthratio", \
+   "call", "endwith", "trans", "blocktrans", "endblocktrans"]; \
+keywords(all) -> \
+  ["in", "not", "or", "and", "as", "by", "with", \
+   "only", "parsed", "noop", "reversed", "openblock", "closeblock", \
+   "openvariable", "closevariable", "openbrace", "closebrace", \
+   "opencomment", "closecomment", \
+   "autoescape", "endautoescape", "block", "endblock", "comment", \
+   "endcomment", "cycle", "extends", "filter", "endfilter", "firstof", \
+   "for", "empty", "endfor", "if", "elif", "else", "endif", \
+   "ifchanged", "endifchanged", "ifequal", "endifequal", "ifnotequal", \
+   "endifnotequal", "include", "now", "regroup", "endregroup", \
+   "spaceless", "endspaceless", "ssi", "templatetag", "widthratio", \
+   "call", "endwith", "trans", "blocktrans", "endblocktrans"] \
+end.
++form \
+is_keyword({_, _, L} = T, Class) -> \
+  L1 = lists:reverse(L), \
+  case [L1] -- keywords(Class) of \
+    [] -> to_keyword(L1, element(2, T)); \
+    _ -> atomize(L1, T) \
+  end \
+end.
