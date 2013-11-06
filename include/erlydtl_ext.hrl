@@ -20,6 +20,7 @@
           verbose = false,
           is_compiling_dir = false,
           extension_module = undefined,
+          scanner_module = erlydtl_scanner,
           scanned_tokens = []
          }).
 
