@@ -35,7 +35,7 @@
 %%%-------------------------------------------------------------------
 -module(erlydtl_tsd_compiler).
 
--export([compile/1, compile/2]).
+-export([compile/1, compile/2, format_error/1]).
 -export([compile_to_source/1]).
 
 -import(erl_syntax, [application/2, application/3, clause/3, clause/2,
@@ -63,13 +63,16 @@ compile(Input) ->
     compile(Input, []).
 
 compile(Data, _Options) when is_binary(Data) ->
-    {ok, Scanner} = scan_and_parse(binary_to_list(Data)),
-    Forms = compile_module(Scanner),
-    case compile:forms(revert_forms(Forms), [return]) of
-        {ok, Mod, Bin, _} ->
-            code:purge(Mod),
-            case code:load_binary(Mod, atom_to_list(Mod) ++ ".erl", Bin) of
-                {module, Mod} -> {ok, Mod, Bin};
+    case scan_and_parse(binary_to_list(Data)) of
+        {ok, Scanner} ->
+            Forms = compile_module(Scanner),
+            case compile:forms(revert_forms(Forms), [return]) of
+                {ok, Mod, Bin, _} ->
+                    code:purge(Mod),
+                    case code:load_binary(Mod, atom_to_list(Mod) ++ ".erl", Bin) of
+                        {module, Mod} -> {ok, Mod, Bin};
+                        Err -> Err
+                    end;
                 Err -> Err
             end;
         Err -> Err
@@ -95,6 +98,14 @@ compile_to_source(Filename) ->
     {ok, Data} = file:read_file(Filename),
     compile_to_source(Data).
 
+format_error({multiple_append_actions, Prefix}) ->
+    io_lib:format(
+      "Multiple actions not supported with append, for ~s.",
+      [case Prefix of
+           {prefix, P} -> io_lib:format("prefix ~p", [P]);
+           any_prefix -> "`any' prefix"
+       end]).
+
 
 %% ===================================================================
 %% Internal functions
@@ -108,8 +119,15 @@ default(init_state) -> [root];
 default(_) -> undefined.
 
 scan_and_parse(String) ->
-    {ok, Tokens, _} = erlydtl_tsd_scanner:string(String),
-    erlydtl_tsd_parser:parse(Tokens).
+    case erlydtl_tsd_scanner:string(String) of
+        {ok, Tokens, _} ->
+            case erlydtl_tsd_parser:parse(Tokens) of
+                ok -> ok;
+                {error, Err, _State} ->
+                    {error, Err}
+            end;
+        Err -> Err
+    end.
 
 compile_module(Scanner) ->
     [Defs, Rules, Tags] = [get_all_values(Exp, Scanner) || Exp <- [def, rule, tag]],
@@ -275,7 +293,7 @@ compile_actions(Actions, Prefix) ->
                                 atom(element(2, hd(Actions)))
                                ]));
         N == 1, length(Tags) == 1 -> hd(Tags);
-        true -> throw({multiple_append_actions, Prefix})
+        true -> throw({?MODULE, {multiple_append_actions, Prefix}})
      end}.
 
 compile_action({Action, Tag, Value}, _Prefix, N) ->
@@ -334,8 +352,8 @@ compile_action({append, Tag}, Prefix, _N) ->
           ])
        ]), 1}.
 
-compile_match_state(any_stateless, _Prefix, {state,S})
-  when not is_tuple(S) -> throw(bad_state_transition);
+compile_match_state(any_stateless, Prefix, {state,S})
+  when not is_tuple(S) -> throw({?MODULE, {bad_state_transition, Prefix, S}});
 compile_match_state(any_stateless, Prefix, _) -> compile_in_state(any_stateless, Prefix);
 compile_match_state(State, Prefix, keep_state) ->
     match_expr(

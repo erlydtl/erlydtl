@@ -77,9 +77,13 @@ info(help, compile) ->
        ]).
 
 compile_tsd(Source, Target, Config) ->
-    case erlydtl_tsd_compiler:compile(Source, [{out_dir, ebin}]) of
+    try erlydtl_tsd_compiler:compile(Source, [{out_dir, ebin}]) of
         ok -> ok;
-        Err ->
-            ?DEBUG("compile ~p -> ~p ~n  fail: ~P~n", [Source, Target, Err, 10]),
-            rebar_base_compiler:error_tuple(Config, Source, [], [], [])
+        {error, Error} ->
+            ?DEBUG("compile ~p -> ~p ~n  fail: ~P~n", [Source, Target, Error, 10]),
+            rebar_base_compiler:error_tuple(Config, Source, [{Source, [Error]}], [], [])
+    catch
+        throw:Error ->
+            ?DEBUG("compile ~p -> ~p ~n  throw: ~P~n", [Source, Target, Error, 10]),
+            rebar_base_compiler:error_tuple(Config, Source, [{Source, [Error]}], [], [])
     end.

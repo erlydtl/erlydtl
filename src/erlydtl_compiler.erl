@@ -308,7 +308,7 @@ parse(Data) ->
     parse(Data, #dtl_context{}).
 
 parse(Data, Context) when is_binary(Data) ->
-    check_scan(erlydtl_scanner:scan(binary_to_list(Data)), Context);
+    check_scan(erlydtl_new_scanner:scan(binary_to_list(Data)), Context);
 parse(File, Context) ->  
     {M, F} = Context#dtl_context.reader,
     case catch M:F(File) of
@@ -375,7 +375,7 @@ check_scan({error, Err, State}, Context) ->
         undefined ->
             {error, Err};
         {ok, NewState} ->
-            check_scan(erlydtl_scanner:resume(NewState), Context);
+            check_scan(erlydtl_new_scanner:resume(NewState), Context);
         ExtRes ->
             ExtRes
     end.
