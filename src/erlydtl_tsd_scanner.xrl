@@ -45,7 +45,7 @@ Rules.
 (\s|\t)+ : skip_token.
 \n : skip_token.
 {KEYWORDS} : {token, {list_to_atom(TokenChars), TokenLine}}.
-{CODE} : {token, {code, TokenLine, parse_code(TokenChars)}}.
+{CODE} : parse_code(TokenLine, TokenChars).
 {IDENTIFIER} : {token, {identifier, TokenLine, list_to_atom(TokenChars)}}.
 {SYMBOL} : {token, {symbols, TokenLine, unescape(TokenChars)}}.
 
@@ -63,14 +63,22 @@ unescape([], Acc) -> lists:reverse(Acc);
 unescape([$\\,C|Cs], Acc) -> unescape(Cs, [unescape(C)|Acc]);
 unescape([C|Cs], Acc) -> unescape(Cs, [C|Acc]).
 
-parse_code(Code) ->
-    {ok, Tokens, _} = erl_scan:string(
-                        unescape(string:substr(Code, 5, string:len(Code) - 7))
-                        ++ "."),
-    {ok, Exprs} = case Code of
-                      "form" ++ _ ->
-                          erl_parse:parse_form(Tokens);
-                      "expr" ++ _ ->
-                          erl_parse:parse_exprs(Tokens)
-                  end,
-    Exprs.
+parse_code(Line, Code) ->
+    Res =
+      case erl_scan:string(
+           unescape(string:substr(Code, 5, string:len(Code) - 7))
+           ++ ".") of
+        {ok, Tokens, _} ->
+            ParseFun = case Code of
+                "form" ++ _ -> parse_form;
+                "expr" ++ _ -> parse_exprs
+            end,
+            apply(erl_parse, ParseFun, [Tokens]);
+          Err -> Err
+      end,
+    case Res of
+      {ok, Parsed} -> {token, {code, Line, Parsed}};
+      {error, {ELine,EMod,EDesc}} ->
+          {error, io_lib:format("~4s:~b: ~s",
+            [Code, ELine, EMod:format_error(EDesc)])}
+    end.

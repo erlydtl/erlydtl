@@ -126,10 +126,9 @@ scan_and_parse(String) ->
         {ok, Tokens, _} ->
             case erlydtl_tsd_parser:parse(Tokens) of
                 {ok, _}=Ok -> Ok;
-                {error, Err, _State} ->
-                    {error, Err}
+                {error, Err, _State} -> {error, Err}
             end;
-        Err -> Err
+        {error, Err, _} -> {error, Err}
     end.
 
 compile_module(Scanner) ->
