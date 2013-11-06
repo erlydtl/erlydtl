@@ -109,6 +109,11 @@ lists). Defaults to `true`.
 
 * `verbose` - Enable verbose printing of compilation results.
 
+
+Additional compiler options can be provided with the `ERLYDTL_COMPILER_OPTIONS`
+OS environment variable.
+
+
 Helper compilation
 ------------------
 
