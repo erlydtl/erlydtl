@@ -59,9 +59,10 @@ compile(Binary, Module) when is_binary(Binary) ->
 compile(File, Module) ->
     compile(File, Module, []).
 
-compile(Binary, Module, Options) when is_binary(Binary) ->
+compile(Binary, Module, Options0) when is_binary(Binary) ->
     File = "",
     CheckSum = "",
+    Options = maybe_add_env_default_opts(Options0),
     Context = init_dtl_context(File, Module, Options),
     case parse(Binary, Context) of
         {ok, DjangoParseTree} ->
@@ -75,7 +76,8 @@ compile(Binary, Module, Options) when is_binary(Binary) ->
             Err
     end;
 
-compile(File, Module, Options) ->  
+compile(File, Module, Options0) ->
+    Options = maybe_add_env_default_opts(Options0),
     Context = init_dtl_context(File, Module, Options),
     case parse(File, Context) of  
         ok ->
@@ -95,7 +97,8 @@ compile(File, Module, Options) ->
 compile_dir(Dir, Module) ->
     compile_dir(Dir, Module, []).
 
-compile_dir(Dir, Module, Options) ->
+compile_dir(Dir, Module, Options0) ->
+    Options = maybe_add_env_default_opts(Options0),
     Context = init_dtl_context_dir(Dir, Module, Options),
     %% Find all files in Dir (recursively), matching the regex (no
     %% files ending in "~").
@@ -135,6 +138,35 @@ compile_dir(Dir, Module, Options) ->
 %%====================================================================
 %% Internal functions
 %%====================================================================
+
+%% shamelessly borrowed from:
+%% https://github.com/erlang/otp/blob/21095e6830f37676dd29c33a590851ba2c76499b/\
+%% lib/compiler/src/compile.erl#L128
+env_default_opts() ->
+    Key = "ERLYDTL_COMPILER_OPTIONS",
+    case os:getenv(Key) of
+        false -> [];
+        Str when is_list(Str) ->
+            case erl_scan:string(Str) of
+                {ok,Tokens,_} ->
+                    case erl_parse:parse_term(Tokens ++ [{dot, 1}]) of
+                        {ok,List} when is_list(List) -> List;
+                        {ok,Term} -> [Term];
+                        {error,_Reason} ->
+                            io:format("Ignoring bad term in ~s\n", [Key]),
+                            []
+                    end;
+                {error, {_,_,_Reason}, _} ->
+                    io:format("Ignoring bad term in ~s\n", [Key]),
+                    []
+            end
+    end.
+
+maybe_add_env_default_opts(Options) ->
+    case proplists:get_value(no_env, Options) of
+        true -> Options;
+        _ -> Options ++ env_default_opts()
+    end.
 
 write_binary(Module1, Bin, Options, Warnings) ->
     Verbose = proplists:get_value(verbose, Options, false),
