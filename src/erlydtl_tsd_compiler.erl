@@ -80,13 +80,16 @@ compile(Data, _Options) when is_binary(Data) ->
 compile(File, Options) ->
     {ok, Data} = file:read_file(File),
     case compile(Data, Options) of
-        {ok, Mod, Bin} ->
+        {ok, Mod, Bin}=Res ->
             case proplists:get_value(out_dir, Options) of
-                undefined -> ok;
+                undefined -> Res;
                 OutDir ->
                     OutFile = filename:join(
                                 [OutDir, atom_to_list(Mod) ++ ".beam"]),
-                    file:write_file(OutFile, Bin)
+                    case file:write_file(OutFile, Bin) of
+                        ok -> {ok, Mod, OutFile};
+                        Err -> Err
+                    end
             end;
         Err -> Err
     end.
@@ -641,7 +644,7 @@ compile_rule_test_() ->
          any_stateless,
          {guard,[]},
          {[],{state,in_code}} },
-        bad_state_transition),
+        {?MODULE, {bad_state_transition,{prefix,")"},in_code}}),
      ?_test_rule(
         "( any-: skip, in_code until ).",
         {rule,
@@ -752,7 +755,7 @@ scanner_test_() ->
              compile(filename:join(code:lib_dir(erlydtl, src),
                                    "erlydtl_new_scanner.tsd"))
      end,
-     fun ({ok, M, _, _}) ->
+     fun ({ok, M, _}) ->
              F = scan,
              [?_test_scan(
                  "foo bar",
@@ -802,7 +805,22 @@ scanner_test_() ->
                        {cycle_keyword, {1, 4}, "cycle"},
                        {string_literal, {1, 10}, "\"a\""},
                        {string_literal, {1, 14}, "\"b\""},
-                       {close_tag, {1, 18}, '%}'}]})
+                       {close_tag, {1, 18}, '%}'}]}),
+              ?_test_scan(
+                 "{%with a=1%}{{a}}{%endwith%}",
+                 {ok, [{open_tag, {1, 1}, '{%'},
+                       {with_keyword, {1, 3},  "with"},
+                       {identifier, {1, 8}, a},
+                       {'=', {1, 9}},
+                       {number_literal, {1, 10}, "1"},
+                       {close_tag, {1, 11}, '%}'},
+                       {open_var, {1, 13}, '{{'},
+                       {identifier, {1, 15}, a},
+                       {close_var, {1, 16}, '}}'},
+                       {open_tag, {1, 18}, '{%'},
+                       {endwith_keyword, {1, 20}, "endwith"},
+                       {close_tag, {1, 27}, '%}'}
+                      ]})
               %% ?_test_scan(
               %%    "foo{% verbatim %}bar{% endverbatim %}baz",
               %%    {ok, [{string, {1, 1}, "foo"},

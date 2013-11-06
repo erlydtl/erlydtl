@@ -78,7 +78,7 @@ info(help, compile) ->
 
 compile_tsd(Source, Target, Config) ->
     try erlydtl_tsd_compiler:compile(Source, [{out_dir, ebin}]) of
-        ok -> ok;
+        {ok, _, Target} -> ok;
         {error, Error} ->
             ?DEBUG("compile ~p -> ~p ~n  fail: ~P~n", [Source, Target, Error, 10]),
             rebar_base_compiler:error_tuple(Config, Source, [{Source, [Error]}], [], [])
