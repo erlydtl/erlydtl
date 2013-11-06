@@ -246,7 +246,8 @@ init_context(IsCompilingDir, ParseTrail, DefDir, Module, Options) ->
 		  locale = proplists:get_value(locale, Options, Ctx#dtl_context.locale),
 		  verbose = proplists:get_value(verbose, Options, Ctx#dtl_context.verbose),
 		  is_compiling_dir = IsCompilingDir,
-		  extension_module = proplists:get_value(extension_module, Options, Ctx#dtl_context.extension_module)
+		  extension_module = proplists:get_value(extension_module, Options, Ctx#dtl_context.extension_module),
+		  scanner_module = proplists:get_value(scanner_module, Options, Ctx#dtl_context.scanner_module)
 		},
     case call_extension(Context, init_context, [Context]) of
         {ok, C} when is_record(C, dtl_context) -> C;
@@ -307,8 +308,9 @@ is_up_to_date(CheckSum, Context) ->
 parse(Data) ->
     parse(Data, #dtl_context{}).
 
-parse(Data, Context) when is_binary(Data) ->
-    check_scan(erlydtl_new_scanner:scan(binary_to_list(Data)), Context);
+parse(Data, #dtl_context{ scanner_module=Scanner }=Context)
+  when is_binary(Data) ->
+    check_scan(apply(Scanner, scan, [binary_to_list(Data)]), Context);
 parse(File, Context) ->  
     {M, F} = Context#dtl_context.reader,
     case catch M:F(File) of
@@ -375,7 +377,7 @@ check_scan({error, Err, State}, Context) ->
         undefined ->
             {error, Err};
         {ok, NewState} ->
-            check_scan(erlydtl_new_scanner:resume(NewState), Context);
+            check_scan(apply(Context#dtl_context.scanner_module, resume, [NewState]), Context);
         ExtRes ->
             ExtRes
     end.

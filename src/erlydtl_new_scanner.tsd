@@ -201,7 +201,6 @@ is_keyword(open_tag, L) -> is_keyword([any, open], L); \
 is_keyword(close_tag, L) -> is_keyword([any, close], L); \
 \
 is_keyword(any, "in") -> true; \
-is_keyword(any, "in") -> true; \
 is_keyword(any, "not") -> true; \
 is_keyword(any, "or") -> true; \
 is_keyword(any, "and") -> true; \
