@@ -122,7 +122,7 @@ scan_and_parse(String) ->
     case erlydtl_tsd_scanner:string(String) of
         {ok, Tokens, _} ->
             case erlydtl_tsd_parser:parse(Tokens) of
-                ok -> ok;
+                {ok, _}=Ok -> Ok;
                 {error, Err, _State} ->
                     {error, Err}
             end;

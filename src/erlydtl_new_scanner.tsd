@@ -60,11 +60,15 @@ end.
 %% Open tags
 {{ in_text-: open_var, in_code until }}.
 {% in_text-: open_tag, in_code until %}.
+<!--{{ in_text-: open_var, in_code until }}-->.
+<!--{% in_text-: open_tag, in_code until %}-->.
 
 %% Comments
 {# in_text-: in_comment until #}.
+<!--{# in_text-: in_comment until #}-->.
 
 %% `any+' will match the closer with the prefix..
+#}--> any+: skip, in_text-.
 #} any+: skip, in_text-.
 
 %% must come before the `space any' rule (until I've added rule priorities)..
@@ -88,8 +92,10 @@ any in_single_quote: +string_literal.
 any in_single_quote_escape: +string_literal, in_single_quote.
 
 %% Close tags
+}}--> any+: close_var, in_text-.
+%}--> any+: close_tag, in_text-.
 }} any+: close_var, in_text-.
-%} any+: close_tag, in_text-. %% todo, check for `{% verbatim %}' tag
+%} any+: close_tag, in_text-.
 
 %% Get back to `in_code' on these tokens:
 == any: ==, in_code.

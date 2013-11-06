@@ -34,6 +34,10 @@
 Definitions.
 
 KEYWORDS = (any|until|skip|\+|-|:|,|\.)
+CODE = (form|expr)(.|\\\n)+end
+IDENTIFIER = [a-zA-Z_]+
+NOT_SYMBOL = a-zA-Z:.,+\s\t\n\\
+SYMBOL = (\\.|[^\-{NOT_SYMBOL}])(\\.|[^{NOT_SYMBOL}])*
 
 Rules.
 
@@ -41,9 +45,9 @@ Rules.
 (\s|\t)+ : skip_token.
 \n : skip_token.
 {KEYWORDS} : {token, {list_to_atom(TokenChars), TokenLine}}.
-(form|expr)(.|\\\n)+end : {token, {code, TokenLine, parse_code(TokenChars)}}.
-[a-zA-Z_]+ : {token, {identifier, TokenLine, list_to_atom(TokenChars)}}.
-(\\.|[^a-zA-Z:.,+\-\s\t\n\\])+ : {token, {symbols, TokenLine, unescape(TokenChars)}}.
+{CODE} : {token, {code, TokenLine, parse_code(TokenChars)}}.
+{IDENTIFIER} : {token, {identifier, TokenLine, list_to_atom(TokenChars)}}.
+{SYMBOL} : {token, {symbols, TokenLine, unescape(TokenChars)}}.
 
 
 Erlang code.
