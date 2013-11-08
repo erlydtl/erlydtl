@@ -37,7 +37,9 @@ Nonterminals
   tag_head tag_op.
   
 Terminals
-  any code identifier skip symbols until '+' '-' ':' ',' '.'.
+  '+' '-' ':' ',' '.'
+  any until skip
+  code identifier string.
 
 Rootsymbol
   scanner.
@@ -58,7 +60,7 @@ scanner_exp -> tag : {tag, '$1'}.
 %% ----------------------------------------
 %% `def'
 %% ----------------------------------------
-def -> '-' identifier args '.' : {value_of('$2'), '$3'}.
+def -> '-' arg args '.' : {atomize('$2'), '$3'}.
 def -> '+' code '.' : {code, value_of('$2')}.
 
 
@@ -67,7 +69,7 @@ def -> '+' code '.' : {code, value_of('$2')}.
 %% ----------------------------------------
 rule -> prefix state_in guard ':' rule_body '.' : {rule, '$1', '$2', '$3', '$5'}.
 
-prefix -> symbols : {prefix, value_of('$1')}.
+prefix -> string : {prefix, value_of('$1')}.
 prefix -> any : any_prefix.
 prefix -> ':' : end_of_input.
 
@@ -86,15 +88,15 @@ actions -> skip : [].
 actions -> '$empty' : [].
 
 action -> identifier : {add, value_of('$1')}.
-action -> identifier '-' symbols : {add, value_of('$1'), value_of('$3')}.
+action -> identifier '-' string : {add, value_of('$1'), value_of('$3')}.
 action -> '+' identifier : {append, value_of('$2')}.
-action -> '+' identifier '-' symbols : {append, value_of('$2'), value_of('$4')}.
-action -> symbols : {add, value_of('$1')}.
+action -> '+' identifier '-' string : {append, value_of('$2'), value_of('$4')}.
+action -> string : {add, value_of('$1')}.
 
 state_next -> state : '$1'.
 state_next -> state_new : '$1'.
 
-state_new -> identifier until symbols : {state, {value_of('$1'), value_of('$3')}}.
+state_new -> identifier until string : {state, {value_of('$1'), value_of('$3')}}.
 
 
 %% ----------------------------------------
@@ -123,7 +125,7 @@ args -> arg : ['$1'].
 args -> arg args : ['$1' | '$2'].
 
 arg -> identifier : value_of('$1').
-arg -> symbols : value_of('$1').
+arg -> string : value_of('$1').
 
 guard -> ',' code : {guard, value_of('$2')}.
 guard -> '$empty' : {guard, []}.
@@ -137,3 +139,6 @@ Erlang code.
 %% ----------------------------------------
 
 value_of({_, _, Value}) -> Value.
+
+atomize(S) when is_list(S) -> list_to_atom(S);
+atomize(A) when is_atom(A) -> A.

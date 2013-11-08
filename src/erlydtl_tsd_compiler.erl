@@ -69,7 +69,7 @@ compile(Data, _Options) when is_binary(Data) ->
             case compile:forms(revert_forms(Forms), [return]) of
                 {ok, Mod, Bin, _} ->
                     code:purge(Mod),
-                    case code:load_binary(Mod, atom_to_list(Mod) ++ ".erl", Bin) of
+                    case code:load_binary(Mod, atom_to_list(Mod) ++ ".tsd", Bin) of
                         {module, Mod} -> {ok, Mod, Bin};
                         Err -> Err
                     end;
@@ -79,7 +79,7 @@ compile(Data, _Options) when is_binary(Data) ->
     end;
 compile(File, Options) ->
     {ok, Data} = file:read_file(File),
-    case compile(Data, Options) of
+    case compile(Data, [{source, File}|Options]) of
         {ok, Mod, Bin}=Res ->
             case proplists:get_value(out_dir, Options) of
                 undefined -> Res;
@@ -464,6 +464,9 @@ compile_tag_body({code, C}, _) -> block_expr(C).
         ?test_scan_and_parse(String, Prop, Expect),
         ?test_compile(Prop, hd(Ps), Pretty)).
 
+-define(test_def(String, Def),
+       ?test_scan_and_parse(String, def, [Def])).
+
 -define(test_rule(String, Rule, Result),
         ?test_scan_parse_compile(String, rule, [Rule], Result)).
 
@@ -473,6 +476,9 @@ compile_tag_body({code, C}, _) -> block_expr(C).
 -define(test_bad_rule(String, Rule, Error),
         ?test_scan_and_parse(String, rule, [Rule]),
         ?assertThrow(Error, compile_rule(atom(t), hd(Ps)))).
+
+-define(_test_def(String, Def),
+        {?LINE, fun () -> ?test_def(String, Def) end}).
 
 -define(_test_rule(String, Rule, Result),
         {?LINE, fun () -> ?test_rule(String, Rule, Result) end}).
@@ -486,9 +492,15 @@ compile_tag_body({code, C}, _) -> block_expr(C).
 -define(_test_scan(T, E), ?_assertEqual(E, apply(M, F, [T]))).
 
 
+def_test_() ->
+    [?_test_def(
+        "-module foo.",
+        {module, ["foo"]})
+    ].
+
 compile_rule_test_() ->
     [?_test_rule(
-        "{{in_text-:open_var,in_code until}}.",
+        "{{ (in_text)-:(open_var),(in_code) .until}}.",
         {rule,
          {prefix,"{{"},
          {stateless,in_text},
@@ -499,7 +511,7 @@ compile_rule_test_() ->
         "    t(T, [{open_var, P, \"{{\"} | post_process(S, open_var)],\n"
         "      {R, C + 2}, {in_code, \"}}\"})."),
      ?_test_rule(
-        "{# in_text-: in_comment until #}.",
+        "{# (in_text)-: (in_comment).until #}.",
         {rule,
          {prefix,"{#"},
          {stateless,in_text},
@@ -508,7 +520,7 @@ compile_rule_test_() ->
         "t(\"{#\" ++ T, S, {R, C}, in_text) ->\n"
         "    t(T, S, {R, C + 2}, {in_comment, \"#}\"})."),
      ?_test_rule(
-        "any in_text-: +string.",
+        ".any (in_text)-: +(string).",
         {rule,
          any_prefix,
          {stateless,in_text},
@@ -528,7 +540,7 @@ compile_rule_test_() ->
         "      end,\n"
         "      St)."),
      ?_test_rule(
-        "\" in_code: string_literal, in_double_quote.",
+        "\" (in_code): (string_literal), (in_double_quote).",
         {rule,
          {prefix,"\""},
          {state,in_code},
@@ -541,7 +553,7 @@ compile_rule_test_() ->
         "\t\t\t\t\t\tstring_literal)],\n"
         "      {R, C + 1}, {in_double_quote, E})."),
      ?_test_rule(
-        "}} any+: close_var, in_text-.",
+        "}} .any+: (close_var), (in_text)-.",
         {rule,
          {prefix,"}}"},
          close_any_state,
@@ -553,7 +565,7 @@ compile_rule_test_() ->
         "      [{close_var, P, \"}}\"} | post_process(S, close_var)],\n"
         "      {R, C + 2}, in_text)."),
      ?_test_rule(
-        "\" in_double_quote: +string_literal, in_code.",
+        "\" (in_double_quote): +(string_literal), (in_code).",
         {rule,
          {prefix,"\""},
          {state,in_double_quote},
@@ -571,7 +583,7 @@ compile_rule_test_() ->
         "      end,\n"
         "      {R, C + 1}, {in_code, E})."),
      ?_test_rule(
-        "== any: ==, in_code.",
+        "== .any: ==, (in_code).",
         {rule,
          {prefix,"=="},
          any_state,
@@ -582,7 +594,7 @@ compile_rule_test_() ->
         "    t(T, [{'==', P} | post_process(S, '==')], {R, C + 2},\n"
         "      {in_code, E})."),
      ?_test_rule(
-        "\\ in_code: skip.",
+        "\\  (in_code): .skip.",
         {rule,
          {prefix," "},
          {state,in_code},
@@ -591,7 +603,7 @@ compile_rule_test_() ->
         "t(\" \" ++ T, S, {R, C}, {in_code, E} = St) ->\n"
         "    t(T, S, {R, C + 1}, St)."),
      ?_test_rule(
-        "\\s any: skip, in_code.",
+        "\\s .any: .skip, (in_code).",
         {rule,
          {prefix," "},
          any_state,
@@ -600,8 +612,8 @@ compile_rule_test_() ->
         "t(\" \" ++ T, S, {R, C}, {_, E}) ->\n"
         "    t(T, S, {R, C + 1}, {in_code, E})."),
      ?_test_rule(
-        "any in_code, expr H >= $0 andalso H =< $9 orelse H == $- end"
-        ": number_literal, in_number.",
+        ".any (in_code), +expr H >= $0 andalso H =< $9 orelse H == $- end"
+        ": (number_literal), (in_number).",
         {rule,
          any_prefix,
          {state,in_code},
@@ -619,7 +631,7 @@ compile_rule_test_() ->
         "      end,\n"
         "      {in_number, E})."),
      ?_test_rule(
-        "\! any:: expr io:write(\"custom code!\"), w00t end.",
+        "\! .any:: +expr io:write(\"custom code!\"), w00t end.",
         {rule,
          {prefix,"!"},
          any_state,
@@ -628,7 +640,7 @@ compile_rule_test_() ->
         "t(\"!\" ++ T, S, {R, C} = P, {_, E} = St) ->\n"
         "    io:write(\"custom code!\"), w00t."),
      ?_test_rule(
-        "=any-:skip.",
+        "=.any-:.skip.",
         {rule,
          {prefix,"="},
          any_stateless,
@@ -637,7 +649,7 @@ compile_rule_test_() ->
         "t(\"=\" ++ T, S, {R, C}, St) when is_atom(St) ->\n"
         "    t(T, S, {R, C + 1}, St)."),
      ?_test_bad_rule(
-        ") any-: skip, in_code.",
+        ") .any-: .skip, (in_code).",
         {rule,
          {prefix,")"},
          any_stateless,
@@ -645,7 +657,7 @@ compile_rule_test_() ->
          {[],{state,in_code}} },
         {?MODULE, {bad_state_transition,{prefix,")"},in_code}}),
      ?_test_rule(
-        "( any-: skip, in_code until ).",
+        "\\( .any-: .skip, (in_code) .until ).",
         {rule,
          {prefix,"("},
          any_stateless,
@@ -654,7 +666,7 @@ compile_rule_test_() ->
         "t(\"(\" ++ T, S, {R, C}, St) when is_atom(St) ->\n"
         "    t(T, S, {R, C + 1}, {in_code, \")\"})."),
      ?_test_rule(
-        "\\n any: +foo.",
+        "\\n .any: +(foo).",
         {rule,
          {prefix, "\n"},
          any_state,
@@ -670,7 +682,7 @@ compile_rule_test_() ->
         "      end,\n"
         "      {R + 1, 1}, St)."),
      ?_test_rule(
-        "_( any: \\_ (, in_code.",
+        "_( .any: \\_ \\(, (in_code).",
         {rule,
          {prefix, "_("},
          any_state,
@@ -681,7 +693,7 @@ compile_rule_test_() ->
         "    t(T, [{'(', P}, {'_', P} | post_process(S, '_')],\n"
         "      {R, C + 2}, {in_code, E})."),
      ?_test_rule(
-        "' foo-: bar-\", baz-.",
+        "' (foo)-: (bar)-\", (baz)-.",
         {rule,
          {prefix, "'"},
          {stateless,foo},
@@ -695,26 +707,26 @@ compile_rule_test_() ->
 
 compile_tag_test_() ->
     [?_test_tag(
-        "string: lists reverse.",
+        "(string): lists reverse.",
         {tag,
          [{state,string}],
          {guard,[]},
-         [[lists,reverse]]},
+         [["lists","reverse"]]},
         "t(_, {string, _, L} = T, _) ->\n"
         "    setelement(3, T, begin L1 = lists:reverse(L), L1 end)."),
      ?_test_tag(
-        "identifier: lists reverse, list_to_atom.",
+        "(identifier): lists (reverse), list_to_atom.",
         {tag,
          [{state,identifier}],
          {guard,[]},
-         [[lists,reverse],[list_to_atom]]},
+         [["lists",reverse],["list_to_atom"]]},
         "t(_, {identifier, _, L} = T, _) ->\n"
         "    setelement(3, T,\n"
         "\t       begin\n"
         "\t\t L1 = lists:reverse(L), L2 = list_to_atom(L1), L2\n"
         "\t       end)."),
      ?_test_tag(
-        "foo: dummy, :expr test:dummy(L1) end.",
+        "(foo): (dummy), :+expr test:dummy(L1) end.",
         {tag,
          [{state,foo}],
          {guard,[]},
@@ -725,25 +737,25 @@ compile_tag_test_() ->
         "\t\t L1 = dummy(L), L2 = begin test:dummy(L1) end, L2\n"
         "\t       end)."),
      ?_test_tag(
-        "foo::expr setelement(1, T, bar) end.",
+        "(foo)::+expr setelement(1, T, bar) end.",
         {tag,
          [{state,foo}],
          {guard,[]},
          [{code,_}]},
         "t(_, {foo, _, L} = T, _) -> setelement(1, T, bar)."),
      ?_test_tag(
-        "foo, bar::expr setelement(1, T, baz) end.",
+        "(foo), (bar)::+expr setelement(1, T, baz) end.",
         {tag,
          {[{state,foo}],{state,bar}},
          {guard,[]},
          [{code,_}]},
         "t(_, {foo, _, L} = T, bar) -> setelement(1, T, baz)."),
      ?_test_tag(
-        "foo bar: to_atom.",
+        "(foo) (bar): to_atom.",
         {tag,
          [{state,bar},{state,foo}],
          {guard,[]},
-         [[to_atom]]},
+         [["to_atom"]]},
         "t([{foo, _, _} | _], {bar, _, L} = T, _) ->\n"
         "    setelement(3, T, begin L1 = to_atom(L), L1 end).")
     ].
@@ -819,15 +831,20 @@ scanner_test_() ->
                        {open_tag, {1, 18}, '{%'},
                        {endwith_keyword, {1, 20}, "endwith"},
                        {close_tag, {1, 27}, '%}'}
-                      ]})
-              %% ?_test_scan(
-              %%    "foo{% verbatim %}bar{% endverbatim %}baz",
-              %%    {ok, [{string, {1, 1}, "foo"},
-              %%          {string, {1, 18}, "barbaz"}]}),
-              %% ?_test_scan(
-              %%    "foo{% verbatim %}{% endverbatim %}bar",
-              %%    {ok, [{string, {1, 1}, "foo"},
-              %%          {string, {1, 18}, "bar"}]})
+                      ]}),
+              ?_test_scan(
+                 "foo{% verbatim %}bar{% endverbatim %}baz",
+                 {ok, [{string, {1, 1}, "foo"},
+                       {string, {1, 18}, "barbaz"}]}),
+              ?_test_scan(
+                 "foo{% verbatim %}{% endverbatim %}bar",
+                 {ok, [{string, {1, 1}, "foo"},
+                       {string, {1, 18}, "bar"}]}),
+              ?_test_scan(
+                 "foo{% verbatim bar %}bar{% verbatim %}baz{% endverbatim baz %}{% endverbatim bar %}",
+                 {ok, [{string, {1, 1}, "foo"},
+                       {string, {1, 22}, "bar{% verbatim %}baz{% endverbatim baz %}"}]}
+                )
              ];
          (Err) -> ?_test(throw({setup_error, Err}))
      end}.

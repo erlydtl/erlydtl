@@ -33,24 +33,30 @@
 
 Definitions.
 
-KEYWORDS = (any|until|skip|\+|-|:|,|\.)
-CODE = (form|expr)(.|\\\n)+end
-IDENTIFIER = [a-zA-Z_]+
-NOT_SYMBOL = a-zA-Z:.,+\s\t\n\\
-SYMBOL = (\\.|[^\-{NOT_SYMBOL}])(\\.|[^{NOT_SYMBOL}])*
+KEYWORDS = (\.[a-zA-Z]+|\+|-|:|,|\.)
+CODE = \+(form|expr)(.|\\\n)+end
+IDENTIFIER = \((\\.|[^)])+\)
+STRING = (\\.|[^(A-Z:.,+\-\s\t\n\\])(\\.|[^.,\s\t\n\\])*
 
 Rules.
 
 \%\%.*\n : skip_token.
-(\s|\t)+ : skip_token.
-\n : skip_token.
-{KEYWORDS} : {token, {list_to_atom(TokenChars), TokenLine}}.
+(\s|\t|\n)+ : skip_token.
+{KEYWORDS} : {token, {keyword(TokenChars), TokenLine}}.
 {CODE} : parse_code(TokenLine, TokenChars).
-{IDENTIFIER} : {token, {identifier, TokenLine, list_to_atom(TokenChars)}}.
-{SYMBOL} : {token, {symbols, TokenLine, unescape(TokenChars)}}.
+{IDENTIFIER} : {token, {identifier, TokenLine, identifier(TokenChars)}}.
+{STRING} : {token, {string, TokenLine, unescape(TokenChars)}}.
 
 
 Erlang code.
+
+keyword([$.]) -> '.';
+keyword([$.|Cs]) -> list_to_atom(Cs);
+keyword(Cs) -> list_to_atom(Cs).
+
+identifier(Cs) ->
+    list_to_atom(
+      lists:sublist(Cs, 2, length(Cs) - 2)).
 
 unescape($n) -> $\n;
 unescape($r) -> $\r;
@@ -66,12 +72,12 @@ unescape([C|Cs], Acc) -> unescape(Cs, [C|Acc]).
 parse_code(Line, Code) ->
     Res =
       case erl_scan:string(
-           unescape(string:substr(Code, 5, string:len(Code) - 7))
+           unescape(string:substr(Code, 6, string:len(Code) - 8))
            ++ ".") of
         {ok, Tokens, _} ->
             ParseFun = case Code of
-                "form" ++ _ -> parse_form;
-                "expr" ++ _ -> parse_exprs
+                "+form" ++ _ -> parse_form;
+                "+expr" ++ _ -> parse_exprs
             end,
             apply(erl_parse, ParseFun, [Tokens]);
           Err -> Err
