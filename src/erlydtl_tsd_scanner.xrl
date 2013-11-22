@@ -31,12 +31,14 @@
 %%% @since 2013-11-05 by Andreas Stenius
 %%%-------------------------------------------------------------------
 
+
 Definitions.
 
-KEYWORDS = (\.[a-zA-Z]+|\+|-|:|,|\.)
-CODE = \+(form|expr)(.|\\\n)+end
-IDENTIFIER = \((\\.|[^)])+\)
-STRING = (\\.|[^(A-Z:.,+\-\s\t\n\\])(\\.|[^.,\s\t\n\\])*
+KEYWORDS = (any|skip|until|\+|-|:|,|\.)
+CODE = (form|expr)(.|\\\n)+end
+IDENTIFIER = [a-zA-Z][a-zA-Z0-9_]*
+NUMBER = [0-9]+
+SYMBOLS = (\\.|[^a-zA-Z0-9'":.,+\-\s\t\n\\])(\\.|[^.,\s\t\n\\])*
 
 Rules.
 
@@ -44,19 +46,17 @@ Rules.
 (\s|\t|\n)+ : skip_token.
 {KEYWORDS} : {token, {keyword(TokenChars), TokenLine}}.
 {CODE} : parse_code(TokenLine, TokenChars).
-{IDENTIFIER} : {token, {identifier, TokenLine, identifier(TokenChars)}}.
-{STRING} : {token, {string, TokenLine, unescape(TokenChars)}}.
-
+{IDENTIFIER} : {token, {identifier, TokenLine, list_to_atom(TokenChars)}}.
+{NUMBER} : {token, {number, TokenLine, list_to_integer(TokenChars)}}.
+{SYMBOLS} : {token, {string, TokenLine, unescape(TokenChars)}}.
+'[^']*' : {token, {string, TokenLine, string:strip(TokenChars, both, $')}}.
+"[^"]*" : {token, {string, TokenLine, string:strip(TokenChars, both, $")}}.
 
 Erlang code.
 
 keyword([$.]) -> '.';
 keyword([$.|Cs]) -> list_to_atom(Cs);
 keyword(Cs) -> list_to_atom(Cs).
-
-identifier(Cs) ->
-    list_to_atom(
-      lists:sublist(Cs, 2, length(Cs) - 2)).
 
 unescape($n) -> $\n;
 unescape($r) -> $\r;
@@ -72,12 +72,12 @@ unescape([C|Cs], Acc) -> unescape(Cs, [C|Acc]).
 parse_code(Line, Code) ->
     Res =
       case erl_scan:string(
-           unescape(string:substr(Code, 6, string:len(Code) - 8))
+           unescape(string:substr(Code, 5, string:len(Code) - 7))
            ++ ".") of
         {ok, Tokens, _} ->
             ParseFun = case Code of
-                "+form" ++ _ -> parse_form;
-                "+expr" ++ _ -> parse_exprs
+                "form" ++ _ -> parse_form;
+                "expr" ++ _ -> parse_exprs
             end,
             apply(erl_parse, ParseFun, [Tokens]);
           Err -> Err

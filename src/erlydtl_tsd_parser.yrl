@@ -32,14 +32,13 @@
 %%%-------------------------------------------------------------------
 
 Nonterminals
-  action actions arg args def guard prefix rule rule_body scanner
-  scanner_exp state state_in state_new state_next states tag tag_body
-  tag_head tag_op.
+  action actions arg args attr guard prefix rule rule_body prio
+  scanner scanner_exp state state_in state_new state_next states tag
+  tag_body tag_head tag_op.
   
 Terminals
   '+' '-' ':' ',' '.'
-  any until skip
-  code identifier string.
+  any code identifier number skip string until.
 
 Rootsymbol
   scanner.
@@ -52,22 +51,24 @@ Expect 1.
 scanner -> scanner_exp : ['$1'].
 scanner -> scanner_exp scanner : ['$1' | '$2'].
 
-%% A Scanner is made up of `def' `rule' and `tag' expressions.
-scanner_exp -> def : {def, '$1'}.
+%% A Scanner is made up of `attr' `rule', `tag' and `form' expressions.
+scanner_exp -> attr : {attr, '$1'}.
 scanner_exp -> rule : {rule, '$1'}.
 scanner_exp -> tag : {tag, '$1'}.
+scanner_exp -> code '.' : {form, value_of('$1')}.
 
 %% ----------------------------------------
-%% `def'
+%% `attr'
 %% ----------------------------------------
-def -> '-' arg args '.' : {atomize('$2'), '$3'}.
-def -> '+' code '.' : {code, value_of('$2')}.
+attr -> '-' identifier args '.' : {value_of('$2'), '$3'}.
 
 
 %% ----------------------------------------
 %% `rule'
 %% ----------------------------------------
-rule -> prefix state_in guard ':' rule_body '.' : {rule, '$1', '$2', '$3', '$5'}.
+rule -> prio prefix state_in guard ':' rule_body '.' : {rule, '$1', '$2', '$3', '$4', '$6'}.
+
+prio -> number : {prio, value_of('$1')}.
 
 prefix -> string : {prefix, value_of('$1')}.
 prefix -> any : any_prefix.
@@ -139,6 +140,3 @@ Erlang code.
 %% ----------------------------------------
 
 value_of({_, _, Value}) -> Value.
-
-atomize(S) when is_list(S) -> list_to_atom(S);
-atomize(A) when is_atom(A) -> A.

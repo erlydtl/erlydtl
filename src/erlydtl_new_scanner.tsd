@@ -36,9 +36,9 @@
 -module erlydtl_new_scanner.
 -function scan.
 -init_state in_text.
-++form -export([resume/1]) end.
+form -export([resume/1]) end.
 
-++form \
+form \
 -record(scanner_state, { \
           template=[], \
           scanned=[], \
@@ -47,56 +47,56 @@
          }) \
 end.
 
-++form \
+form \
 resume(#scanner_state{ template=Template, scanned=Scanned, \
                        pos=Pos, state=State }) -> \
     scan(Template, Scanned, Pos, State) \
 end.
 
-%% Rule syntax: Prefix|.any|- (InState)[-]|.any[+|-] [, Guard] : {: Body}|{[(Action)...,] (NewState) [.until Closer]}.
-%% `(state)-' means a state without a closer state.
-%% Where Guard and Body are one erlang expression (see it as a begin ... end block): +expr <erlang code...> end
+%% Rule syntax: Prio Prefix|any|- InState[-]|any[+|-] [, Guard] : {: Body}|{[Action...,] NewState [until Closer]}.
+%% `state-' means a state without a closer state.
+%% Where Guard and Body are one erlang expression (see it as a begin ... end block): expr <erlang code...> end
 
 %% Open tags
-{{ (in_text)-:(open_var), (in_code).until }}.
-{% (in_text)-:(open_tag), (in_code).until %}.
-<!--{{ (in_text)-:(open_var), (in_code).until }}-->.
-<!--{% (in_text)-:(open_tag), (in_code).until %}-->.
+10 {{ in_text-: open_var, in_code until }}.
+10 {% in_text-: open_tag, in_code until %}.
+10 <!--{{ in_text-: open_var, in_code until }}-->.
+10 <!--{% in_text-: open_tag, in_code until %}-->.
 
 %% Comments
-{# (in_text)-:(in_comment).until #}.
-<!--{# (in_text)-:(in_comment).until #}-->.
+20 {# in_text-: in_comment until #}.
+20 <!--{# in_text-: in_comment until #}-->.
 
-%% `.any+' will match the closer with the prefix..
-#}--> .any+: .skip, (in_text)-.
-#} .any+: .skip, (in_text)-.
+%% `any+' will match the closer with the prefix..
+30 #}--> any+: skip, in_text-.
+30 #} any+: skip, in_text-.
 
 %% must come before the `space any' rule
-.any (in_comment): .skip.
+40 any in_comment: skip.
 %% end comment rules
 
 %% The rest is "just" text..
-.any (in_text)-: +(string).
+50 any in_text-: +string.
 
 %% Quoted strings
-" (in_code): (string_literal), (in_double_quote).
-" (in_double_quote): +(string_literal), (in_code).
-\\ (in_double_quote): +(string_literal), (in_double_quote_escape).
-.any (in_double_quote): +(string_literal).
-.any (in_double_quote_escape): +(string_literal), (in_double_quote).
+60 \" in_code: string_literal, in_double_quote.
+62 \" in_double_quote: +string_literal, in_code.
+64 \\ in_double_quote: +string_literal, in_double_quote_escape.
+66 any in_double_quote: +string_literal.
+68 any in_double_quote_escape: +string_literal, in_double_quote.
 
-' (in_code): (string_literal)-", (in_single_quote).
-' (in_single_quote): +(string_literal)-", (in_code).
-\\ (in_single_quote): +(string_literal), (in_single_quote_escape).
-.any (in_single_quote): +(string_literal).
-.any (in_single_quote_escape): +(string_literal), (in_single_quote).
+60 \' in_code: string_literal-\", in_single_quote.
+62 \' in_single_quote: +string_literal-\", in_code.
+64 \\ in_single_quote: +string_literal, in_single_quote_escape.
+66 any in_single_quote: +string_literal.
+68 any in_single_quote_escape: +string_literal, in_single_quote.
 
 %% Close tags
-}}--> .any+: (close_var), (in_text)-.
-%}--> .any+: (close_tag), (in_text)-.
-}} .any+: (close_var), (in_text)-.
-%} .any+::
-  +expr \
+70 }}--> any+: close_var, in_text-.
+70 %}--> any+: close_tag, in_text-.
+72 }} any+: close_var, in_text-.
+72 %} any+::
+  expr \
     case S of \
       [{identifier,_,"mitabrev"}, {open_tag,_,'{%'}|Ss] -> \
         scan(T, [{string, {R, C + 2}, ""} | Ss], \
@@ -105,63 +105,63 @@ end.
         scan(T, [{string, {R, C + 2}, ""} | Ss], \
              {R, C + 2}, {in_verbatim, Tag}); \
       _ -> scan(T, [{close_tag, P, "%}"} | post_process(S, close_tag)], \
-                {R, C + 2}, (in_text)) \
+                {R, C + 2}, in_text) \
     end \
   end.  
 
 %% verbatim stuff
-{% (in_verbatim)::
-  +expr scan(T, S, {R, C + 2}, {in_verbatim_code, {E, "%{"}}) end.
-\s (in_verbatim_code)::
-  +expr \
+80 {% in_verbatim::
+  expr scan(T, S, {R, C + 2}, {in_verbatim_code, {E, "%{"}}) end.
+82 \s in_verbatim_code::
+  expr \
     {Tag, Backtrack} = E, \
     scan(T, S, {R, C + 1}, {in_verbatim_code, {Tag, [$\ |Backtrack]}}) \
   end.
-endverbatim%} (in_verbatim_code),
-  +expr element(1, E) =:= undefined end::
-  +expr scan(T, S, {R, C + 13}, (in_text)) end.
-endverbatim\s (in_verbatim_code)::
-  +expr \
+84 'endverbatim%}' in_verbatim_code,
+  expr element(1, E) =:= undefined end::
+  expr scan(T, S, {R, C + 13}, in_text) end.
+86 'endverbatim ' in_verbatim_code::
+  expr \
     {Tag, Backtrack} = E, \
     scan(T, S, {R, C + 12}, \
          {in_endverbatim_code, \
           {Tag, lists:reverse("endverbatim ", Backtrack), ""}}) \
   end.
-\s (in_endverbatim_code),
-  +expr element(3, E) =:= "" end::
-  +expr \
+88 \s in_endverbatim_code,
+  expr element(3, E) =:= "" end::
+  expr \
     {Tag, Backtrack, EndTag} = E, \
     scan(T, S, {R, C + 1}, \
          {in_endverbatim_code, \
           {Tag, [$\ |Backtrack], EndTag}}) \
   end.
-.any (in_endverbatim_code),
-  +expr \
+90 any in_endverbatim_code,
+  expr \
     H >= $a andalso H =< $z orelse \
     H >= $0 andalso H =< $9 orelse H =:= $_ end::
-  +expr \
+  expr \
     {Tag, Backtrack, EndTag} = E, \
     scan(T, S, {R, C + 1}, \
          {in_endverbatim_code, \
           {Tag, [H|Backtrack], [H|EndTag]}}) \
   end.
-\s (in_endverbatim_code),
-  +expr element(1, E) =:= element(3, E) end::
-  +expr \
+92 \s in_endverbatim_code,
+  expr element(1, E) =:= element(3, E) end::
+  expr \
     {Tag, Backtrack, Tag} = E, \
     scan(T, S, {R, C + 1}, \
          {in_endverbatim_code, \
           {Tag, [$\ |Backtrack], Tag}}) \
   end.
-%} (in_endverbatim_code),
-  +expr element(1, E) =:= element(3, E) end::
-  +expr scan(T, S, {R, C + 2}, (in_text)) end.
-%} (in_endverbatim_code),
-  +expr element(1, E) =:= undefined andalso \
+94 %} in_endverbatim_code,
+  expr element(1, E) =:= element(3, E) end::
+  expr scan(T, S, {R, C + 2}, (in_text)) end.
+96 %} in_endverbatim_code,
+  expr element(1, E) =:= undefined andalso \
         element(3, E) =:= "" end::
-  +expr scan(T, S, {R, C + 2}, (in_text)) end.
-.any (in_endverbatim_code)::
-  +expr \
+  expr scan(T, S, {R, C + 2}, in_text) end.
+98 any in_endverbatim_code::
+  expr \
     {Tag, Backtrack, _} = E, \
     scan(T, \
          case S of \
@@ -172,8 +172,8 @@ endverbatim\s (in_verbatim_code)::
          case H of $\n -> {R + 1, 1}; _ -> {R, C + 1} end, \
          {in_verbatim, Tag}) \
   end.
-.any (in_verbatim_code)::
-  +expr \
+100 any in_verbatim_code::
+  expr \
     {Tag, Backtrack} = E, \
     scan(T, \
          case S of \
@@ -184,8 +184,8 @@ endverbatim\s (in_verbatim_code)::
          case H of $\n -> {R + 1, 1}; _ -> {R, C + 1} end, \
          {in_verbatim, Tag}) \
   end.
-.any (in_verbatim)::
-  +expr \
+102 any in_verbatim::
+  expr \
     scan(T, \
          case S of \
            [{string,_, L}=M|Ss] -> \
@@ -198,95 +198,95 @@ endverbatim\s (in_verbatim_code)::
 
 
 %% Get back to `in_code' on these tokens:
-== .any: ==, (in_code).
-!= .any: !=, (in_code).
->= .any: >=, (in_code).
-<= .any: <=, (in_code).
-> .any: >, (in_code).
-< .any: <, (in_code).
-\( .any: \(, (in_code).
-) .any: ), (in_code).
-\, .any: \,, (in_code).
-| .any: |, (in_code).
-= .any: =, (in_code).
-\: .any: \:, (in_code).
-\. .any: \., (in_code).
-\_( .any: \_ \(, (in_code).
+110 == any: ==, in_code.
+110 != any: !=, in_code.
+110 >= any: >=, in_code.
+110 <= any: <=, in_code.
+110 > any: >, in_code.
+110 < any: <, in_code.
+110 ( any: (, in_code.
+110 ) any: ), in_code.
+110 \, any: \,, in_code.
+110 | any: |, in_code.
+110 = any: =, in_code.
+110 \: any: \:, in_code.
+110 \. any: \., in_code.
+110 \_( any: \_ \(, in_code.
 
 %% Eat space (and get back to `in_code')
-%% note that `any' here will match states *with* a closer, i.e. not `(in_text)'.
+%% note that `any' here will match states *with* a closer, i.e. not `in_text'.
 %% (`any-' would match any stateless state.)
-\s .any: .skip, (in_code).
+110 \s any: skip, in_code.
 
-.any (in_code),
-  +expr \
+120 any in_code,
+  expr \
     (H >= $a andalso H =< $z) orelse \
     (H >= $A andalso H =< $Z) orelse \
      H == $_ \
-  end: (identifier), (in_identifier).
+  end: identifier, in_identifier.
 
-.any (in_code),
-  +expr \
+122 any in_code,
+  expr \
     (H >= $0 andalso H =< $9) orelse H == $- \
-  end: (number_literal), (in_number).
+  end: number_literal, in_number.
 
-.any (in_code)::
-  +expr \
+124 any in_code::
+  expr \
     {error, {R, erlydtl_new_scanner, \
              lists:concat(["Illegal character in column ", C])}, \
      #scanner_state{ template=[H|T], scanned=S, pos=P, state=St } \
     } \
   end.
 
-.any (in_number), +expr H >= $0 andalso H =< $9 end: +(number_literal).
-.any (in_number)::
-  +expr \
+130 any in_number, expr H >= $0 andalso H =< $9 end: +number_literal.
+132 any in_number::
+  expr \
     {error, {R, erlydtl_new_scanner, \
              lists:concat(["Illegal character in column ", C])}, \
      #scanner_state{ template=[H|T], scanned=S, pos=P, state=St } \
     } \
   end.
 
-.any (in_identifier),
-  +expr \
+140 any in_identifier,
+  expr \
     (H >= $a andalso H =< $z) orelse \
     (H >= $A andalso H =< $Z) orelse \
     (H >= $0 andalso H =< $9) orelse \
      H == $_ \
-  end: +(identifier), (in_identifier).
+  end: +identifier, in_identifier.
 
-: (in_text)- ::
-  +expr \
+200 : in_text- ::
+  expr \
     {ok, lists:reverse(post_process(S,eof))} \
   end.
 
-: (in_comment) :: +expr {error, "Reached end of file inside a comment."} end.
-: .any :: +expr {error, "Reached end of file inside a code block."} end.
+202 : in_comment :: expr {error, "Reached end of file inside a comment."} end.
+204 : any :: expr {error, "Reached end of file inside a code block."} end.
 
 
 %% Process tokens as we parse them
 
-(string): lists reverse.
-(string_literal): lists reverse.
-(number_literal): lists reverse.
-(open_var): to_atom.
-(close_var): to_atom.
-(open_tag): to_atom.
-(close_tag): to_atom.
+string: lists reverse.
+string_literal: lists reverse.
+number_literal: lists reverse.
+open_var: to_atom.
+close_var: to_atom.
+open_tag: to_atom.
+close_tag: to_atom.
 
-(open_tag) (identifier), (close_tag)::+expr is_keyword(all, T) end.
-(open_tag) (identifier)::+expr is_keyword(open_tag, T) end.
-(identifier), (close_tag)::+expr is_keyword(close_tag, T) end.
-(identifier)::+expr is_keyword(any, T) end.
+open_tag identifier, close_tag:: expr is_keyword(all, T) end.
+open_tag identifier:: expr is_keyword(open_tag, T) end.
+identifier, close_tag:: expr is_keyword(close_tag, T) end.
+identifier:: expr is_keyword(any, T) end.
 
 
 %% Utility functions
 
-++form to_atom(L) when is_list(L) -> list_to_atom(L) end.
-++form to_keyword(L, P) -> {to_atom(L ++ "_keyword"), P, L} end.
-++form atomize(L, T) -> setelement(3, T, to_atom(L)) end.
+form to_atom(L) when is_list(L) -> list_to_atom(L) end.
+form to_keyword(L, P) -> {to_atom(L ++ "_keyword"), P, L} end.
+form atomize(L, T) -> setelement(3, T, to_atom(L)) end.
 
-++form \
+form \
   is_keyword(Class, {_, _, L} = T) -> \
     L1 = lists:reverse(L), \
     case is_keyword(Class, L1) of \
