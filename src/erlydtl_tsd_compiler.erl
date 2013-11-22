@@ -121,13 +121,18 @@ default(function) -> [scan];
 default(init_state) -> [root];
 default(_) -> undefined.
 
+parsed(rule, Rules) ->
+    {rule, lists:keysort(#rule.prio, Rules)};
+parsed(Key, Values) ->
+    {Key, Values}.
+
 scan_and_parse(String) ->
     case erlydtl_tsd_scanner:string(String) of
         {ok, Tokens, _} ->
             case erlydtl_tsd_parser:parse(Tokens) of
                 {ok, Props} ->
                     Keys = proplists:get_keys(Props),
-                    Scanner = lists:zip(Keys, [get_all_values(Key, Props) || Key <- Keys]),
+                    Scanner = [parsed(Key, get_all_values(Key, Props)) || Key <- Keys],
                     {ok, Scanner};
                 {error, Err, _State} -> {error, Err}
             end;
@@ -456,12 +461,12 @@ compile_tag_body({code, C}, _) -> block_expr(C).
         Ps = get_value(Prop, Scanner),
         ?assertMatch(Expect, Ps)).
 
--define(test_compile(Prop, Value, Pretty),
+-define(test_compile(Prop, Values, Pretty),
         Clause = case Prop of
-                     rule -> compile_rule(atom(t), Value);
-                     tag -> compile_tag(atom(t), Value)
+                     rule -> [compile_rule(atom(t), Rule) || Rule <- Values];
+                     tag -> [compile_tag(atom(t), Tag) || Tag <- Values]
                  end,
-        Tree = function(atom(t), [Clause]),
+        Tree = function(atom(t), Clause),
         ?assertEqual(
            Pretty,
            erl_prettypr:format(Tree))
@@ -469,13 +474,16 @@ compile_tag_body({code, C}, _) -> block_expr(C).
 
 -define(test_scan_parse_compile(String, Prop, Expect, Pretty),
         ?test_scan_and_parse(String, Prop, Expect),
-        ?test_compile(Prop, hd(Ps), Pretty)).
+        ?test_compile(Prop, Ps, Pretty)).
 
 -define(test_attr(String, Attr),
        ?test_scan_and_parse(String, attr, [Attr])).
 
 -define(test_rule(String, Rule, Result),
         ?test_scan_parse_compile(String, rule, [Rule], Result)).
+
+-define(test_rules(String, Rules, Result),
+        ?test_scan_parse_compile(String, rule, Rules, Result)).
 
 -define(test_tag(String, Tag, Result),
         ?test_scan_parse_compile(String, tag, [Tag], Result)).
@@ -489,6 +497,9 @@ compile_tag_body({code, C}, _) -> block_expr(C).
 
 -define(_test_rule(String, Rule, Result),
         {?LINE, fun () -> ?test_rule(String, Rule, Result) end}).
+
+-define(_test_rules(String, Rules, Result),
+        {?LINE, fun () -> ?test_rules(String, Rules, Result) end}).
 
 -define(_test_tag(String, Tag, Result),
         {?LINE, fun () -> ?test_tag(String, Tag, Result) end}).
@@ -726,7 +737,32 @@ compile_rule_test_() ->
           {stateless,baz}} },
         "t(\"'\" ++ T, S, {R, C} = P, foo) ->\n"
         "    t(T, [{bar, P, \"\\\"\"} | post_process(S, bar)],\n"
-        "      {R, C + 1}, baz).")
+        "      {R, C + 1}, baz)."),
+     ?_test_rules(
+        "17 'c' any::expr 17 end.\n"
+        "5 'a' any::expr 5 end.\n"
+        "10 \"b\" any::expr 10 end.",
+        [{rule,
+          {prio, 5},
+          {prefix, "a"},
+          any_state,
+          {guard,[]},
+          {code, _} },
+         {rule,
+          {prio, 10},
+          {prefix, "b"},
+          any_state,
+          {guard,[]},
+          {code, _} },
+         {rule,
+          {prio, 17},
+          {prefix, "c"},
+          any_state,
+          {guard,[]},
+          {code, _} }],
+        "t(\"a\" ++ T, S, {R, C} = P, {_, E} = St) -> 5;\n"
+        "t(\"b\" ++ T, S, {R, C} = P, {_, E} = St) -> 10;\n"
+        "t(\"c\" ++ T, S, {R, C} = P, {_, E} = St) -> 17.")
     ].
 
 compile_tag_test_() ->
