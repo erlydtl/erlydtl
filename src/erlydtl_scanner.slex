@@ -95,7 +95,7 @@ end.
 70 }}--> any+: close_var, in_text-.
 70 %}--> any+: close_tag, in_text-.
 72 }} any+: close_var, in_text-.
-72 %} any+::
+72 %} any+:
   expr \
     case S of \
       [{identifier,_,"mitabrev"}, {open_tag,_,'{%'}|Ss] -> \
@@ -110,17 +110,17 @@ end.
   end.  
 
 %% verbatim stuff
-80 {% in_verbatim::
+80 {% in_verbatim:
   expr scan(T, S, {R, C + 2}, {in_verbatim_code, {E, "%{"}}) end.
-82 \s in_verbatim_code::
+82 \s in_verbatim_code:
   expr \
     {Tag, Backtrack} = E, \
     scan(T, S, {R, C + 1}, {in_verbatim_code, {Tag, [$\ |Backtrack]}}) \
   end.
 84 'endverbatim%}' in_verbatim_code,
-  expr element(1, E) =:= undefined end::
+  expr element(1, E) =:= undefined end:
   expr scan(T, S, {R, C + 13}, in_text) end.
-86 'endverbatim ' in_verbatim_code::
+86 'endverbatim ' in_verbatim_code:
   expr \
     {Tag, Backtrack} = E, \
     scan(T, S, {R, C + 12}, \
@@ -128,7 +128,7 @@ end.
           {Tag, lists:reverse("endverbatim ", Backtrack), ""}}) \
   end.
 88 \s in_endverbatim_code,
-  expr element(3, E) =:= "" end::
+  expr element(3, E) =:= "" end:
   expr \
     {Tag, Backtrack, EndTag} = E, \
     scan(T, S, {R, C + 1}, \
@@ -138,7 +138,7 @@ end.
 90 any in_endverbatim_code,
   expr \
     H >= $a andalso H =< $z orelse \
-    H >= $0 andalso H =< $9 orelse H =:= $_ end::
+    H >= $0 andalso H =< $9 orelse H =:= $_ end:
   expr \
     {Tag, Backtrack, EndTag} = E, \
     scan(T, S, {R, C + 1}, \
@@ -146,7 +146,7 @@ end.
           {Tag, [H|Backtrack], [H|EndTag]}}) \
   end.
 92 \s in_endverbatim_code,
-  expr element(1, E) =:= element(3, E) end::
+  expr element(1, E) =:= element(3, E) end:
   expr \
     {Tag, Backtrack, Tag} = E, \
     scan(T, S, {R, C + 1}, \
@@ -154,13 +154,13 @@ end.
           {Tag, [$\ |Backtrack], Tag}}) \
   end.
 94 %} in_endverbatim_code,
-  expr element(1, E) =:= element(3, E) end::
+  expr element(1, E) =:= element(3, E) end:
   expr scan(T, S, {R, C + 2}, (in_text)) end.
 96 %} in_endverbatim_code,
   expr element(1, E) =:= undefined andalso \
-        element(3, E) =:= "" end::
+        element(3, E) =:= "" end:
   expr scan(T, S, {R, C + 2}, in_text) end.
-98 any in_endverbatim_code::
+98 any in_endverbatim_code:
   expr \
     {Tag, Backtrack, _} = E, \
     scan(T, \
@@ -172,7 +172,7 @@ end.
          case H of $\n -> {R + 1, 1}; _ -> {R, C + 1} end, \
          {in_verbatim, Tag}) \
   end.
-100 any in_verbatim_code::
+100 any in_verbatim_code:
   expr \
     {Tag, Backtrack} = E, \
     scan(T, \
@@ -184,7 +184,7 @@ end.
          case H of $\n -> {R + 1, 1}; _ -> {R, C + 1} end, \
          {in_verbatim, Tag}) \
   end.
-102 any in_verbatim::
+102 any in_verbatim:
   expr \
     scan(T, \
          case S of \
@@ -230,7 +230,7 @@ end.
     (H >= $0 andalso H =< $9) orelse H == $- \
   end: number_literal, in_number.
 
-124 any in_code::
+124 any in_code:
   expr \
     {error, {R, erlydtl_scanner, \
              lists:concat(["Illegal character in column ", C])}, \
@@ -239,7 +239,7 @@ end.
   end.
 
 130 any in_number, expr H >= $0 andalso H =< $9 end: +number_literal.
-132 any in_number::
+132 any in_number:
   expr \
     {error, {R, erlydtl_scanner, \
              lists:concat(["Illegal character in column ", C])}, \
@@ -255,13 +255,13 @@ end.
      H == $_ \
   end: +identifier, in_identifier.
 
-200 : in_text- ::
+200 : in_text- :
   expr \
     {ok, lists:reverse(post_process(S,eof))} \
   end.
 
-202 : in_comment :: expr {error, "Reached end of file inside a comment."} end.
-204 : any :: expr {error, "Reached end of file inside a code block."} end.
+202 : in_comment : expr {error, "Reached end of file inside a comment."} end.
+204 : any : expr {error, "Reached end of file inside a code block."} end.
 
 
 %% Process tokens as we parse them
@@ -274,10 +274,10 @@ close_var: to_atom.
 open_tag: to_atom.
 close_tag: to_atom.
 
-open_tag identifier, close_tag:: expr is_keyword(all, T) end.
-open_tag identifier:: expr is_keyword(open_tag, T) end.
-identifier, close_tag:: expr is_keyword(close_tag, T) end.
-identifier:: expr is_keyword(any, T) end.
+open_tag identifier, close_tag: expr is_keyword(all, T) end.
+open_tag identifier: expr is_keyword(open_tag, T) end.
+identifier, close_tag: expr is_keyword(close_tag, T) end.
+identifier: expr is_keyword(any, T) end.
 
 
 %% Utility functions
