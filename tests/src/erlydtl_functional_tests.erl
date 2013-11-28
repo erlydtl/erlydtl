@@ -74,6 +74,8 @@ setup_compile("ifnotequal_preset") ->
 setup_compile("var_preset") ->
     CompileVars = [{preset_var1, "preset-var1"}, {preset_var2, "preset-var2"}],
     {ok, CompileVars};
+setup_compile("extends2") ->
+    {error, []};
 setup_compile(_) ->
     {ok, []}.
 
@@ -86,9 +88,6 @@ setup("autoescape") ->
     RenderVars = [{var1, "<b>bold</b>"}],
     {ok, RenderVars};  
 setup("extends") ->
-    RenderVars = [{base_var, "base-barstring"}, {test_var, "test-barstring"}],
-    {ok, RenderVars};
-setup("extends2") ->
     RenderVars = [{base_var, "base-barstring"}, {test_var, "test-barstring"}],
     {ok, RenderVars};
 setup("filters") ->

@@ -817,6 +817,8 @@ body_ast(DjangoParseTree, Context, TreeWalker) ->
 						       with_ast(Args, Contents, Context, TreeWalkerAcc);
                                        ({'extension', Tag}, TreeWalkerAcc) ->
                                            extension_ast(Tag, Context, TreeWalkerAcc);
+                       ({'extends', _}, TreeWalkerAcc) ->
+                           throw({error, "The extends tag must be at the very top of the template"});
 				       (ValueToken, TreeWalkerAcc) -> 
 						       {{ValueAst,ValueInfo},ValueTreeWalker} = value_ast(ValueToken, true, true, Context, TreeWalkerAcc),
 						       {{format(ValueAst, Context, ValueTreeWalker),ValueInfo},ValueTreeWalker}
