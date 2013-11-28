@@ -22,6 +22,7 @@ test: compile compile_test
 		-s erlydtl_dateformat_tests run_tests \
 		-s erlydtl_unittests run_tests \
 		-s sources_parser_unittests run_tests \
+		-eval 'eunit:test(erlydtl_tsd_compiler, [verbose])' \
 		-s init stop
 
 clean:
