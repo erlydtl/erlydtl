@@ -1,3 +1,5 @@
+%%%%% THIS IS A SLEX GENERATED FILE %%%%%
+
 %%%-------------------------------------------------------------------
 %%% File:      erlydtl_scanner.slex
 %%% @author    Andreas Stenius <kaos@astekk.se>
@@ -33,6 +35,10 @@
 %%% Rules based on the original erlydtl_scanner by Robert Saccon and Evan Miller.
 %%%-------------------------------------------------------------------
 -module(erlydtl_scanner).
+
+%% This file was generated 2013-11-28 12:34:50 UTC by slex 0.1.0-1-gfa2a50d.
+%% http://github.com/erlydtl/slex
+-slex_source("src/erlydtl_scanner.slex").
 
 -export([scan/1, scan/4]).
 
