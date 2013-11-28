@@ -48,7 +48,7 @@ test_list() ->
         "custom_tag", "custom_tag1", "custom_tag2", "custom_tag3",
         "custom_call", 
         "include_template", "include_path", "ssi",
-        "extends_path", "extends_path2", "trans" ].
+        "extends_path", "extends_path2", "trans", "extends2" ].
 
 setup_compile("for_list_preset") ->
     CompileVars = [{fruit_list, [["apple", "apples"], ["banana", "bananas"], ["coconut", "coconuts"]]}],
@@ -86,6 +86,9 @@ setup("autoescape") ->
     RenderVars = [{var1, "<b>bold</b>"}],
     {ok, RenderVars};  
 setup("extends") ->
+    RenderVars = [{base_var, "base-barstring"}, {test_var, "test-barstring"}],
+    {ok, RenderVars};
+setup("extends2") ->
     RenderVars = [{base_var, "base-barstring"}, {test_var, "test-barstring"}],
     {ok, RenderVars};
 setup("filters") ->
