@@ -1208,7 +1208,7 @@ yesno_io(Val, Choices) ->
         case binary:split(Choices, <<",">>, [global]) of
             [T, F, U] -> {T, F, U};
             [T, F] -> {T, F, F};
-            _ -> throw({error, "invalid choices to yesno filter"})
+            _ -> throw({yesno, choices})
         end,
     if Val =:= false -> False;
        Val =:= undefined -> Undefined;
