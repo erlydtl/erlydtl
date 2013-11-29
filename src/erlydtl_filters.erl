@@ -66,6 +66,7 @@
         filesizeformat/1,
         first/1,
         fix_ampersands/1,
+        floatformat/1,
         floatformat/2,
         force_escape/1,
         format_integer/1,
@@ -328,33 +329,30 @@ fix_ampersands(Input) when is_list(Input) ->
 
 %% @doc When used without an argument, rounds a floating-point number to one decimal place
 %% -- but only if there's a decimal part to be displayed
-floatformat(Number, Place) when is_binary(Number) ->
-    floatformat(binary_to_list(Number), Place);
+floatformat(Number) ->
+    floatformat(Number, []).
+
 floatformat(Number, Place) ->
-    floatformat_io(Number, cast_to_integer(Place)).
+    floatformat_io(cast_to_float(Number), cast_to_integer(Place)).
 
 floatformat_io(Number, []) ->
     floatformat_io(Number, -1);
+floatformat_io(Number, 0) ->
+    hd(io_lib:format("~B", [erlang:round(Number)]));
 floatformat_io(Number, Precision) when Precision > 0 ->
-    Format = lists:flatten(io_lib:format("~~.~Bf",[Precision])),
-    [Result] = io_lib:format(Format,[Number]),
-    Result;
+    hd(io_lib:format("~.*f",[Precision, Number]));
 floatformat_io(Number, Precision) when Precision < 0 ->   
     Round = erlang:round(Number),
     RoundPrecision = round(Number, -Precision),
-    case RoundPrecision == Round of
-        true ->
-            %Format = lists:flatten(io_lib:format("~~~BB",[-Precision])),
-            [Result] = io_lib:format("~B",[Round]);
-        false ->
-            Format = lists:flatten(io_lib:format("~~.~Bf",[-Precision])),
-            [Result] = io_lib:format(Format,[RoundPrecision])
-    end,
-    Result.
+    if RoundPrecision == Round ->
+            floatformat_io(Round, 0);
+       true ->
+            floatformat_io(RoundPrecision, -Precision)
+    end.
 
 round(Number, Precision) ->
     P = math:pow(10, Precision),
-    round(Number * P) / P.
+    erlang:round(Number * P) / P.
 
 %% @doc Applies HTML escaping to a string.
 force_escape(Input) when is_list(Input) ->
@@ -720,7 +718,13 @@ cast_to_float(Input) when is_float(Input) ->
     Input;
 cast_to_float(Input) when is_integer(Input) ->
     Input + 0.0;
-cast_to_float(Input) ->
+cast_to_float(Input) when is_binary(Input) ->
+    try binary_to_float(Input)
+    catch
+        error:_Reason ->
+            binary_to_integer(Input) + 0.0
+    end;
+cast_to_float(Input) when is_list(Input) ->
     try list_to_float(Input)
     catch
         error:_Reason ->
