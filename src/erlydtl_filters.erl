@@ -111,6 +111,7 @@
         unordered_list/1,
         upper/1,
         urlencode/1,
+        urlencode/2,
         urlize/1,
         urlize/2,
         urlizetrunc/2,
@@ -853,10 +854,13 @@ upper(Input) ->
     string:to_upper(Input).
 
 %% @doc Escapes a value for use in a URL.
-urlencode(Input) when is_binary(Input) ->
-    urlencode(Input, 0);
-urlencode(Input) when is_list(Input) ->
-    urlencode(Input, []).
+urlencode(Input) ->
+    urlencode(Input, <<"/">>).
+
+urlencode(Input, Safe) when is_binary(Input) ->
+    urlencode_io(Input, Safe, 0);
+urlencode(Input, Safe) when is_list(Input) ->
+    urlencode_io(Input, Safe, []).
 
 %% @doc Returns the number of words.
 wordcount(Input) when is_binary(Input) ->
@@ -1133,25 +1137,33 @@ wordwrap([C | Rest], Acc, WordAcc, LineLength, WrapAt) when erlang:length(WordAc
 wordwrap([C | Rest], Acc, WordAcc, LineLength, WrapAt) ->
     wordwrap(Rest, Acc, [C | WordAcc], LineLength, WrapAt).
 
-urlencode(Input, Index) when is_binary(Input) ->
+urlencode_io(Input, Safe, Index) when is_binary(Input) ->
     case Input of
         <<_:Index/binary, Byte, _/binary>> when ?NO_ENCODE(Byte) ->
-            urlencode(Input, Index + 1);
-        <<Pre:Index/binary, Hi:4, Lo:4, Post/binary>> ->
-            HiDigit = hexdigit(Hi),
-            LoDigit = hexdigit(Lo),
-            Code = <<$\%, HiDigit, LoDigit>>,
-            process_binary_match(Pre, Code, size(Post), urlencode(Post, 0));
+            urlencode_io(Input, Safe, Index + 1);
+        <<Pre:Index/binary, C:1/binary, Post/binary>> ->
+            process_binary_match(
+              Pre, maybe_urlencode_char(C, Safe),
+              size(Post), urlencode_io(Post, Safe, 0));
         Input ->
             Input
     end;
-urlencode([], Acc) ->
+urlencode_io([], _Safe, Acc) ->
     lists:reverse(Acc);
-urlencode([C | Rest], Acc) when ?NO_ENCODE(C) ->
-    urlencode(Rest, [C | Acc]);
-urlencode([C | Rest], Acc) ->
-    <<Hi:4, Lo:4>> = <<C>>,
-    urlencode(Rest, [hexdigit(Lo), hexdigit(Hi), $\% | Acc]).
+urlencode_io([C | Rest], Safe, Acc) when ?NO_ENCODE(C) ->
+    urlencode_io(Rest, Safe, [C | Acc]);
+urlencode_io([C | Rest], Safe, Acc) ->
+    urlencode_io(Rest, Safe, [maybe_urlencode_char(<<C>>, Safe) | Acc]).
+
+maybe_urlencode_char(C, Safe) ->
+    case binary:match(Safe, C) of
+        nomatch ->
+            <<Hi:4, Lo:4>> = C,
+            HiDigit = hexdigit(Hi),
+            LoDigit = hexdigit(Lo),
+            <<$%, HiDigit, LoDigit>>;
+        _ -> C
+    end.
 
 %% @doc Converts URLs in text into clickable links.
 %%TODO: Autoescape not yet implemented
