@@ -917,6 +917,8 @@ escape("\"" ++ Rest, Acc) ->
     escape(Rest, lists:reverse("&quot;", Acc));
 escape("'" ++ Rest, Acc) ->
     escape(Rest, lists:reverse("&#039;", Acc));
+escape([S | Rest], Acc) when is_list(S); is_binary(S)->
+    escape(Rest, [force_escape(S) | Acc]);
 escape([C | Rest], Acc) ->
     escape(Rest, [C | Acc]).
 
