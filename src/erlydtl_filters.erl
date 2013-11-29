@@ -239,14 +239,12 @@ date(Input) ->
     date(Input, "F j, Y").
 
 %% @doc Formats a date according to the given format.
-date(Input, FormatStr) when is_binary(Input) ->
-    list_to_binary(date(binary_to_list(Input), FormatStr));
-date({{_,_,_} = Date,{_,_,_} = Time}, FormatStr) ->
-    erlydtl_dateformat:format({Date, Time}, FormatStr);
-date({_,_,_} = Date, FormatStr) ->
-    erlydtl_dateformat:format(Date, FormatStr);
-date(Input, _FormatStr) when is_list(Input) ->
-    io:format("Unexpected date parameter : ~p~n", [Input]),
+date(Input, FormatStr)
+  when is_tuple(Input)
+       andalso (size(Input) == 2 orelse size(Input) == 3) ->
+    erlydtl_dateformat:format(Input, FormatStr);
+date(Input, _FormatStr) ->
+    io:format("Unexpected date parameter: ~p~n", [Input]),
     "".
 
 %% @doc If value evaluates to `false', use given default. Otherwise, use the value.
@@ -333,8 +331,10 @@ fix_ampersands(Input) when is_list(Input) ->
 floatformat(Number) ->
     floatformat(Number, []).
 
-floatformat(Number, Place) ->
-    floatformat_io(cast_to_float(Number), cast_to_integer(Place)).
+floatformat(Number, Place)
+  when is_number(Number); is_binary(Number); is_list(Number) ->
+    floatformat_io(cast_to_float(Number), cast_to_integer(Place));
+floatformat(_, _) -> "".
 
 floatformat_io(Number, []) ->
     floatformat_io(Number, -1);
@@ -810,6 +810,10 @@ title(Input) when is_list(Input) ->
 %% @doc Truncates a string after a certain number of characters.
 truncatechars(_Input, Max) when Max =< 0 ->
     "";
+truncatechars(null, Max) ->
+    truncatechars("null", Max);
+truncatechars(Input, Max) when is_integer(Input) ->
+    truncatechars(integer_to_list(Input), Max);
 truncatechars(Input, Max) when is_binary(Input) ->
     list_to_binary(truncatechars(binary_to_list(Input), Max));
 truncatechars(Input, Max) ->
@@ -818,6 +822,10 @@ truncatechars(Input, Max) ->
 %% @doc Truncates a string after a certain number of words.
 truncatewords(_Input, Max) when Max =< 0 ->
     "";
+truncatewords(null, Max) ->
+    truncatewords("null", Max);
+truncatewords(Input, Max) when is_integer(Input) ->
+    truncatewords(integer_to_list(Input), Max);
 truncatewords(Input, Max) when is_binary(Input) ->
     list_to_binary(truncatewords(binary_to_list(Input), Max));
 truncatewords(Input, Max) ->
