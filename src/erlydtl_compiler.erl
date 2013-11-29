@@ -817,7 +817,7 @@ body_ast(DjangoParseTree, Context, TreeWalker) ->
 						       with_ast(Args, Contents, Context, TreeWalkerAcc);
                                        ({'extension', Tag}, TreeWalkerAcc) ->
                                            extension_ast(Tag, Context, TreeWalkerAcc);
-                       ({'extends', _}, TreeWalkerAcc) ->
+                       ({'extends', _}, _TreeWalkerAcc) ->
                            throw({error, "The extends tag must be at the very top of the template"});
 				       (ValueToken, TreeWalkerAcc) -> 
 						       {{ValueAst,ValueInfo},ValueTreeWalker} = value_ast(ValueToken, true, true, Context, TreeWalkerAcc),
@@ -1163,7 +1163,9 @@ filter_ast2(Name, VariableAst, [Arg], VarInfo, #dtl_context{ filter_modules = [M
              TreeWalker};
         false ->
             filter_ast2(Name, VariableAst, [Arg], VarInfo, Context#dtl_context{ filter_modules = Rest }, TreeWalker)
-    end.
+    end;
+filter_ast2(Name, _, Arg, _, _, _) ->
+    throw({error, {unknown_filter, Name, length(Arg)}}).
 
 search_for_escape_filter(Variable, Filter, #dtl_context{auto_escape = on}) ->
     search_for_safe_filter(Variable, Filter);
