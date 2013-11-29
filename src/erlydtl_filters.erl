@@ -1204,20 +1204,21 @@ process_binary_match(Pre, Insertion, SizePost, Post) ->
     end.
 
 yesno_io(Val, Choices) ->
-    case {term_to_bool(Val), binary:split(Choices, <<",">>, [global])} of
-        {true, [T|_]} -> T;
-        {false, [_,F|_]} -> F;
-        {undefined, [_,_,U|_]} -> U;
-        {undefined, [_,F|_]} -> F;
-        _ -> error
+    {True, False, Undefined} =
+        case binary:split(Choices, <<",">>, [global]) of
+            [T, F, U] -> {T, F, U};
+            [T, F] -> {T, F, F};
+            _ -> throw({error, "invalid choices to yesno filter"})
+        end,
+    if Val =:= false -> False;
+       Val =:= undefined -> Undefined;
+           is_list(Val); is_binary(Val) ->
+                case iolist_size(Val) of
+                    0 -> False;
+                    _ -> True
+                end;
+       true -> True
     end.
-
-term_to_bool(true) -> true;
-term_to_bool(false) -> false;
-term_to_bool(undefined) -> undefined;
-term_to_bool(Str) when is_list(Str); is_binary(Str) ->
-    iolist_size(Str) > 0;
-term_to_bool(_) -> true.
 
 %% unjoin == split in other languages; inverse of join
 %%FROM: http://www.erlang.org/pipermail/erlang-questions/2008-October/038896.html

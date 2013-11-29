@@ -918,7 +918,23 @@ tests() ->
 		   <<"no">>},
 		  {"|yesno:\"yeah,no,maybe\"",
 		   <<"{{ var|yesno:\"yeah,no,maybe\" }}">>, [{var, undefined}],
-		   <<"maybe">>}
+		   <<"maybe">>},
+
+		  {"string |yesno:\"yeah,no,maybe\"",
+		   <<"{{ var|yesno:\"yeah,no,maybe\" }}">>, [{var, "non-empty string"}],
+		   <<"yeah">>},
+		  {"binary |yesno:\"yeah,no,maybe\"",
+		   <<"{{ var|yesno:\"yeah,no,maybe\" }}">>, [{var, <<"non-empty binary">>}],
+		   <<"yeah">>},
+		  {"empty string |yesno:\"yeah,no,maybe\"",
+		   <<"{{ var|yesno:\"yeah,no,maybe\" }}">>, [{var, ""}],
+		   <<"no">>},
+		  {"empty binary |yesno:\"yeah,no\"",
+		   <<"{{ var|yesno:\"yeah,no\" }}">>, [{var, <<"">>}],
+		   <<"no">>},
+		  {"term |yesno:\"yeah,no,maybe\"",
+		   <<"{{ var|yesno:\"yeah,no,maybe\" }}">>, [{var, {my, [term, "test"]}}],
+		   <<"yeah">>}
 		 ]},
      {"filters_if", [
 		     {"Filter if 1.1",
