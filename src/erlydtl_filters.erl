@@ -720,10 +720,16 @@ cast_to_float(Input) when is_float(Input) ->
 cast_to_float(Input) when is_integer(Input) ->
     Input + 0.0;
 cast_to_float(Input) when is_binary(Input) ->
-    try binary_to_float(Input)
-    catch
-        error:_Reason ->
-            binary_to_integer(Input) + 0.0
+    %% be compatible with releases prior to R16B
+    case erlang:function_exported(erlang, binary_to_float, 1) of
+        true ->
+            try binary_to_float(Input)
+            catch
+                error:_Reason ->
+                    binary_to_integer(Input) + 0.0
+            end;
+        false ->
+            cast_to_float(binary_to_list(Input))
     end;
 cast_to_float(Input) when is_list(Input) ->
     try list_to_float(Input)
