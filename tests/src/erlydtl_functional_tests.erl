@@ -48,7 +48,7 @@ test_list() ->
         "custom_tag", "custom_tag1", "custom_tag2", "custom_tag3",
         "custom_call", 
         "include_template", "include_path", "ssi",
-        "extends_path", "extends_path2", "trans", "extends2" ].
+        "extends_path", "extends_path2", "trans", "extends2", "extends3" ].
 
 setup_compile("for_list_preset") ->
     CompileVars = [{fruit_list, [["apple", "apples"], ["banana", "bananas"], ["coconut", "coconuts"]]}],
@@ -75,7 +75,11 @@ setup_compile("var_preset") ->
     CompileVars = [{preset_var1, "preset-var1"}, {preset_var2, "preset-var2"}],
     {ok, CompileVars};
 setup_compile("extends2") ->
-    {error, []};
+    {{error, "The extends tag must be at the very top of the template"}, []};
+setup_compile("extends3") ->
+    File = templates_dir("input/imaginary"),
+    Error = {0, functional_test_extends3, "Failed to read file"},
+    {{error, {File, [Error]}}, []}; %% Huh?! what kind of error message is that!?
 setup_compile(_) ->
     {ok, []}.
 
@@ -235,7 +239,7 @@ fold_tests() ->
 
 test_compile_render(Name) ->  
     File = filename:join([templates_docroot(), Name]),
-    Module = "example_" ++ Name,
+    Module = "functional_test_" ++ Name,
     io:format(" Template: ~p, ... ", [Name]),
     case setup_compile(Name) of
         {CompileStatus, CompileVars} ->
@@ -251,8 +255,8 @@ test_compile_render(Name) ->
                             io:format("missing error"),
                             {error, "compiling should have failed :" ++ File}
                     end;
-                {error, Err} ->
-                    if CompileStatus =:= error -> io:format("ok");
+                {error, _}=Err ->
+                    if CompileStatus =:= Err -> io:format("ok");
                        true -> 
                             io:format("failed"),
                             {compile_error, io_lib:format("~p", [Err])}
