@@ -748,6 +748,11 @@ cast_to_integer(Input) when is_list(Input)->
             erlang:list_to_integer(Input)
     end.
 
+cast_to_list(Input) when is_list(Input) -> Input;
+cast_to_list(Input) when is_binary(Input) -> binary_to_list(Input);
+cast_to_list(Input) when is_atom(Input) -> atom_to_list(Input);
+cast_to_list(Input) -> hd(io_lib:format("~p", [Input])).
+
 %% @doc Converts to lowercase, removes non-word characters (alphanumerics and underscores) and converts spaces to hyphens.
 slugify(Input) when is_binary(Input) ->
     slugify(binary_to_list(Input));
@@ -808,36 +813,16 @@ title(Input) when is_list(Input) ->
     title(lower(Input), []).
 
 %% @doc Truncates a string after a certain number of characters.
-truncatechars(_Input, Max) when Max =< 0 ->
-    "";
-truncatechars(null, Max) ->
-    truncatechars("null", Max);
-truncatechars(Input, Max) when is_integer(Input) ->
-    truncatechars(integer_to_list(Input), Max);
-truncatechars(Input, Max) when is_binary(Input) ->
-    list_to_binary(truncatechars(binary_to_list(Input), Max));
 truncatechars(Input, Max) ->
-    truncatechars(Input, Max, []).
+    truncatechars_io(cast_to_list(Input), Max, []).
 
 %% @doc Truncates a string after a certain number of words.
-truncatewords(_Input, Max) when Max =< 0 ->
-    "";
-truncatewords(null, Max) ->
-    truncatewords("null", Max);
-truncatewords(Input, Max) when is_integer(Input) ->
-    truncatewords(integer_to_list(Input), Max);
-truncatewords(Input, Max) when is_binary(Input) ->
-    list_to_binary(truncatewords(binary_to_list(Input), Max));
 truncatewords(Input, Max) ->
-    truncatewords(Input, Max, []).
+    truncatewords_io(cast_to_list(Input), Max, []).
 
 %% @doc Similar to truncatewords, except that it is aware of HTML tags.
-truncatewords_html(_Input, Max) when Max =< 0 ->
-    "";
-truncatewords_html(Input, Max) when is_binary(Input) ->
-    truncatewords_html(binary_to_list(Input), Max);
 truncatewords_html(Input, Max) ->
-    truncatewords_html(Input, Max, [], [], text).
+    truncatewords_html_io(cast_to_list(Input), Max, [], [], text).
 
 %% @doc Recursively takes a self-nested list and returns an HTML unordered list -- WITHOUT opening and closing `<ul>' tags. 
 unordered_list(List) ->
@@ -1058,62 +1043,76 @@ title([Char | Rest], [Sep|[Sep2|_Other]] = Acc)
 title([Char | Rest], Acc) ->
     title(Rest, [Char | Acc]).
 
-truncatechars([], _CharsLeft, Acc) ->
+truncatechars_io([], _CharsLeft, Acc) ->
     lists:reverse(Acc);
-truncatechars(_Input, 0, Acc) ->
-    lists:reverse("..." ++ Acc);
-truncatechars([C|Rest], CharsLeft, Acc) when C >= 2#11111100 ->
-    truncatechars(Rest, CharsLeft + 4, [C|Acc]);
-truncatechars([C|Rest], CharsLeft, Acc) when C >= 2#11111000 ->
-    truncatechars(Rest, CharsLeft + 3, [C|Acc]);
-truncatechars([C|Rest], CharsLeft, Acc) when C >= 2#11110000 ->
-    truncatechars(Rest, CharsLeft + 2, [C|Acc]);
-truncatechars([C|Rest], CharsLeft, Acc) when C >= 2#11100000 ->
-    truncatechars(Rest, CharsLeft + 1, [C|Acc]);
-truncatechars([C|Rest], CharsLeft, Acc) when C >= 2#11000000 ->
-    truncatechars(Rest, CharsLeft, [C|Acc]);
-truncatechars([C|Rest], CharsLeft, Acc) ->
-    truncatechars(Rest, CharsLeft - 1, [C|Acc]).
+truncatechars_io(_Input, 0, Acc) ->
+    lists:reverse("..." ++ drop_chars(Acc, 3));
+truncatechars_io([C|Rest], CharsLeft, Acc) when C >= 2#11111100 ->
+    truncatechars_io(Rest, CharsLeft + 4, [C|Acc]);
+truncatechars_io([C|Rest], CharsLeft, Acc) when C >= 2#11111000 ->
+    truncatechars_io(Rest, CharsLeft + 3, [C|Acc]);
+truncatechars_io([C|Rest], CharsLeft, Acc) when C >= 2#11110000 ->
+    truncatechars_io(Rest, CharsLeft + 2, [C|Acc]);
+truncatechars_io([C|Rest], CharsLeft, Acc) when C >= 2#11100000 ->
+    truncatechars_io(Rest, CharsLeft + 1, [C|Acc]);
+truncatechars_io([C|Rest], CharsLeft, Acc) when C >= 2#11000000 ->
+    truncatechars_io(Rest, CharsLeft, [C|Acc]);
+truncatechars_io([C|Rest], CharsLeft, Acc) ->
+    truncatechars_io(Rest, CharsLeft - 1, [C|Acc]).
 
-truncatewords(Value, _WordsLeft, _Acc) when is_atom(Value) ->
-    Value;
-truncatewords([], _WordsLeft, Acc) ->
-    lists:reverse(Acc);
-truncatewords(_Input, 0, Acc) ->
-    lists:reverse("..." ++ Acc);
-truncatewords([C1, C2|Rest], WordsLeft, Acc) when C1 =/= $\  andalso C2 =:= $\  ->
-    truncatewords([C2|Rest], WordsLeft - 1, [C1|Acc]);
-truncatewords([C1|Rest], WordsLeft, Acc) ->
-    truncatewords(Rest, WordsLeft, [C1|Acc]).
+drop_chars([], _) -> [];
+drop_chars(Cs, 0) -> Cs;
+drop_chars([C|Cs], Count) when C >= 2#11111100 ->
+    drop_chars(Cs, Count + 4);
+drop_chars([C|Cs], Count) when C >= 2#11111000 ->
+    drop_chars(Cs, Count + 3);
+drop_chars([C|Cs], Count) when C >= 2#11110000 ->
+    drop_chars(Cs, Count + 2);
+drop_chars([C|Cs], Count) when C >= 2#11100000 ->
+    drop_chars(Cs, Count + 1);
+drop_chars([C|Cs], Count) when C >= 2#11000000 ->
+    drop_chars(Cs, Count);
+drop_chars([_|Cs], Count) ->
+    drop_chars(Cs, Count - 1).
 
-truncatewords_html([], _WordsLeft, Acc, [], _) ->
+
+truncatewords_io([], _WordsLeft, Acc) ->
     lists:reverse(Acc);
-truncatewords_html(_Input, 0, Acc, [], _) ->
+truncatewords_io(_Input, 0, Acc) ->
+    lists:reverse("... " ++ Acc);
+truncatewords_io([C1, C2|Rest], WordsLeft, Acc) when C1 =/= $\s andalso C2 =:= $\s ->
+    truncatewords_io([C2|Rest], WordsLeft - 1, [C1|Acc]);
+truncatewords_io([C1|Rest], WordsLeft, Acc) ->
+    truncatewords_io(Rest, WordsLeft, [C1|Acc]).
+
+truncatewords_html_io([], _WordsLeft, Acc, [], _) ->
     lists:reverse(Acc);
-truncatewords_html(Input, 0, Acc, [Tag|RestOfTags], done) ->
-    truncatewords_html(Input, 0, ">"++Tag++"/<" ++ Acc, RestOfTags, done);
-truncatewords_html(Input, 0, Acc, [Tag|RestOfTags], _) ->
-    truncatewords_html(Input, 0, "...>"++Tag++"/<" ++ Acc, RestOfTags, done);
-truncatewords_html([], WordsLeft, Acc, [Tag|RestOfTags], _) ->
-    truncatewords_html([], WordsLeft, ">"++Tag++"/<" ++ Acc, RestOfTags, text);
-truncatewords_html([C|Rest], WordsLeft, Acc, Tags, text) when C =:= $< ->
-    truncatewords_html(Rest, WordsLeft, [C|Acc], [""|Tags], tag);
-truncatewords_html([C1, C2|Rest], WordsLeft, Acc, Tags, text) when C1 =/= $\ , C2 =:= $\ ; C1 =/= $\ , C2 =:= $< ->
-    truncatewords_html([C2|Rest], WordsLeft - 1, [C1|Acc], Tags, text);
-truncatewords_html([C|Rest], WordsLeft, Acc, Tags, text) ->
-    truncatewords_html(Rest, WordsLeft, [C|Acc], Tags, text);
-truncatewords_html([C|Rest], WordsLeft, Acc, [""|Tags], tag) when C =:= $/ ->
-    truncatewords_html(Rest, WordsLeft, [C|Acc], Tags, close_tag);
-truncatewords_html([C|Rest], WordsLeft, Acc, [Tag|RestOfTags], tag) when C >= $a, C =< $z; C >= $A, C =< $Z ->
-    truncatewords_html(Rest, WordsLeft, [C|Acc], [[C|Tag]|RestOfTags], tag);
-truncatewords_html([C|Rest], WordsLeft, Acc, Tags, tag) when C =:= $> ->
-    truncatewords_html(Rest, WordsLeft, [C|Acc], Tags, text);
-truncatewords_html([C|Rest], WordsLeft, Acc, Tags, tag) ->
-    truncatewords_html(Rest, WordsLeft, [C|Acc], Tags, attrs);
-truncatewords_html([C|Rest], WordsLeft, Acc, Tags, attrs) when C =:= $> ->
-    truncatewords_html(Rest, WordsLeft, [C|Acc], Tags, text);
-truncatewords_html([C|Rest], WordsLeft, Acc, [_Tag|RestOfTags], close_tag) when C =:= $> ->
-    truncatewords_html(Rest, WordsLeft, [C|Acc], RestOfTags, text).
+truncatewords_html_io(_Input, 0, Acc, [], _) ->
+    lists:reverse(Acc);
+truncatewords_html_io(Input, 0, Acc, [Tag|RestOfTags], done) ->
+    truncatewords_html_io(Input, 0, ">"++Tag++"/<" ++ Acc, RestOfTags, done);
+truncatewords_html_io(Input, 0, Acc, [Tag|RestOfTags], _) ->
+    truncatewords_html_io(Input, 0, "...>"++Tag++"/<" ++ Acc, RestOfTags, done);
+truncatewords_html_io([], WordsLeft, Acc, [Tag|RestOfTags], _) ->
+    truncatewords_html_io([], WordsLeft, ">"++Tag++"/<" ++ Acc, RestOfTags, text);
+truncatewords_html_io([C|Rest], WordsLeft, Acc, Tags, text) when C =:= $< ->
+    truncatewords_html_io(Rest, WordsLeft, [C|Acc], [""|Tags], tag);
+truncatewords_html_io([C1, C2|Rest], WordsLeft, Acc, Tags, text) when C1 =/= $\ , C2 =:= $\ ; C1 =/= $\ , C2 =:= $< ->
+    truncatewords_html_io([C2|Rest], WordsLeft - 1, [C1|Acc], Tags, text);
+truncatewords_html_io([C|Rest], WordsLeft, Acc, Tags, text) ->
+    truncatewords_html_io(Rest, WordsLeft, [C|Acc], Tags, text);
+truncatewords_html_io([C|Rest], WordsLeft, Acc, [""|Tags], tag) when C =:= $/ ->
+    truncatewords_html_io(Rest, WordsLeft, [C|Acc], Tags, close_tag);
+truncatewords_html_io([C|Rest], WordsLeft, Acc, [Tag|RestOfTags], tag) when C >= $a, C =< $z; C >= $A, C =< $Z ->
+    truncatewords_html_io(Rest, WordsLeft, [C|Acc], [[C|Tag]|RestOfTags], tag);
+truncatewords_html_io([C|Rest], WordsLeft, Acc, Tags, tag) when C =:= $> ->
+    truncatewords_html_io(Rest, WordsLeft, [C|Acc], Tags, text);
+truncatewords_html_io([C|Rest], WordsLeft, Acc, Tags, tag) ->
+    truncatewords_html_io(Rest, WordsLeft, [C|Acc], Tags, attrs);
+truncatewords_html_io([C|Rest], WordsLeft, Acc, Tags, attrs) when C =:= $> ->
+    truncatewords_html_io(Rest, WordsLeft, [C|Acc], Tags, text);
+truncatewords_html_io([C|Rest], WordsLeft, Acc, [_Tag|RestOfTags], close_tag) when C =:= $> ->
+    truncatewords_html_io(Rest, WordsLeft, [C|Acc], RestOfTags, text).
 
 wordcount([], Count) ->
     Count;
