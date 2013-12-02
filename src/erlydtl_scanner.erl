@@ -36,7 +36,7 @@
 %%%-------------------------------------------------------------------
 -module(erlydtl_scanner).
 
-%% This file was generated 2013-12-02 15:24:13 UTC by slex 0.1.0-2-gb81b78b.
+%% This file was generated 2013-12-02 15:52:41 UTC by slex 0.1.0-2-gb81b78b.
 %% http://github.com/erlydtl/slex
 -slex_source("src/erlydtl_scanner.slex").
 
@@ -468,8 +468,8 @@ scan([H | T], S, {R, C} = P, {in_code, E} = St) ->
     {error,
      {R, erlydtl_scanner,
       lists:concat(["Illegal character in column ", C])},
-     #scanner_state{template = [H | T], scanned = S, pos = P,
-		    state = St}};
+     #scanner_state{template = [H | T],
+		    scanned = post_process(S, err), pos = P, state = St}};
 scan([H | T], S, {R, C} = P, {in_number, E} = St)
     when H >= $0 andalso H =< $9 ->
     scan(T,
@@ -489,7 +489,8 @@ scan([H | T], S, {R, C} = P, {in_number, E} = St) ->
     {error,
      {R, erlydtl_scanner,
       lists:concat(["Illegal character in column ", C])},
-     #scanner_state{template = [H | T], scanned = S, pos = P,
+     #scanner_state{template = [H | T],
+		    scanned = post_process(S, err), pos = P,
 		    state = {in_code, E}}};
 scan([H | T], S, {R, C} = P, {in_identifier, E})
     when H >= $a andalso H =< $z orelse
@@ -511,7 +512,8 @@ scan([H | T], S, {R, C} = P, {in_identifier, E} = St) ->
     {error,
      {R, erlydtl_scanner,
       lists:concat(["Illegal character in column ", C])},
-     #scanner_state{template = [H | T], scanned = S, pos = P,
+     #scanner_state{template = [H | T],
+		    scanned = post_process(S, err), pos = P,
 		    state = {in_code, E}}};
 scan([], S, {R, C} = P, in_text = St) ->
     {ok, lists:reverse(post_process(S, eof))};

@@ -234,7 +234,8 @@ end.
   expr \
     {error, {R, erlydtl_scanner, \
              lists:concat(["Illegal character in column ", C])}, \
-     #scanner_state{ template=[H|T], scanned=S, pos=P, state=St } \
+     #scanner_state{ template=[H|T], scanned=post_process(S, err), \
+                     pos=P, state=St } \
     } \
   end.
 
@@ -243,7 +244,8 @@ end.
   expr \
     {error, {R, erlydtl_scanner, \
              lists:concat(["Illegal character in column ", C])}, \
-     #scanner_state{ template=[H|T], scanned=S, pos=P, state={in_code, E} } \
+     #scanner_state{ template=[H|T], scanned=post_process(S, err), \
+                     pos=P, state={in_code, E} } \
     } \
   end.
 
@@ -258,7 +260,8 @@ end.
   expr \
     {error, {R, erlydtl_scanner, \
              lists:concat(["Illegal character in column ", C])}, \
-     #scanner_state{ template=[H|T], scanned=S, pos=P, state={in_code, E} } \
+     #scanner_state{ template=[H|T], scanned=post_process(S, err), \
+                     pos=P, state={in_code, E} } \
     } \
   end.
 
