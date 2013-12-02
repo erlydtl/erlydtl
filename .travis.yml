@@ -6,3 +6,4 @@ otp_release:
   - R13B04
   - R12B-5
   - R12B-2
+script: "make test"
