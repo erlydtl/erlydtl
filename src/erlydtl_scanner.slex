@@ -243,7 +243,7 @@ end.
   expr \
     {error, {R, erlydtl_scanner, \
              lists:concat(["Illegal character in column ", C])}, \
-     #scanner_state{ template=[H|T], scanned=S, pos=P, state=St } \
+     #scanner_state{ template=[H|T], scanned=S, pos=P, state={in_code, E} } \
     } \
   end.
 
@@ -254,6 +254,13 @@ end.
     (H >= $0 andalso H =< $9) orelse \
      H == $_ \
   end: +identifier, in_identifier.
+142 any in_identifier:
+  expr \
+    {error, {R, erlydtl_scanner, \
+             lists:concat(["Illegal character in column ", C])}, \
+     #scanner_state{ template=[H|T], scanned=S, pos=P, state={in_code, E} } \
+    } \
+  end.
 
 200 : in_text- :
   expr \
