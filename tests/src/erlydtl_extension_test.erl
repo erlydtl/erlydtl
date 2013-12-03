@@ -5,7 +5,7 @@
 
 %% look for a foo identifer followed by a #
 scan(#scanner_state{ template="#" ++ T, 
-		     scanned=[{identifier, Loc, "oof"}|Scanned], 
+		     scanned=[{identifier, Loc, foo}|Scanned],
 		     pos={L,C} }=S) ->
     %% return new state with the hash dropped, and the foo identifer replaced with bar
     {ok, S#scanner_state{ template=T,
