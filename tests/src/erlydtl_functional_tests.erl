@@ -206,11 +206,11 @@ run_tests() ->
                       [length(Errs), N]),
                     [io:format("  ~s [~s] ~s~n", [Name, Error, Reason])
                      || {Name, Error, Reason} <- Errs],
-                    failed
+                    throw(failed)
             end;
         Err ->
             [io:format("Ensure dir failed: ~p~n~n", [Reason]) || {error, Reason} <- Err],
-            failed
+            throw(failed)
     end.
 
 

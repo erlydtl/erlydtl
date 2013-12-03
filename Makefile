@@ -18,11 +18,14 @@ compile_test:
 
 test: compile compile_test
 	$(ERL) -noshell -pa ebin -pa ebintest \
-		-s erlydtl_functional_tests run_tests \
-		-s erlydtl_dateformat_tests run_tests \
-		-s erlydtl_unittests run_tests \
-		-s sources_parser_unittests run_tests \
-		-s init stop
+		-eval \
+		"try \
+			erlydtl_functional_tests:run_tests(), \
+			erlydtl_dateformat_tests:run_tests(), \
+			erlydtl_unittests:run_tests(), \
+			sources_parser_unittests:run_tests(), \
+			halt(0) \
+		catch throw:failed -> halt(1) end"
 
 clean:
 	@$(REBAR) clean

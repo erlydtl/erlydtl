@@ -20,7 +20,7 @@ tests() ->
     ].
 
 run_tests() ->
-    io:format("Running unit tests...~n"),
+    io:format("Running source parser unit tests...~n"),
     Failures = lists:foldl(
         fun({Group, Assertions}, GroupAcc) ->
                 io:format(" Test group ~p...~n", [Group]),
@@ -28,8 +28,14 @@ run_tests() ->
 				process_unit_test(Content, Output, Acc, Group, Name)                              
                             end, GroupAcc, Assertions)
         end, [], tests()),
-    
-    io:format("Unit test failures: ~p~n", [Failures]).
+
+    case Failures of
+        [] ->
+            io:format("All tests PASS~n~n");
+        _ ->
+            io:format("Unit test failures: ~p~n", [Failures]),
+            throw(failed)
+    end.
 
 process_unit_test(Content, Output,Acc, Group, Name) ->
 	Tokens = sources_parser:process_content("dummy_path", Content),

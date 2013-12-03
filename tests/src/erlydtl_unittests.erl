@@ -1221,14 +1221,15 @@ run_tests() ->
                  end, [], tests()),
 
     case length(Failures) of
-        0 -> io:format("~nAll unit tests PASS~n");
+        0 -> io:format("~nAll unit tests PASS~n~n");
         Length ->
             io:format("~n### FAILED groups: ~b ####~n", [Length]),
             [begin
                  io:format("  Group: ~s (~b failures)~n", [Group, length(Failed)]),
                  [io:format("    Test: ~s~n~s~n", [Name, Error])
                   || {Name, Error} <- lists:reverse(Failed)]
-             end || {Group, Failed} <- lists:reverse(Failures)]
+             end || {Group, Failed} <- lists:reverse(Failures)],
+            throw(failed)
     end.
 
 format_error(Name, Class, Error, Acc) ->

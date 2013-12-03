@@ -214,9 +214,12 @@ run_tests() ->
       { "Ordinal suffix 22", {1984,1,121}, [{"S", "st"}] }
    ]),
 
-   io:format("Date format failures: ~p~n~n", [Failures]),
-
-   ok.
+    if Failures == 0 ->
+            io:format("All Date format tests PASS~n~n");
+       true ->
+            io:format("Date format failures: ~p~n~n", [Failures]),
+            throw(failed)
+    end.
 
 test_group_runner([]) -> 0;
 test_group_runner([{Info, DateParam, Tests} | Rest]) ->
