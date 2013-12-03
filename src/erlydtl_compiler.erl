@@ -262,6 +262,7 @@ load_code(Module, Bin, Warnings) ->
 init_context(IsCompilingDir, ParseTrail, DefDir, Module, Options) ->
     Ctx = #dtl_context{},
     Context = #dtl_context{
+                 all_options = Options,
 		  parse_trail = ParseTrail,
 		  module = Module,
 		  doc_root = proplists:get_value(doc_root, Options, DefDir),
@@ -963,22 +964,27 @@ blocktrans_ast(ArgList, Contents, Context, TreeWalker) ->
     end.
 
 translated_ast({string_literal, _, String}, Context, TreeWalker) ->
-    NewStr = unescape_string_literal(String),
-    DefaultString = case Context#dtl_context.locale of
-			none -> NewStr;
-			Locale -> erlydtl_i18n:translate(NewStr,Locale)
-		    end,
-    translated_ast2(erl_syntax:string(NewStr), erl_syntax:string(DefaultString), 
-		    #ast_info{translatable_strings = [NewStr]}, TreeWalker);
+    UnescapedStr = unescape_string_literal(String),
+    case call_extension(Context, translate_ast, [UnescapedStr, Context, TreeWalker]) of
+        undefined ->
+            DefaultString = case Context#dtl_context.locale of
+                                none -> UnescapedStr;
+                                Locale -> erlydtl_i18n:translate(UnescapedStr,Locale)
+                            end,
+            translated_ast2(erl_syntax:string(UnescapedStr), erl_syntax:string(DefaultString), 
+                            #ast_info{translatable_strings = [UnescapedStr]}, TreeWalker);
+        Translated ->
+            Translated
+    end;
 translated_ast(ValueToken, Context, TreeWalker) ->
     {{Ast, Info}, TreeWalker1} = value_ast(ValueToken, true, false, Context, TreeWalker),
     translated_ast2(Ast, Ast, Info, TreeWalker1).
 
-translated_ast2(NewStrAst, DefaultStringAst, AstInfo, TreeWalker) ->
+translated_ast2(UnescapedStrAst, DefaultStringAst, AstInfo, TreeWalker) ->
     StringLookupAst = erl_syntax:application(
 			erl_syntax:atom(erlydtl_runtime),
 			erl_syntax:atom(translate),
-			[NewStrAst, erl_syntax:variable("_TranslationFun"), DefaultStringAst]),
+			[UnescapedStrAst, erl_syntax:variable("_TranslationFun"), DefaultStringAst]),
     {{StringLookupAst, AstInfo}, TreeWalker}.
 
 						% Completely unnecessary in ErlyDTL (use {{ "{%" }} etc), but implemented for compatibility.

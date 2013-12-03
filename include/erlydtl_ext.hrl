@@ -21,7 +21,8 @@
           is_compiling_dir = false,
           extension_module = undefined,
           scanner_module = erlydtl_scanner,
-          scanned_tokens = []
+          scanned_tokens = [],
+          all_options = []
          }).
 
 -record(ast_info, {
