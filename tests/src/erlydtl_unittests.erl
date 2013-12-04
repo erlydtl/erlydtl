@@ -279,7 +279,16 @@ tests() ->
 	       <<"{% for x in list %}{% ifchanged x.name|first %}{{ x.value }}{% endifchanged %}\n{% endfor %}">>,
 	       [{'list', [[{"name", ["nA","nB"]},{"value","1"}],[{"name", ["nA","nC"]},{"value","2"}],
 			  [{"name", ["nB","nC"]},{"value","3"}],[{"name", ["nB","nA"]},{"value","4"}]]}],
-	       <<"1\n\n3\n\n">>}
+	       <<"1\n\n3\n\n">>},
+
+              {"Loop undefined var",
+               <<"{% for i in undef %}i = {{ i }}.\n{% endfor %}">>,
+               [],
+               <<"">>},
+              {"Loop filtered value rather than variable",
+               <<"{% for x in 123|make_list %}{% if not forloop.first %}, {% endif %}{{ x }}{% endfor %}">>,
+               [],
+               <<"1, 2, 3">>}
 	     ]},
      {"for/empty", [
 		    {"Simple loop",

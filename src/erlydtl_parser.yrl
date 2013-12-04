@@ -296,8 +296,8 @@ ForBlock -> ForBraced Elements EmptyBraced Elements EndForBraced : {for, '$1', '
 EmptyBraced -> open_tag empty_keyword close_tag.
 ForBraced -> open_tag for_keyword ForExpression close_tag : '$3'.
 EndForBraced -> open_tag endfor_keyword close_tag.
-ForExpression -> ForGroup in_keyword Variable : {'in', '$1', '$3', false}.
-ForExpression -> ForGroup in_keyword Variable reversed_keyword : {'in', '$1', '$3', true}.
+ForExpression -> ForGroup in_keyword Value : {'in', '$1', '$3', false}.
+ForExpression -> ForGroup in_keyword Value reversed_keyword : {'in', '$1', '$3', true}.
 ForGroup -> identifier : ['$1'].
 ForGroup -> ForGroup ',' identifier : '$1' ++ ['$3'].
 
