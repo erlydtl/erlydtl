@@ -33,55 +33,55 @@ unparse([{'filter', FilterList, Contents}|Rest], Acc) ->
 unparse([{'firstof', Vars}|Rest], Acc) ->
     unparse(Rest, [["{% firstof ", unparse(Vars), " %}"]|Acc]);
 unparse([{'for', {'in', IteratorList, Identifier}, Contents}|Rest], Acc) ->
-    unparse(Rest, [["{% for ", unparse_identifier(Identifier), " in ", unparse(IteratorList), " %}", 
-                unparse(Contents), 
-                "{% endfor %}"]|Acc]);
+    unparse(Rest, [["{% for ", unparse_identifier(Identifier), " in ", unparse(IteratorList), " %}",
+                    unparse(Contents),
+                    "{% endfor %}"]|Acc]);
 unparse([{'for', {'in', IteratorList, Identifier}, Contents, EmptyPartsContents}|Rest], Acc) ->
     unparse(Rest, [["{% for ", unparse_identifier(Identifier), " in ", unparse(IteratorList), " %}",
-                unparse(Contents),
-                "{% empty %}",
-                unparse(EmptyPartsContents),
-                "{% endfor %}"]|Acc]);
+                    unparse(Contents),
+                    "{% empty %}",
+                    unparse(EmptyPartsContents),
+                    "{% endfor %}"]|Acc]);
 unparse([{'if', Expression, Contents}|Rest], Acc) ->
     unparse(Rest, [["{% if ", unparse_expression(Expression), " %}",
-                unparse(Contents),
-                "{% endif %}"]|Acc]);
+                    unparse(Contents),
+                    "{% endif %}"]|Acc]);
 unparse([{'ifchanged', Expression, IfContents}|Rest], Acc) ->
     unparse(Rest, [["{% ifchanged ", unparse_expression(Expression), " %}",
-                unparse(IfContents),
-                "{% endifchanged %}"]|Acc]);
+                    unparse(IfContents),
+                    "{% endifchanged %}"]|Acc]);
 unparse([{'ifchangedelse', Expression, IfContents, ElseContents}|Rest], Acc) ->
     unparse(Rest, [["{% ifchanged ", unparse_expression(Expression), " %}",
-                unparse(IfContents),
-                "{% else %}",
-                unparse(ElseContents),
-                "{% endifchanged %}"]|Acc]);
+                    unparse(IfContents),
+                    "{% else %}",
+                    unparse(ElseContents),
+                    "{% endifchanged %}"]|Acc]);
 unparse([{'ifelse', Expression, IfContents, ElseContents}|Rest], Acc) ->
     unparse(Rest, [["{% if ", unparse_expression(Expression), " %}",
-                unparse(IfContents),
-                "{% else %}",
-                unparse(ElseContents),
-                "{% endif %}"]|Acc]);
+                    unparse(IfContents),
+                    "{% else %}",
+                    unparse(ElseContents),
+                    "{% endif %}"]|Acc]);
 unparse([{'ifequal', [Arg1, Arg2], Contents}|Rest], Acc) ->
     unparse(Rest, [["{% ifequal ", unparse_value(Arg1), " ", unparse_value(Arg2), " %}",
-                unparse(Contents),
-                "{% endifequal %}"]|Acc]);
+                    unparse(Contents),
+                    "{% endifequal %}"]|Acc]);
 unparse([{'ifequalelse', [Arg1, Arg2], IfContents, ElseContents}|Rest], Acc) ->
     unparse(Rest, [["{% ifequal ", unparse_value(Arg1), " ", unparse_value(Arg2), " %}",
-                unparse(IfContents),
-                "{% else %}",
-                unparse(ElseContents),
-                "{% endifequal %}"]|Acc]);
+                    unparse(IfContents),
+                    "{% else %}",
+                    unparse(ElseContents),
+                    "{% endifequal %}"]|Acc]);
 unparse([{'ifnotequal', [Arg1, Arg2], Contents}|Rest], Acc) ->
     unparse(Rest, [["{% ifnotequal ", unparse_value(Arg1), " ", unparse_value(Arg2), " %}",
-                unparse(Contents),
-                "{% endifnotequal %}"]|Acc]);
+                    unparse(Contents),
+                    "{% endifnotequal %}"]|Acc]);
 unparse([{'ifnotequalelse', [Arg1, Arg2], IfContents, ElseContents}|Rest], Acc) ->
     unparse(Rest, [["{% ifnotequal ", unparse_value(Arg1), " ", unparse_value(Arg2), " %}",
-                unparse(IfContents),
-                "{% else %}",
-                unparse(ElseContents),
-                "{% endifnotequal %}"]|Acc]);
+                    unparse(IfContents),
+                    "{% else %}",
+                    unparse(ElseContents),
+                    "{% endifnotequal %}"]|Acc]);
 unparse([{'include', Value, []}|Rest], Acc) ->
     unparse(Rest, [["{% include ", unparse_value(Value), " %}"]|Acc]);
 unparse([{'include', Value, Args}|Rest], Acc) ->
@@ -92,8 +92,8 @@ unparse([{'include_only', Value, Args}|Rest], Acc) ->
     unparse(Rest, [["{% include ", unparse_value(Value), " with ", unparse_args(Args), " only %}"]|Acc]);
 unparse([{'regroup', {Variable, Identifier1, Identifier2}, Contents}|Rest], Acc) ->
     unparse(Rest, [["{% regroup ", unparse_value(Variable), " by ", unparse_identifier(Identifier1), " as ", unparse_identifier(Identifier2), " %}",
-                unparse(Contents),
-                "{% endregroup %}"]|Acc]);
+                    unparse(Contents),
+                    "{% endregroup %}"]|Acc]);
 unparse([{'spaceless', Contents}|Rest], Acc) ->
     unparse(Rest, [["{% spaceless %}", unparse(Contents), "{% endspaceless %}"]|Acc]);
 unparse([{'ssi', Arg}|Rest], Acc) ->
@@ -114,8 +114,8 @@ unparse([{'widthratio', Numerator, Denominator, Scale}|Rest], Acc) ->
     unparse(Rest, [["{% widthratio ", unparse_value(Numerator), " ", unparse_value(Denominator), " ", unparse_value(Scale), " %}"]|Acc]);
 unparse([{'with', Args, Contents}|Rest], Acc) ->
     unparse(Rest, [["{% with ", unparse_args(Args), " %}",
-                unparse(Contents),
-                "{% endwidth %}"]|Acc]);
+                    unparse(Contents),
+                    "{% endwidth %}"]|Acc]);
 unparse([ValueToken|Rest], Acc) ->
     unparse(Rest, [["{{ ", unparse_value(ValueToken), " }}"]|Acc]).
 

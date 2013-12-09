@@ -35,7 +35,7 @@ find_value(Key, {GBSize, GBData}) when is_integer(GBSize) ->
     end;
 find_value(Key, Tuple) when is_tuple(Tuple) ->
     case element(1, Tuple) of
-        dict -> 
+        dict ->
             case dict:find(Key, Tuple) of
                 {ok, Val} ->
                     Val;
@@ -61,8 +61,8 @@ find_value(Key, Tuple) when is_tuple(Tuple) ->
 
 find_deep_value([Key|Rest],Item) ->
     case find_value(Key,Item) of
-	undefined -> undefined;
-	NewItem -> find_deep_value(Rest,NewItem)
+        undefined -> undefined;
+        NewItem -> find_deep_value(Rest,NewItem)
     end;
 find_deep_value([],Item) -> Item.
 
@@ -226,22 +226,22 @@ init_counter_stats(List) ->
     init_counter_stats(List, undefined).
 
 init_counter_stats(List, Parent) when is_list(List) ->
-    [{counter, 1}, 
-        {counter0, 0}, 
-        {revcounter, length(List)}, 
-        {revcounter0, length(List) - 1}, 
-        {first, true}, 
-        {last, length(List) =:= 1},
-        {parentloop, Parent}].
+    [{counter, 1},
+     {counter0, 0},
+     {revcounter, length(List)},
+     {revcounter0, length(List) - 1},
+     {first, true},
+     {last, length(List) =:= 1},
+     {parentloop, Parent}].
 
 increment_counter_stats([{counter, Counter}, {counter0, Counter0}, {revcounter, RevCounter},
-        {revcounter0, RevCounter0}, {first, _}, {last, _}, {parentloop, Parent}]) ->
+                         {revcounter0, RevCounter0}, {first, _}, {last, _}, {parentloop, Parent}]) ->
     [{counter, Counter + 1},
-        {counter0, Counter0 + 1},
-        {revcounter, RevCounter - 1},
-        {revcounter0, RevCounter0 - 1},
-        {first, false}, {last, RevCounter0 =:= 1},
-        {parentloop, Parent}].
+     {counter0, Counter0 + 1},
+     {revcounter, RevCounter - 1},
+     {revcounter0, RevCounter0 - 1},
+     {first, false}, {last, RevCounter0 =:= 1},
+     {parentloop, Parent}].
 
 forloop(Fun, Acc0, Values) ->
     push_ifchanged_context(),
@@ -251,9 +251,9 @@ forloop(Fun, Acc0, Values) ->
 
 push_ifchanged_context() ->
     IfChangedContextStack = case get(?IFCHANGED_CONTEXT_VARIABLE) of
-        undefined -> [];
-        Stack -> Stack
-    end,
+                                undefined -> [];
+                                Stack -> Stack
+                            end,
     put(?IFCHANGED_CONTEXT_VARIABLE, [[]|IfChangedContextStack]).
 
 pop_ifchanged_context() ->
@@ -296,8 +296,8 @@ spaceless(Contents) ->
 
 read_file(Module, Function, DocRoot, FileName) ->
     AbsName = case filename:absname(FileName) of
-        FileName -> FileName;
-        _ -> filename:join([DocRoot, FileName])
-    end,
+                  FileName -> FileName;
+                  _ -> filename:join([DocRoot, FileName])
+              end,
     {ok, Binary} = Module:Function(AbsName),
     binary_to_list(Binary).
