@@ -83,7 +83,13 @@ tests() ->
                     <<"{{ var1.some_var }}">>, [{var1, erlydtl_example_variable_storage:new("foo")}], <<"foo">>},
                    {"Nested attributes",
                     <<"{{ person.city.state.country }}">>, [{person, [{city, [{state, [{country, "Italy"}]}]}]}],
-                    <<"Italy">>}
+                    <<"Italy">>},
+                   {"Index list variable",
+                    <<"{{ var1.2 }}">>, [{var1, [a, b, c]}],
+                    <<"b">>},
+                   {"Index tuple variable",
+                    <<"{{ var1.2 }}">>, [{var1, {a, b, c}}],
+                    <<"b">>}
                   ]},
      {"now", [
               {"now functional",

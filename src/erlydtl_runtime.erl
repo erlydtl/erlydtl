@@ -26,6 +26,10 @@ find_value(Key, L) when is_binary(Key), is_list(L) ->
         false           -> undefined;
         {Key, Value}    -> Value
     end;
+find_value(Key, L) when is_integer(Key), is_list(L) ->
+    if Key < length(L) -> lists:nth(Key, L);
+       true -> undefined
+    end;
 find_value(Key, {GBSize, GBData}) when is_integer(GBSize) ->
     case gb_trees:lookup(Key, {GBSize, GBData}) of
         {value, Val} ->
@@ -41,6 +45,10 @@ find_value(Key, Tuple) when is_tuple(Tuple) ->
                     Val;
                 _ ->
                     undefined
+            end;
+        _ when is_integer(Key) ->
+            if Key < size(Tuple) -> element(Key, Tuple);
+               true -> undefined
             end;
         Module ->
             case lists:member({Key, 1}, Module:module_info(exports)) of
@@ -59,18 +67,18 @@ find_value(Key, Tuple) when is_tuple(Tuple) ->
             end
     end.
 
+fetch_value(Key, Data, _FileName, _Pos) ->
+    case find_value(Key, Data) of
+        undefined -> [];
+        Val -> Val
+    end.
+
 find_deep_value([Key|Rest],Item) ->
     case find_value(Key,Item) of
         undefined -> undefined;
         NewItem -> find_deep_value(Rest,NewItem)
     end;
 find_deep_value([],Item) -> Item.
-
-fetch_value(Key, Data, _FileName, _Pos) ->
-    case find_value(Key, Data) of
-        undefined -> [];
-        Val -> Val
-    end.
 
 regroup(List, Attribute) ->
     regroup(List, Attribute, []).

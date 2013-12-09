@@ -1211,17 +1211,22 @@ resolve_variable_ast(VarTuple, Context, TreeWalker, EmptyIfUndefined)
 resolve_variable_ast(VarTuple, Context, TreeWalker, FinderFunction) ->
     resolve_variable_ast1(VarTuple, Context, TreeWalker, FinderFunction).
 
-resolve_variable_ast1({attribute, {{identifier, {Row, Col}, AttrName}, Variable}}, Context, TreeWalker, FinderFunction) ->
+resolve_variable_ast1({attribute, {{AttrKind, {Row, Col}, Attr}, Variable}}, Context, TreeWalker, FinderFunction) ->
     {{VarAst, VarInfo}, TreeWalker1} = resolve_variable_ast(Variable, Context, TreeWalker, FinderFunction),
     FileNameAst = case Context#dtl_context.parse_trail of
                       [] -> erl_syntax:atom(undefined);
                       [H|_] -> erl_syntax:string(H)
                   end,
+    AttrAst = erl_syntax:abstract(
+                case AttrKind of
+                    number_literal -> erlang:list_to_integer(Attr);
+                    _ -> Attr
+                end),
     {Runtime, Finder} = FinderFunction,
     {{erl_syntax:application(
         erl_syntax:atom(Runtime),
         erl_syntax:atom(Finder),
-        [erl_syntax:atom(AttrName), VarAst, FileNameAst,
+        [AttrAst, VarAst, FileNameAst,
          erl_syntax:tuple([erl_syntax:integer(Row), erl_syntax:integer(Col)])
         ]),
       VarInfo},

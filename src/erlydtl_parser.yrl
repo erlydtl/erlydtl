@@ -250,6 +250,7 @@ Values -> Values Value : '$1' ++ ['$2'].
 
 Variable -> identifier : {variable, '$1'}.
 Variable -> Variable '.' identifier : {attribute, {'$3', '$1'}}.
+Variable -> Variable '.' Literal : {attribute, {'$3', '$1'}}.
 
 AutoEscapeBlock -> AutoEscapeBraced Elements EndAutoEscapeBraced : {autoescape, '$1', '$2'}.
 AutoEscapeBraced -> open_tag autoescape_keyword identifier close_tag : '$3'.
