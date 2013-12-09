@@ -173,7 +173,7 @@ setup("custom_tag2") ->
 setup("custom_tag3") ->
     {ok, [{a, <<"a1">>}], [{locale, ru}], <<"b3\n">>};
 setup("custom_tag4") ->
-    {ok, [], [], [<<"a|b">>, <<"\n">>]};
+    {ok, [], [], <<"a\n">>};
 setup("ssi") ->
     RenderVars = [{path, filename:absname(filename:join(["tests", "input", "ssi_include.html"]))}],
     {ok, RenderVars};
@@ -301,7 +301,7 @@ test_render(Name, Module) ->
                             io:format("failed"),
                             {error, io_lib:format(
                                       "Expected output does not match rendered output~n"
-                                      "==Expected==~n~s~n--Actual--~n~s~n==End==~n",
+                                      "==Expected==~n~p~n--Actual--~n~p~n==End==~n",
                                       [RenderResult, Data])}
                     end;
                true ->

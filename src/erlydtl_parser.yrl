@@ -100,6 +100,7 @@ Nonterminals
     EndIfNotEqualBraced      
 
     CustomTag
+    CustomArgs
     Args
 
     RegroupBlock
@@ -388,7 +389,11 @@ Filter -> identifier ':' Variable : ['$1', '$3'].
 Literal -> string_literal : '$1'.
 Literal -> number_literal : '$1'.
 
-CustomTag -> open_tag identifier Args close_tag : {tag, '$2', '$3'}.
+CustomTag -> open_tag identifier CustomArgs close_tag : {tag, '$2', '$3'}.
+
+CustomArgs -> '$empty' : [].
+CustomArgs -> identifier '=' Value CustomArgs : [{'$1', '$3'}|'$4'].
+CustomArgs -> Value CustomArgs : ['$1'|'$2'].
 
 Args -> '$empty' : [].
 Args -> Args identifier '=' Value : '$1' ++ [{'$2', '$4'}].

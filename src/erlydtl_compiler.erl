@@ -1481,17 +1481,19 @@ full_path(File, DocRoot) ->
 %% Custom tags
 %%-------------------------------------------------------------------
 
+interpret_value({trans, StringLiteral}, Context, TreeWalker) ->
+    translated_ast(StringLiteral, Context, TreeWalker);
+interpret_value(Value, Context, TreeWalker) ->
+    value_ast(Value, false, false, Context, TreeWalker).
+
 interpret_args(Args, Context, TreeWalker) ->
     lists:foldr(
-      fun ({{identifier, _, Key}, {trans, StringLiteral}}, {{ArgsAcc, AstInfoAcc}, TreeWalkerAcc}) ->
-              {{TransAst, TransAstInfo}, TreeWalker0} = translated_ast(StringLiteral, Context, TreeWalkerAcc),
-              {{[erl_syntax:tuple([erl_syntax:atom(Key), TransAst])|ArgsAcc], merge_info(TransAstInfo, AstInfoAcc)}, TreeWalker0};
-          ({{identifier, _, Key}, Value}, {{ArgsAcc, AstInfoAcc}, TreeWalkerAcc}) ->
-              {{Ast0, AstInfo0}, TreeWalker0} = value_ast(Value, false, false, Context, TreeWalkerAcc),
+      fun ({{identifier, _, Key}, Value}, {{ArgsAcc, AstInfoAcc}, TreeWalkerAcc}) ->
+              {{Ast0, AstInfo0}, TreeWalker0} = interpret_value(Value, Context, TreeWalkerAcc),
               {{[erl_syntax:tuple([erl_syntax:atom(Key), Ast0])|ArgsAcc], merge_info(AstInfo0, AstInfoAcc)}, TreeWalker0};
-          ({extension, Tag}, {{ArgsAcc, AstInfoAcc}, TreeWalkerAcc}) ->
-              {{ExtAst, ExtInfo}, ExtTreeWalker} = extension_ast(Tag, Context, TreeWalkerAcc),
-              {{[ExtAst|ArgsAcc], merge_info(ExtInfo, AstInfoAcc)}, ExtTreeWalker}
+          (Value, {{ArgsAcc, AstInfoAcc}, TreeWalkerAcc}) ->
+              {{Ast0, AstInfo0}, TreeWalker0} = value_ast(Value, false, false, Context, TreeWalkerAcc),
+              {{[Ast0|ArgsAcc], merge_info(AstInfo0, AstInfoAcc)}, TreeWalker0}
       end, {{[], #ast_info{}}, TreeWalker}, Args).
 
 tag_ast(Name, Args, Context, TreeWalker) ->

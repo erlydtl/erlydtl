@@ -11,6 +11,5 @@ custom2([], _RenderOptions = [{locale, ru}, {foo, bar}]) ->
 custom3([], _RenderOptions = [{locale, ru}]) ->
     <<"b3">>.
 
-custom4(TagVars) ->
-    Lst = [binary_to_list(X) || X <- TagVars],
-    string:join(Lst, "|").
+custom4(_TagVars = [<<"a">>]) ->
+    <<"a">>.
