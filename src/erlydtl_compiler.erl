@@ -48,7 +48,8 @@
          format/3, 
          value_ast/5,
          resolve_scoped_variable_ast/2,
-         interpret_args/3
+         interpret_args/3,
+         unescape_string_literal/1
         ]).
 
 -include("erlydtl_ext.hrl").

@@ -1193,44 +1193,55 @@ tests() ->
 			    <<"999 123,456,789 12,345 1,234,567,890">>}
 			  ]},
      %% custom syntax stuff
-     {"extension_module", [
-			   %% the erlydtl_extension_test module replaces a foo identifier with bar when hitting a # following foo.
-			   {"replace parsed token", <<"{{ foo # }}">>, [{bar, "ok"}], [], [{extension_module, erlydtl_extension_test}], <<"ok">>},
-			   {"proper error message", <<"{{ bar # }}">>, [{bar, "ok"}], [], [{extension_module, erlydtl_extension_test}],
-			    {error, {1,erlydtl_extension_test,"Unexpected '#' in code at column 8"}}},
-                           %% accept identifiers as expressions (this is a dummy functionality to test the parser extensibility)
-			   {"identifiers as expressions", <<"{{ foo.bar or baz }}">>, [{baz, "ok"}], [], [{extension_module, erlydtl_extension_test}], <<"ok">>}
-			  ]}
+     {"extension_module",
+      [ %% the erlydtl_extension_test module replaces a foo identifier with bar when hitting a # following foo.
+        {"replace parsed token", <<"{{ foo # }}">>, [{bar, "ok"}], [],
+         [{extension_module, erlydtl_extension_test}], <<"ok">>},
+        {"proper error message", <<"{{ bar # }}">>, [{bar, "ok"}], [],
+         [{extension_module, erlydtl_extension_test}],
+         {error, {1,erlydtl_extension_test,"Unexpected '#' in code at column 8"}}},
+        %% accept identifiers as expressions (this is a dummy functionality to test the parser extensibility)
+        {"identifiers as expressions", <<"{{ foo.bar or baz }}">>, [{baz, "ok"}], [],
+         [{extension_module, erlydtl_extension_test}], <<"ok">>}
+      ]}
     ].
 
 run_tests() ->
     io:format("Running unit tests..."),
-    Failures = lists:foldl(
-                 fun({Group, Assertions}, GroupAcc) ->
-                         io:format("~n Test group ~p ", [Group]),
-                         Failed =
-                             lists:foldl(
-                               fun(Setup, Acc) ->
-                                       try process_unit_test(Setup, Acc) of
-                                           Acc ->
-                                               io:format("."),
-                                               Acc;
-                                           AccOut ->
-                                               io:format("!"),
-                                               AccOut
-                                       catch
-                                           Class:Error ->
-                                               format_error(element(1, Setup),
-                                                            Class, Error, Acc)
-                                       end
-                               end, [], Assertions),
-                         if length(Failed) =:= 0 -> GroupAcc;
-                            true -> [{Group, Failed}|GroupAcc]
-                         end
-                 end, [], tests()),
+    {Times, Failures} =
+        lists:foldl(
+          fun({Group, Assertions}, {GroupTs, GroupEs}) ->
+                  io:format("~n Test group ~p ", [Group]),
+                  {Ts, Es} =
+                      lists:foldl(
+                        fun(Setup, {Ts, Es}) ->
+                                try process_unit_test(Setup) of
+                                    {ok, T} ->
+                                        io:format("."),
+                                        {merge_times(T, Ts), Es};
+                                    {T, E} ->
+                                        io:format("!"),
+                                        {merge_times(T, Ts), [E|Es]}
+                                catch
+                                    Class:Error ->
+                                        {Ts, [format_error(
+                                                element(1, Setup),
+                                                Class, Error)
+                                              |Es]}
+                                end
+                        end, {[], []}, Assertions),
+                  Ts1 = merge_times(Ts, GroupTs),
+                  if length(Es) =:= 0 ->
+                          io:format("~n~s (msec)", [format_times(Ts, length(Assertions))]),
+                          {Ts1, GroupEs};
+                     true ->
+                          {Ts1, [{Group, Es}|GroupEs]}
+                  end
+          end, {[], []}, tests()),
 
     case length(Failures) of
-        0 -> io:format("~nAll unit tests PASS~n~n");
+        0 ->
+            io:format("~nAll unit tests PASS~nTotal~s (msec)~n~n", [format_times(Times)]);
         Length ->
             io:format("~n### FAILED groups: ~b ####~n", [Length]),
             [begin
@@ -1241,60 +1252,97 @@ run_tests() ->
             throw(failed)
     end.
 
-format_error(Name, Class, Error, Acc) ->
+merge_times(Ts1, Ts2) ->
+    merge_times(Ts1, Ts2, []).
+
+merge_times([{K, V1}|Ts1], [{K, V2}|Ts2], Acc) ->
+    merge_times(Ts1, Ts2, [{K, V1 + V2}|Acc]);
+merge_times(Ts1, [T|Ts2], Acc) ->
+    merge_times(Ts1, Ts2, [T|Acc]);
+merge_times([T|Ts1], [], Acc) ->
+    merge_times(Ts1, [], [T|Acc]);
+merge_times([], [], Acc) ->
+    lists:reverse(Acc).
+
+format_times(Ts) ->
+    [io_lib:format("  ~p ~.3f", [K, V / 1000]) || {K, V} <- Ts].
+
+format_times(Ts, Count) ->
+    [io_lib:format("  ~p ~.3f (~.3f)", [K, V / 1000, V / 1000 / Count])
+     || {K, V} <- Ts].
+
+format_error(Name, Class, Error) ->
     io:format("!"),
-    [{Name, io_lib:format("~s:~p~n  ~p", [Class, Error, erlang:get_stacktrace()])}|Acc].
+    {Name, io_lib:format("~s:~p~n  ~p", [Class, Error, erlang:get_stacktrace()])}.
 
 compile_test(DTL, Opts) ->
     Options = [{custom_filters_modules, [erlydtl_contrib_humanize]}|Opts],
-    erlydtl:compile(DTL, erlydtl_running_test, Options).
-    
-process_unit_test({Name, DTL, Vars, Output}, Acc) ->
-    process_unit_test({Name, DTL, Vars, [], [], Output}, Acc);
-process_unit_test({Name, DTL, Vars, RenderOpts, Output}, Acc) ->
-    process_unit_test({Name, DTL, Vars, RenderOpts, [], Output}, Acc);
-process_unit_test({Name, DTL, Vars, RenderOpts, CompilerOpts, Output}, Acc) ->
+    timer:tc(erlydtl, compile, [DTL, erlydtl_running_test, Options]).
+
+render_test(Vars, RenderOpts) ->
+    timer:tc(erlydtl_running_test, render, [Vars, RenderOpts]).
+
+test_pass(T) ->
+    {ok, T}.
+
+test_fail(Name, Fmt, Args, T) ->
+    {T, {Name, io_lib:format(Fmt, Args)}}.
+
+process_unit_test({Name, DTL, Vars, Output}) ->
+    process_unit_test({Name, DTL, Vars, [], [], Output});
+process_unit_test({Name, DTL, Vars, RenderOpts, Output}) ->
+    process_unit_test({Name, DTL, Vars, RenderOpts, [], Output});
+process_unit_test({Name, DTL, Vars, RenderOpts, CompilerOpts, Output}) ->
     case compile_test(DTL, CompilerOpts) of
-        {ok, _} ->
-            case erlydtl_running_test:render(Vars, RenderOpts) of
-                {ok, IOList} ->
-                    case erlydtl_running_test:render(vars_to_binary(Vars), RenderOpts) of
-                        {ok, IOListBin} ->
+        {Tcompile, {ok, _}} ->
+            Tc = [{compile, Tcompile}],
+            case render_test(Vars, RenderOpts) of
+                {TrenderL, {ok, IOList}} ->
+                    TrL = [{render_list, TrenderL}|Tc],
+                    case render_test(vars_to_binary(Vars), RenderOpts) of
+                        {TrenderB, {ok, IOListBin}} ->
+                            TrB = [{render_binary, TrenderB}|TrL],
                             case {iolist_to_binary(IOList), iolist_to_binary(IOListBin)} of
                                 {Output, Output} ->
-                                    Acc;
+                                    test_pass(TrB);
                                 {Output, Unexpected} ->
-                                    [{Name, io_lib:format(
-                                                     "Unexpected result with binary variables: ~n"
-                                                     "Expected: ~p~n"
-                                                     "Actual: ~p",
-                                                     [Output, Unexpected])} | Acc];
+                                    test_fail(
+                                      Name,
+                                      "Unexpected result with binary variables: ~n"
+                                      "Expected: ~p~n"
+                                      "Actual: ~p",
+                                      [Output, Unexpected], TrB);
                                 {Unexpected, Output} ->
-                                    [{Name, io_lib:format(
-                                                     "Unexpected result with list variables: ~n"
-                                                     "Expected: ~p~n"
-                                                     "Actual: ~p",
-                                                     [Output, Unexpected])} | Acc];
+                                    test_fail(
+                                      Name,
+                                      "Unexpected result with list variables: ~n"
+                                      "Expected: ~p~n"
+                                      "Actual: ~p",
+                                      [Output, Unexpected], TrB);
                                 {Unexpected1, Unexpected2} ->
-                                    [{Name, io_lib:format(
-                                                     "Unexpected result: ~n"
-                                                     "Expected: ~p~n"
-                                                     "Actual (list): ~p~n"
-                                                     "Actual (binary): ~p",
-                                                     [Output, Unexpected1, Unexpected2])} | Acc]
+                                    test_fail(
+                                      Name,
+                                      "Unexpected result: ~n"
+                                      "Expected: ~p~n"
+                                      "Actual (list): ~p~n"
+                                      "Actual (binary): ~p",
+                                      [Output, Unexpected1, Unexpected2], TrB)
                             end;
-                        Output -> Acc;
-                        Err ->
-                            [{Name, io_lib:format("Render error (with binary variables): ~p",
-                                                  [Err])} | Acc]
+                        {TrenderB, Output} ->
+                            test_pass([{render_binary, TrenderB}|TrL]);
+                        {TrenderB, Err} ->
+                            test_fail(Name, "Render error (with binary variables): ~p", [Err],
+                                     [{render_binary, TrenderB}|TrL])
                     end;
-                Output -> Acc;
-                Err ->
-                    [{Name, io_lib:format("Render error (with list variables): ~p", [Err])} | Acc]
+                {TrenderL, Output} ->
+                    test_pass([{render_list, TrenderL}|Tc]);
+                {TrenderL, Err} ->
+                    test_fail(Name, "Render error (with list variables): ~p", [Err],
+                              [{render_list, TrenderL}|Tc])
             end;
-        Output -> Acc;
-        Err ->
-            [{Name, io_lib:format("Compile error: ~p", [Err])} | Acc]
+        {Tcompile, Output} -> test_pass([{compile, Tcompile}]);
+        {Tcompile, Err} ->
+            test_fail(Name, "Compile error: ~p", [Err], [{compile, Tcompile}])
     end.
 
 
