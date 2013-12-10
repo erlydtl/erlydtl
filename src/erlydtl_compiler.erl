@@ -847,9 +847,14 @@ body_ast(DjangoParseTree, Context, TreeWalker) ->
                                                        Counter = TreeWalkerAcc#treewalker.counter,
                                                        Name = lists:concat([pre_render, Counter]),
                                                        Ast1 = erl_syntax:application(none, erl_syntax:atom(Name),
-                                                                                     [erl_syntax:list(PresetVars)]),
+                                                                                     [erl_syntax:list(PresetVars),
+                                                                                      erl_syntax:variable("RenderOptions")]),
                                                        PreRenderAst = erl_syntax:function(erl_syntax:atom(Name),
-                                                                                          [erl_syntax:clause([erl_syntax:variable("_Variables")], none, [Ast])]),
+                                                                                          [erl_syntax:clause([erl_syntax:variable("_Variables"),
+                                                                                                              erl_syntax:variable("RenderOptions")],
+                                                                                                             none,
+                                                                                                             options_match_ast(Context, TreeWalkerAcc)
+                                                                                                             ++ [Ast])]),
                                                        PreRenderAsts = Info#ast_info.pre_render_asts,
                                                        Info1 = Info#ast_info{pre_render_asts = [PreRenderAst | PreRenderAsts]},
                                                        {Ast1, {merge_info(Info1, InfoAcc), TreeWalkerAcc#treewalker{counter = Counter + 1}}}
