@@ -4,7 +4,18 @@
 
 -define(IFCHANGED_CONTEXT_VARIABLE, erlydtl_ifchanged_context).
 
-find_value(Key, Data, _, _) ->
+find_value(Key, Data, Options) when is_atom(Key), is_tuple(Data) ->
+    Rec = element(1, Data),
+    Info = proplists:get_value(record_info, Options),
+    case proplists:get_value(Rec, Info) of
+        Fields when is_list(Fields), length(Fields) == size(Data) - 1 ->
+            case proplists:get_value(Key, Fields) of
+                Idx when is_integer(Idx) -> element(Idx, Data);
+                _ -> undefined
+            end;
+        _ -> find_value(Key, Data)
+    end;
+find_value(Key, Data, _Options) ->
     find_value(Key, Data).
 
 find_value(_, undefined) ->
@@ -67,8 +78,8 @@ find_value(Key, Tuple) when is_tuple(Tuple) ->
             end
     end.
 
-fetch_value(Key, Data, _FileName, _Pos) ->
-    case find_value(Key, Data) of
+fetch_value(Key, Data, Options) ->
+    case find_value(Key, Data, Options) of
         undefined -> [];
         Val -> Val
     end.

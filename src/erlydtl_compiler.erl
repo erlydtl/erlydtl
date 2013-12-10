@@ -281,7 +281,9 @@ init_context(IsCompilingDir, ParseTrail, DefDir, Module, Options) ->
                  verbose = proplists:get_value(verbose, Options, Ctx#dtl_context.verbose),
                  is_compiling_dir = IsCompilingDir,
                  extension_module = proplists:get_value(extension_module, Options, Ctx#dtl_context.extension_module),
-                 scanner_module = proplists:get_value(scanner_module, Options, Ctx#dtl_context.scanner_module)
+                 scanner_module = proplists:get_value(scanner_module, Options, Ctx#dtl_context.scanner_module),
+                 record_info = [{R, lists:zip(I, lists:seq(2, length(I) + 1))}
+                                || {R, I} <- proplists:get_value(record_info, Options, Ctx#dtl_context.record_info)]
                 },
     case call_extension(Context, init_context, [Context]) of
         {ok, C} when is_record(C, dtl_context) -> C;
@@ -680,12 +682,14 @@ options_match_ast(Context, TreeWalker) ->
        erl_syntax:application(
          erl_syntax:atom(proplists),
          erl_syntax:atom(get_value),
-         [erl_syntax:atom(locale), erl_syntax:variable("RenderOptions"), erl_syntax:atom(none)]))
+         [erl_syntax:atom(locale), erl_syntax:variable("RenderOptions"), erl_syntax:atom(none)])),
+     erl_syntax:match_expr(
+       erl_syntax:variable("_RecordInfo"),
+       erl_syntax:abstract(Context#dtl_context.record_info))
      | case call_extension(Context, setup_render_ast, [Context, TreeWalker]) of
            undefined -> [];
            Ast when is_list(Ast) -> Ast
-       end
-    ].
+       end].
 
                                                 % child templates should only consist of blocks at the top level
 body_ast([{'extends', {string_literal, _Pos, String}} | ThisParseTree], Context, TreeWalker) ->
@@ -1211,12 +1215,14 @@ resolve_variable_ast(VarTuple, Context, TreeWalker, EmptyIfUndefined)
 resolve_variable_ast(VarTuple, Context, TreeWalker, FinderFunction) ->
     resolve_variable_ast1(VarTuple, Context, TreeWalker, FinderFunction).
 
-resolve_variable_ast1({attribute, {{AttrKind, {Row, Col}, Attr}, Variable}}, Context, TreeWalker, FinderFunction) ->
+resolve_variable_ast1({attribute, {{AttrKind, Pos, Attr}, Variable}}, Context, TreeWalker, FinderFunction) ->
     {{VarAst, VarInfo}, TreeWalker1} = resolve_variable_ast(Variable, Context, TreeWalker, FinderFunction),
-    FileNameAst = case Context#dtl_context.parse_trail of
-                      [] -> erl_syntax:atom(undefined);
-                      [H|_] -> erl_syntax:string(H)
-                  end,
+    FileNameAst = erl_syntax:tuple(
+                    [erl_syntax:atom(filename),
+                     case Context#dtl_context.parse_trail of
+                         [] -> erl_syntax:atom(undefined);
+                         [H|_] -> erl_syntax:string(H)
+                     end]),
     AttrAst = erl_syntax:abstract(
                 case AttrKind of
                     number_literal -> erlang:list_to_integer(Attr);
@@ -1226,24 +1232,36 @@ resolve_variable_ast1({attribute, {{AttrKind, {Row, Col}, Attr}, Variable}}, Con
     {{erl_syntax:application(
         erl_syntax:atom(Runtime),
         erl_syntax:atom(Finder),
-        [AttrAst, VarAst, FileNameAst,
-         erl_syntax:tuple([erl_syntax:integer(Row), erl_syntax:integer(Col)])
+        [AttrAst, VarAst,
+         erl_syntax:list(
+           [FileNameAst,
+            erl_syntax:abstract({pos, Pos}),
+            erl_syntax:tuple([erl_syntax:atom(record_info),
+                              erl_syntax:variable("_RecordInfo")])
+           ])
         ]),
       VarInfo},
      TreeWalker1};
 
-resolve_variable_ast1({variable, {identifier, {Row, Col}, VarName}}, Context, TreeWalker, FinderFunction) ->
+resolve_variable_ast1({variable, {identifier, Pos, VarName}}, Context, TreeWalker, FinderFunction) ->
     VarValue = case resolve_scoped_variable_ast(VarName, Context) of
                    undefined ->
-                       FileNameAst = case Context#dtl_context.parse_trail of
-                                         [] -> erl_syntax:atom(undefined);
-                                         [H|_] -> erl_syntax:string(H)
-                                     end,
+                       FileNameAst = erl_syntax:tuple(
+                                       [erl_syntax:atom(filename),
+                                        case Context#dtl_context.parse_trail of
+                                            [] -> erl_syntax:atom(undefined);
+                                            [H|_] -> erl_syntax:string(H)
+                                        end]),
                        {Runtime, Finder} = FinderFunction,
                        erl_syntax:application(
                          erl_syntax:atom(Runtime), erl_syntax:atom(Finder),
-                         [erl_syntax:atom(VarName), erl_syntax:variable("_Variables"), FileNameAst,
-                          erl_syntax:tuple([erl_syntax:integer(Row), erl_syntax:integer(Col)])
+                         [erl_syntax:atom(VarName), erl_syntax:variable("_Variables"),
+                          erl_syntax:list(
+                            [FileNameAst,
+                             erl_syntax:abstract({pos, Pos}),
+                             erl_syntax:tuple([erl_syntax:atom(record_info),
+                                               erl_syntax:variable("_RecordInfo")])
+                            ])
                          ]);
                    Val ->
                        Val

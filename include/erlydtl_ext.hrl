@@ -8,6 +8,7 @@
           doc_root = "", 
           parse_trail = [],
           vars = [],
+          record_info = [],
           filter_modules = [],
           custom_tags_dir = [],
           custom_tags_modules = [],

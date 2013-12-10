@@ -111,6 +111,10 @@ lists). Defaults to `true`.
 
 * `verbose` - Enable verbose printing of compilation results.
 
+* `record_info` - List of records to look for when rendering the template. Each record info is a tuple with the fields of the record:
+
+    {my_record, record_info(fields, my_record)}
+
 
 Additional compiler options can be provided with the `ERLYDTL_COMPILER_OPTIONS`
 OS environment variable.

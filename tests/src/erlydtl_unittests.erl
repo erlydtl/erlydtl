@@ -2,8 +2,21 @@
 
 -export([run_tests/0]).
 
+-record(testrec, {foo, bar, baz}).
+
 tests() ->
     [
+     %% {"scanner",
+     %%  [{"multiline tags", %% weird formatting example from issue #103.
+     %%    <<"{% if a \n"
+     %%      "  %}{% if a.b \n"
+     %%      "    %}{{ a.b \n"
+     %%      "    }}{% endif\n"
+     %%      "  %}{% endif\n"
+     %%      "%}">>,
+     %%    [{a, [{b, 123}]}],
+     %%    <<"...">>} %% dtl compat: expect the whole input text, tags and all..
+     %%  ]},
      {"vars", [
                {"string",
                 <<"String value is: {{ var1 }}">>,
@@ -1209,6 +1222,12 @@ tests() ->
         %% accept identifiers as expressions (this is a dummy functionality to test the parser extensibility)
         {"identifiers as expressions", <<"{{ foo.bar or baz }}">>, [{baz, "ok"}], [],
          [{extension_module, erlydtl_extension_test}], <<"ok">>}
+      ]},
+     {"records",
+      [{"field access",
+        <<"{{ r.baz }}">>, [{r, #testrec{ foo="Foo", bar="Bar", baz="Baz" }}], [],
+        [{record_info, [{testrec, record_info(fields, testrec)}]}],
+        <<"Baz">>}
       ]}
     ].
 

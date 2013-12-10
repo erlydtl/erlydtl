@@ -39,16 +39,16 @@
 -export([run_tests/0, run_test/1]).
 
 test_list() ->
-% order is important.
+    %% order is important.
     ["autoescape", "comment", "extends", "filters", "for", "for_list",
-        "for_tuple", "for_list_preset", "for_preset", "for_records",
-        "for_records_preset", "include", "if", "if_preset", "ifequal",
-        "ifequal_preset", "ifnotequal", "ifnotequal_preset", "now",
-        "var", "var_preset", "cycle",
-        "custom_tag", "custom_tag1", "custom_tag2", "custom_tag3", "custom_tag4",
-        "custom_call", 
-        "include_template", "include_path", "ssi",
-        "extends_path", "extends_path2", "trans", "extends2", "extends3" ].
+     "for_tuple", "for_list_preset", "for_preset", "for_records",
+     "for_records_preset", "include", "if", "if_preset", "ifequal",
+     "ifequal_preset", "ifnotequal", "ifnotequal_preset", "now",
+     "var", "var_preset", "cycle",
+     "custom_tag", "custom_tag1", "custom_tag2", "custom_tag3", "custom_tag4",
+     "custom_call",
+     "include_template", "include_path", "ssi",
+     "extends_path", "extends_path2", "trans", "extends2", "extends3" ].
 
 setup_compile("for_list_preset") ->
     CompileVars = [{fruit_list, [["apple", "apples"], ["banana", "bananas"], ["coconut", "coconuts"]]}],
@@ -60,7 +60,7 @@ setup_compile("for_records_preset") ->
     Link1a = [{name, "Amazon (preset)"}, {url, "http://amazon.com"}],
     Link2a = [{name, "Google (preset)"}, {url, "http://google.com"}],
     Link3a = [{name, "Microsoft (preset)"}, {url, "http://microsoft.com"}],
-    CompileVars = [{software_links, [Link1a, Link2a, Link3a]}], 
+    CompileVars = [{software_links, [Link1a, Link2a, Link3a]}],
     {ok, CompileVars};
 setup_compile("if_preset") ->
     CompileVars = [{var1, "something"}],
@@ -83,23 +83,23 @@ setup_compile("extends3") ->
 setup_compile(_) ->
     {ok, []}.
 
-%% @spec (Name::string()) -> {CompileStatus::atom(), PresetVars::list(), 
+%% @spec (Name::string()) -> {CompileStatus::atom(), PresetVars::list(),
 %%     RenderStatus::atom(), RenderVars::list()} | skip
 %% @doc
-%% @end 
+%% @end
 %%--------------------------------------------------------------------
 setup("autoescape") ->
     RenderVars = [{var1, "<b>bold</b>"}],
-    {ok, RenderVars};  
+    {ok, RenderVars};
 setup("extends") ->
     RenderVars = [{base_var, "base-barstring"}, {test_var, "test-barstring"}],
     {ok, RenderVars};
 setup("filters") ->
     RenderVars = [
-        {date_var1, {1975,7,24}},
-        {datetime_var1, {{1975,7,24}, {7,13,1}}},
-        {'list', ["eins", "zwei", "drei"]}
-    ],
+                  {date_var1, {1975,7,24}},
+                  {datetime_var1, {{1975,7,24}, {7,13,1}}},
+                  {'list', ["eins", "zwei", "drei"]}
+                 ],
     {ok, RenderVars};
 setup("for") ->
     RenderVars = [{fruit_list, ["apple", "banana", "coconut"]}],
@@ -115,7 +115,7 @@ setup("for_records") ->
     Link2 = [{name, "Google"}, {url, "http://google.com"}],
     Link3 = [{name, "Microsoft"}, {url, "http://microsoft.com"}],
     RenderVars = [{link_list, [Link1, Link2, Link3]}],
-    {ok, RenderVars};  
+    {ok, RenderVars};
 setup("for_records_preset") ->
     Link1b = [{name, "Canon"}, {url, "http://canon.com"}],
     Link2b = [{name, "Leica"}, {url, "http://leica.com"}],
@@ -127,16 +127,16 @@ setup("include") ->
     {ok, RenderVars};
 setup("if") ->
     RenderVars = [{var1, "something"}],
-    {ok, RenderVars}; 
+    {ok, RenderVars};
 setup("ifequal") ->
     RenderVars = [{var1, "foo"}, {var2, "foo"}, {var3, "bar"}],
-    {ok, RenderVars};      
+    {ok, RenderVars};
 setup("ifequal_preset") ->
     RenderVars = [{var3, "bar"}],
-    {ok, RenderVars};   
+    {ok, RenderVars};
 setup("ifnotequal") ->
     RenderVars = [{var1, "foo"}, {var2, "foo"}, {var3, "bar"}],
-    {ok, RenderVars};        
+    {ok, RenderVars};
 setup("now") ->
     {ok, [], [], skip_check};
 setup("var") ->
@@ -144,7 +144,7 @@ setup("var") ->
     {ok, RenderVars};
 setup("var_preset") ->
     RenderVars = [{var1, "foostring1"}, {var2, "foostring2"}],
-    {ok, RenderVars}; 
+    {ok, RenderVars};
 setup("cycle") ->
     RenderVars = [{test, [integer_to_list(X) || X <- lists:seq(1, 20)]},
                   {a, "Apple"}, {b, "Banana"}, {c, "Cherry"}],
@@ -179,18 +179,18 @@ setup("ssi") ->
     {ok, RenderVars};
 
 
-%%--------------------------------------------------------------------       
+%%--------------------------------------------------------------------
 %% Custom tags
 %%--------------------------------------------------------------------
 setup("custom_call") ->
     RenderVars = [{var1, "something"}],
-    {ok, RenderVars};    
+    {ok, RenderVars};
 
 setup(_) ->
     {ok, []}.
-    
 
-run_tests() ->    
+
+run_tests() ->
     io:format("Running functional tests...~n"),
     case [filelib:ensure_dir(
             filename:join([templates_dir(Dir), "foo"]))
@@ -239,16 +239,17 @@ fold_tests() ->
                         io:format("~n"), Res
                 end, {0, []}, test_list()).
 
-test_compile_render(Name) ->  
+test_compile_render(Name) ->
     File = filename:join([templates_docroot(), Name]),
     Module = "functional_test_" ++ Name,
     io:format(" Template: ~p, ... ", [Name]),
     case setup_compile(Name) of
         {CompileStatus, CompileVars} ->
             Options = [
-                {vars, CompileVars}, 
-                {force_recompile, true},
-                {custom_tags_modules, [erlydtl_custom_tags]}],
+                       {vars, CompileVars},
+                       {force_recompile, true},
+                       %% {compiler_options, [debug_compiler]},
+                       {custom_tags_modules, [erlydtl_custom_tags]}],
             io:format("compiling ... "),
             case erlydtl:compile(File, Module, Options) of
                 ok ->
@@ -259,7 +260,7 @@ test_compile_render(Name) ->
                     end;
                 {error, _}=Err ->
                     if CompileStatus =:= Err -> io:format("ok");
-                       true -> 
+                       true ->
                             io:format("failed"),
                             {compile_error, io_lib:format("~p", [Err])}
                     end
@@ -275,13 +276,13 @@ test_render(Name, Module) ->
             {RS, V, O}    -> {RS, V, O, get_expected_result(Name)};
             {RS, V, O, R} -> {RS, V, O, R}
         end,
-    io:format("rendering ... "), 
+    io:format("rendering ... "),
     case catch Module:render(Vars, Opts) of
         {ok, Output} ->
             Data = iolist_to_binary(Output),
             if RenderStatus =:= ok ->
                     if RenderResult =:= undefined ->
-                            Devs = [begin 
+                            Devs = [begin
                                         FileName = filename:join([templates_dir(Dir), Name]),
                                         {ok, IoDev} = file:open(FileName, [write]),
                                         IoDev
@@ -316,7 +317,7 @@ test_render(Name, Module) ->
                true -> io:format("failed"),
                        {render_error, io_lib:format("~p", [Err])}
             end
-    end.   
+    end.
 
 get_expected_result(Name) ->
     FileName = filename:join([templates_dir("expect"), Name]),
