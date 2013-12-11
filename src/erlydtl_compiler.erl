@@ -1242,7 +1242,9 @@ resolve_variable_ast1({attribute, {{AttrKind, Pos, Attr}, Variable}}, Context, T
            [FileNameAst,
             erl_syntax:abstract({pos, Pos}),
             erl_syntax:tuple([erl_syntax:atom(record_info),
-                              erl_syntax:variable("_RecordInfo")])
+                              erl_syntax:variable("_RecordInfo")]),
+            erl_syntax:tuple([erl_syntax:atom(render_options),
+                              erl_syntax:variable("RenderOptions")])
            ])
         ]),
       VarInfo},
@@ -1265,7 +1267,9 @@ resolve_variable_ast1({variable, {identifier, Pos, VarName}}, Context, TreeWalke
                             [FileNameAst,
                              erl_syntax:abstract({pos, Pos}),
                              erl_syntax:tuple([erl_syntax:atom(record_info),
-                                               erl_syntax:variable("_RecordInfo")])
+                                               erl_syntax:variable("_RecordInfo")]),
+                             erl_syntax:tuple([erl_syntax:atom(render_options),
+                                               erl_syntax:variable("RenderOptions")])
                             ])
                          ]);
                    Val ->
@@ -1357,23 +1361,43 @@ regroup_filter({attribute,{{identifier,_,Ident},Next}},Acc) ->
 regroup_filter({variable,{identifier,_,Var}},Acc) ->
     erl_syntax:list([erl_syntax:atom(Var)|Acc]).
 
+to_list_ast(Value, IsReversed) ->
+    erl_syntax:application(
+      erl_syntax:atom(erlydtl_runtime),
+      erl_syntax:atom(to_list),
+      [Value, IsReversed]).
+
+to_list_ast(Value, IsReversed, Context, TreeWalker) ->
+    case call_extension(Context, to_list_ast, [Value, IsReversed, Context, TreeWalker]) of
+        undefined -> to_list_ast(Value, IsReversed);
+        Result -> Result
+    end.
 
 for_loop_ast(IteratorList, LoopValue, IsReversed, Contents, {EmptyContentsAst, EmptyContentsInfo}, Context, TreeWalker) ->
     Vars = lists:map(fun({identifier, _, Iterator}) ->
                              erl_syntax:variable(lists:concat(["Var_", Iterator]))
                      end, IteratorList),
-    {{InnerAst, Info}, TreeWalker1} = body_ast(Contents,
-                                               Context#dtl_context{local_scopes = [
-                                                                                   [{'forloop', erl_syntax:variable("Counters")} | lists:map(
-                                                                                                                                     fun({identifier, _, Iterator}) ->
-                                                                                                                                             {Iterator, erl_syntax:variable(lists:concat(["Var_", Iterator]))}
-                                                                                                                                     end, IteratorList)] | Context#dtl_context.local_scopes]}, TreeWalker),
+    {{InnerAst, Info}, TreeWalker1} =
+        body_ast(
+          Contents,
+          Context#dtl_context{
+            local_scopes =
+                [[{'forloop', erl_syntax:variable("Counters")}
+                  | lists:map(
+                      fun({identifier, _, Iterator}) ->
+                              {Iterator,
+                               erl_syntax:variable(
+                                 lists:concat(["Var_", Iterator]))}
+                      end, IteratorList)
+                 ]| Context#dtl_context.local_scopes]
+           },
+          TreeWalker),
     CounterAst = erl_syntax:application(erl_syntax:atom(erlydtl_runtime),
                                         erl_syntax:atom(increment_counter_stats), [erl_syntax:variable("Counters")]),
 
     {{LoopValueAst, LoopValueInfo}, TreeWalker2} = value_ast(LoopValue, false, true, Context, TreeWalker1),
 
-    LoopValueAst0 = erl_syntax:application(erl_syntax:atom(erlydtl_runtime), erl_syntax:atom(to_list), [LoopValueAst, erl_syntax:atom(IsReversed)]),
+    LoopValueAst0 = to_list_ast(LoopValueAst, erl_syntax:atom(IsReversed), Context, TreeWalker2),
 
     CounterVars0 = case resolve_scoped_variable_ast('forloop', Context) of
                        undefined ->
