@@ -135,23 +135,16 @@ are_equal(Arg1, Arg2) when is_list(Arg1), is_atom(Arg2) ->
 are_equal(_, _) ->
     false.
 
-is_false("") ->
-    true;
-is_false(false) ->
-    true;
-is_false(undefined) ->
-    true;
-is_false("0") ->
-    true;
-is_false(<<"0">>) ->
-    true;
-is_false(<<>>) ->
-    true;
-is_false(_) ->
-    false.
+is_false("") -> true;
+is_false(false) -> true;
+is_false(undefined) -> true;
+is_false(0) -> true;
+is_false("0") -> true;
+is_false(<<"0">>) -> true;
+is_false(<<>>) -> true;
+is_false(_) -> false.
 
-is_true(V) ->
-    not is_false(V).
+is_true(V) -> not is_false(V).
 
 'in'(Sublist, [Sublist|_]) ->
     true;

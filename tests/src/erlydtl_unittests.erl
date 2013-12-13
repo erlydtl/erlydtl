@@ -124,6 +124,8 @@ tests() ->
               <<"{% if not var1 %}yay{% endif %}">>, [{var1, ""}], <<"yay">>},
              {"If \"0\"",
               <<"{% if var1 %}boo{% endif %}">>, [{var1, "0"}], <<>>},
+             {"If 0",
+              <<"{% if var1 %}boo{% endif %}">>, [{var1, 0}], <<>>},
              {"If false",
               <<"{% if var1 %}boo{% endif %}">>, [{var1, false}], <<>>},
              {"If false string",
