@@ -296,7 +296,7 @@ divisibleby(Input, Divisor) when is_integer(Input), is_integer(Divisor) ->
 
 %% @doc Escapes characters for use in JavaScript strings.
 escapejs(Input) when is_binary(Input) ->
-    escapejs(binary_to_list(Input));
+    escapejs(unicode:characters_to_list(Input));
 escapejs(Input) when is_list(Input) ->
     escapejs(Input, []).
 
