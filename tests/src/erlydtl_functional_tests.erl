@@ -44,11 +44,12 @@ test_list() ->
      "for_tuple", "for_list_preset", "for_preset", "for_records",
      "for_records_preset", "include", "if", "if_preset", "ifequal",
      "ifequal_preset", "ifnotequal", "ifnotequal_preset", "now",
-     "var", "var_preset", "cycle",
-     "custom_tag", "custom_tag1", "custom_tag2", "custom_tag3", "custom_tag4",
-     "custom_call",
-     "include_template", "include_path", "ssi",
-     "extends_path", "extends_path2", "trans", "extends2", "extends3" ].
+     "var", "var_preset", "cycle", "custom_tag", "custom_tag1",
+     "custom_tag2", "custom_tag3", "custom_tag4", "custom_call",
+     "include_template", "include_path", "ssi", "extends_path",
+     "extends_path2", "trans", "extends2", "extends3",
+     "recursive_block", "extend_recursive_block"
+    ].
 
 setup_compile("for_list_preset") ->
     CompileVars = [{fruit_list, [["apple", "apples"], ["banana", "bananas"], ["coconut", "coconuts"]]}],
