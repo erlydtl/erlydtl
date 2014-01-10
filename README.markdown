@@ -1,33 +1,17 @@
-ErlyDTL
+ErlyDTL [![Build Status](https://travis-ci.org/erlydtl/erlydtl.png?branch=master)](https://travis-ci.org/erlydtl/erlydtl)
 =======
 
 ErlyDTL compiles Django Template Language to Erlang bytecode.
 
-[![Build Status](https://travis-ci.org/erlydtl/erlydtl.png?branch=master)](https://travis-ci.org/erlydtl/erlydtl)
-
-*Supported tags*: autoescape, block, blocktrans, comment, cycle,
- extends, filter, firstof, for, if, ifchanged, ifequal, ifnotequal,
- include, now, regroup, spaceless, ssi, templatetag, trans, verbatim,
- widthratio, with
-
-_Unsupported tags_: csrf_token, url
-
-*Supported filters*: add, addslashes, capfirst, center, cut, date,
- default, default_if_none, dictsort, dictsortreversed, divisibleby,
- escape, escapejs, filesizeformat, first, fix_ampersands, floatformat,
- force_escape, format_integer, format_number, get_digit, iriencode,
- join, last, length, length_is, linebreaks, linebreaksbr, linenumbers,
- ljust, lower, make_list, phonenumeric, pluralize, pprint, random,
- random_num, random_range, removetags, rjust, safe, safeseq, slice,
- slugify, stringformat, striptags, time, timesince, timeuntil, title,
- truncatechars, truncatewords, truncatewords_html, unordered_list,
- upper, urlencode, urlize, urlizetrunc, wordcount, wordwrap, yesno
-
-_Unsupported filters_: _none_
-
 Project homepage: <https://github.com/erlydtl/erlydtl/wiki>
 
-Language reference: <http://docs.djangoproject.com/en/dev/ref/templates/builtins/>
+ErlyDTL implements the Django Template Language as documented for
+version *1.6*, here:
+<http://docs.djangoproject.com/en/1.6/ref/templates/builtins/>
+
+Despite our best efforts to be completely compatible with the Django
+Template Languge, there are still a few
+[differences](https://github.com/erlydtl/erlydtl#differences-from-standard-django-template-language).
 
 
 Compilation
@@ -156,7 +140,7 @@ once (rather than once per template).
 
 
 Usage (of a compiled template)
------------------------------- 
+------------------------------
 
     my_compiled_template:render(Variables) -> {ok, IOList} | {error, Err}
 
@@ -211,7 +195,16 @@ Same as `render/1`, but with the following options:
 Differences from standard Django Template Language
 --------------------------------------------------
 
-The "regroup" tag must have an ending "endregroup" tag.
+* `csrf_token` The
+  [Cross Site Request Forgery](https://docs.djangoproject.com/en/1.6/ref/contrib/csrf/)
+  tag is not implemented.
+* `url` The
+  [url](https://docs.djangoproject.com/en/1.6/ref/templates/builtins/#url)
+  tag is not implemented. This should be
+  [addressed](https://github.com/erlydtl/erlydtl/issues/115) in a
+  future release.
+* `regroup` requires a closing `endregroup` tag. See
+  [Issue #101](https://github.com/erlydtl/erlydtl/issues/101).
 
 
 Tests
