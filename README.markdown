@@ -125,13 +125,14 @@ Options is a proplist possibly containing:
 
 * `binary` - Include the compiled template binary code in the result
   tuple (between the module name and any warning/error lists). Note,
-  this option is named the same as the for the Erlang compiler, with
+  this option is named the same as for the Erlang compiler, with
   similar use, except that this option does NOT affect whether or not
   a .beam file is saved.
 
 *Erlang Compiler options*
 
-Options that gets passed to `compile:forms/2`:
+As a convenience, the following options are forwarded to
+`compile:forms/2`, along with those from `compiler_options`:
 
 * `return`
 * `return_warnings`
@@ -141,8 +142,6 @@ Options that gets passed to `compile:forms/2`:
 * `report_errors`
 * `warnings_as_errors`
 * `verbose`
-
-Any other options to the compiler can be specified using the `compiler_options` option.
 
 _Notice_ that the return value from `erlydtl:compile` is affected by
 the options passed to the compiler. See
