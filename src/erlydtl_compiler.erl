@@ -246,7 +246,10 @@ compile_forms(Forms, Context) ->
               [fun maybe_write_binary/3,
                fun maybe_load/3,
                fun (_, _, _) ->
-                       list_to_tuple([ok, Module|Info])
+                       case proplists:get_bool(binary, Context#dtl_context.all_options) of
+                           true -> Compiled;
+                           false -> list_to_tuple([ok, Module|Info])
+                       end
                end
               ]);
         Err when Err =:= error; element(1, Err) =:= error ->

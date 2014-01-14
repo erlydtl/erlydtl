@@ -123,6 +123,12 @@ Options is a proplist possibly containing:
 
 * `no_load` - Do not load the compiled template.
 
+* `binary` - Include the compiled template binary code in the result
+  tuple (between the module name and any warning/error lists). Note,
+  this option is named the same as the for the Erlang compiler, with
+  similar use, except that this option does NOT affect whether or not
+  a .beam file is saved.
+
 *Erlang Compiler options*
 
 Options that gets passed to `compile:forms/2`:
@@ -140,8 +146,11 @@ Any other options to the compiler can be specified using the `compiler_options` 
 
 _Notice_ that the return value from `erlydtl:compile` is affected by
 the options passed to the compiler. See
-[Erlang compiler documentation](http://www.erlang.org/doc/man/compile.html#forms-2) for
-details.
+[Erlang compiler documentation](http://www.erlang.org/doc/man/compile.html#forms-2)
+for details. _Exception_ to the rule is that we have reverted the
+`forms` statement that `binary` is treated as implicitly set. That is,
+you need to pass the `binary` option to erlydtl in order to get the
+code in the result tuple.
 
 Default compiler options are `[verbose, report_errors]`, which gives
 either a `{ok, Module}` or `error` as return value.
