@@ -39,7 +39,7 @@ Four ways:
 
 Options is a proplist possibly containing:
 
-* `out_dir` - Directory to store generated .beam files. If not
+* `outdir` - Directory to store generated .beam files. If not
   specified, no .beam files will be created.
 
 * `doc_root` - Included template paths will be relative to this
@@ -83,7 +83,11 @@ Options is a proplist possibly containing:
   and returns a binary with the file contents. Defaults to `{file,
   read_file}`. Useful for reading templates from a network resource.
 
-* `compiler_options` - Proplist passed directly to `compiler:forms/2`
+* `compiler_options` - Proplist with extra options passed directly to
+  `compiler:forms/2`. This option can be supplied multiple times. Note
+  that the most common options can be given directly with the list of
+  options to the erlydtl compiler (see Erlang Compiler options,
+  below).
 
 * `force_recompile` - Recompile the module even if the source's
   checksum has not changed. Useful for debugging.
@@ -114,9 +118,33 @@ Options is a proplist possibly containing:
 
       {my_record, record_info(fields, my_record)}
 
+* `no_env` - Do not read additional options from the OS environment
+  variable `ERLYDTL_COMPILER_OPTIONS`.
 
-Additional compiler options can be provided with the
-`ERLYDTL_COMPILER_OPTIONS` OS environment variable.
+* `no_load` - Do not load the compiled template.
+
+*Erlang Compiler options*
+
+Options that gets passed to `compile:forms/2`:
+
+* `return`
+* `return_warnings`
+* `return_errors`
+* `report`
+* `report_warnings`
+* `report_errors`
+* `warnings_as_errors`
+* `verbose`
+
+Any other options to the compiler can be specified using the `compiler_options` option.
+
+_Notice_ that the return value from `erlydtl:compile` is affected by
+the options passed to the compiler. See
+[Erlang compiler documentation](http://www.erlang.org/doc/man/compile.html#forms-2) for
+details.
+
+Default compiler options are `[verbose, report_errors]`, which gives
+either a `{ok, Module}` or `error` as return value.
 
 
 Helper compilation

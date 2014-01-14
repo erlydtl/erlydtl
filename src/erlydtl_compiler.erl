@@ -54,44 +54,29 @@
 
 -include("erlydtl_ext.hrl").
 
-compile(Binary, Module) when is_binary(Binary) ->
-    compile(Binary, Module, []);
-
-compile(File, Module) ->
-    compile(File, Module, []).
+compile(FileOrBinary, Module) ->
+    compile(FileOrBinary, Module, []).
 
 compile(Binary, Module, Options0) when is_binary(Binary) ->
     File = "",
-    CheckSum = "",
-    Options = maybe_add_env_default_opts(Options0),
+    CheckSum = binary_to_list(erlang:md5(Binary)),
+    Options = [{compiler_options, [{source, "/<text>"}]}
+               |process_opts(Options0)],
     Context = init_dtl_context(File, Module, Options),
     case parse(Binary, Context) of
         {ok, DjangoParseTree} ->
-            case compile_to_binary(File, DjangoParseTree, Context, CheckSum) of
-                {ok, Module1, _, _} ->
-                    {ok, Module1};
-                Err ->
-                    Err
-            end;
-        Err ->
-            Err
+            compile_to_binary(File, DjangoParseTree, Context, CheckSum);
+        Err -> Err
     end;
 
 compile(File, Module, Options0) ->
-    Options = maybe_add_env_default_opts(Options0),
+    Options = process_opts(Options0),
     Context = init_dtl_context(File, Module, Options),
     case parse(File, Context) of
-        ok ->
-            ok;
+        ok -> ok; %% up to date, not recompiled, maybe change return value to reflect this better?
         {ok, DjangoParseTree, CheckSum} ->
-            case compile_to_binary(File, DjangoParseTree, Context, CheckSum) of
-                {ok, Module1, Bin, Warnings} ->
-                    write_binary(Module1, Bin, Options, Warnings);
-                Err ->
-                    Err
-            end;
-        Err ->
-            Err
+            compile_to_binary(File, DjangoParseTree, Context, CheckSum);
+        Err -> Err
     end.
 
 
@@ -99,46 +84,74 @@ compile_dir(Dir, Module) ->
     compile_dir(Dir, Module, []).
 
 compile_dir(Dir, Module, Options0) ->
-    Options = maybe_add_env_default_opts(Options0),
+    Options = process_opts(Options0),
     Context = init_dtl_context_dir(Dir, Module, Options),
     %% Find all files in Dir (recursively), matching the regex (no
     %% files ending in "~").
     Files = filelib:fold_files(Dir, ".+[^~]$", true, fun(F1,Acc1) -> [F1 | Acc1] end, []),
-    {ParserResults, ParserErrors} = lists:foldl(fun
-                                                    (File, {ResultAcc, ErrorAcc}) ->
-                                                       case filename:basename(File) of
-                                                           "."++_ ->
-                                                               {ResultAcc, ErrorAcc};
-                                                           _ ->
-                                                               FilePath = filename:absname(File),
-                                                               case filelib:is_dir(FilePath) of
-                                                                   true ->
-                                                                       {ResultAcc, ErrorAcc};
-                                                                   false ->
-                                                                       case parse(FilePath, Context) of
-                                                                           ok -> {ResultAcc, ErrorAcc};
-                                                                           {ok, DjangoParseTree, CheckSum} ->
-                                                                               {[{File, DjangoParseTree, CheckSum}|ResultAcc], ErrorAcc};
-                                                                           Err -> {ResultAcc, [Err|ErrorAcc]}
-                                                                       end
-                                                               end
-                                                       end
-                                               end, {[], []}, Files),
+    {ParserResults, ParserErrors}
+        = lists:foldl(
+            fun (File, {ResultAcc, ErrorAcc}) ->
+                    case filename:basename(File) of
+                        "."++_ ->
+                            {ResultAcc, ErrorAcc};
+                        _ ->
+                            FilePath = filename:absname(File),
+                            case filelib:is_dir(FilePath) of
+                                true ->
+                                    {ResultAcc, ErrorAcc};
+                                false ->
+                                    case parse(FilePath, Context) of
+                                        ok -> {ResultAcc, ErrorAcc};
+                                        {ok, DjangoParseTree, CheckSum} ->
+                                            {[{File, DjangoParseTree, CheckSum}|ResultAcc], ErrorAcc};
+                                        Err -> {ResultAcc, [Err|ErrorAcc]}
+                                    end
+                            end
+                    end
+            end, {[], []}, Files),
     case ParserErrors of
         [] ->
-            case compile_multiple_to_binary(Dir, ParserResults, Context) of
-                {ok, Module1, Bin, Warnings} ->
-                    write_binary(Module1, Bin, Options, Warnings);
-                Err ->
-                    Err
-            end;
-        [Error|_] ->
-            Error
+            compile_multiple_to_binary(Dir, ParserResults, Context);
+        [Error|_] -> Error %% just the first error?
     end.
+
 
 %%====================================================================
 %% Internal functions
 %%====================================================================
+
+process_opts(Options) ->
+    Options1 = proplists:normalize(
+                 update_defaults(Options),
+                 [{aliases, [{out_dir, outdir}]}
+                 ]),
+    process_opts(Options1, []).
+
+process_opts([CompilerOption|Os], Acc)
+  when
+      CompilerOption =:= return;
+      CompilerOption =:= return_warnings;
+      CompilerOption =:= return_errors;
+      CompilerOption =:= report;
+      CompilerOption =:= report_warnings;
+      CompilerOption =:= report_errors;
+      CompilerOption =:= warnings_as_errors;
+      CompilerOption =:= verbose;
+      element(1, CompilerOption) =:= outdir ->
+    process_opts(Os, [CompilerOption, {compiler_options, [CompilerOption]}|Acc]);
+process_opts([O|Os], Acc) ->
+    process_opts(Os, [O|Acc]);
+process_opts([], Acc) ->
+    lists:reverse(Acc).
+
+update_defaults(Options) ->
+    Options1 = maybe_add_env_default_opts(Options),
+    case proplists:get_value(compiler_options, Options1) of
+        undefined ->
+            [{compiler_options, [verbose, report_errors]}|Options1];
+        _ -> Options1
+    end.
 
 %% shamelessly borrowed from:
 %% https://github.com/erlang/otp/blob/21095e6830f37676dd29c33a590851ba2c76499b/\
@@ -164,54 +177,45 @@ env_default_opts() ->
     end.
 
 maybe_add_env_default_opts(Options) ->
-    case proplists:get_value(no_env, Options) of
+    case proplists:get_bool(no_env, Options) of
         true -> Options;
         _ -> Options ++ env_default_opts()
     end.
 
-write_binary(Module1, Bin, Options, Warnings) ->
-    Verbose = proplists:get_value(verbose, Options, false),
-    case proplists:get_value(out_dir, Options) of
-        undefined ->
-            print(Verbose, "Template module: ~w not saved (no out_dir option)\n", [Module1]),
-            ok;
-        OutDir ->
-            BeamFile = filename:join([OutDir, atom_to_list(Module1) ++ ".beam"]),
-
-            print(Verbose, "Template module: ~w -> ~s~s\n",
-                  [Module1, BeamFile,
-                   case Warnings of
-                       [] -> "";
-                       _  -> io_lib:format("\n  Warnings: ~p", [Warnings])
-                   end]),
-
-            case file:write_file(BeamFile, Bin) of
-                ok ->
-                    ok;
-                {error, Reason} ->
-                    {error, lists:flatten(
-                              io_lib:format("Beam generation of '~s' failed: ~p",
-                                            [BeamFile, file:format_error(Reason)]))}
-            end
-    end.
-
 compile_multiple_to_binary(Dir, ParserResults, Context) ->
     MatchAst = options_match_ast(Context),
-    {Functions, {AstInfo, _}} = lists:mapfoldl(fun({File, DjangoParseTree, CheckSum}, {AstInfo, TreeWalker}) ->
-                                                       FilePath = full_path(File, Context#dtl_context.doc_root),
-                                                       {{BodyAst, BodyInfo}, TreeWalker1} = with_dependency({FilePath, CheckSum}, body_ast(DjangoParseTree, Context, TreeWalker)),
-                                                       FunctionName = filename:rootname(filename:basename(File)),
-                                                       Function1 = erl_syntax:function(erl_syntax:atom(FunctionName),
-                                                                                       [erl_syntax:clause([erl_syntax:variable("_Variables")], none,
-                                                                                                          [erl_syntax:application(none, erl_syntax:atom(FunctionName),
-                                                                                                                                  [erl_syntax:variable("_Variables"), erl_syntax:list([])])])]),
-                                                       Function2 = erl_syntax:function(erl_syntax:atom(FunctionName),
-                                                                                       [erl_syntax:clause([erl_syntax:variable("_Variables"), erl_syntax:variable("RenderOptions")], none,
-                                                                                                          MatchAst ++ [BodyAst])]),
-                                                       {{FunctionName, Function1, Function2}, {merge_info(AstInfo, BodyInfo), TreeWalker1}}
-                                               end, {#ast_info{}, init_treewalker(Context)}, ParserResults),
+    {Functions, {AstInfo, _}}
+        = lists:mapfoldl(
+            fun({File, DjangoParseTree, CheckSum}, {AstInfo, TreeWalker}) ->
+                    FilePath = full_path(File, Context#dtl_context.doc_root),
+                    {{BodyAst, BodyInfo}, TreeWalker1} = with_dependency(
+                                                           {FilePath, CheckSum},
+                                                           body_ast(DjangoParseTree, Context, TreeWalker)),
+                    FunctionName = filename:rootname(filename:basename(File)),
+                    Function1 = erl_syntax:function(
+                                  erl_syntax:atom(FunctionName),
+                                  [erl_syntax:clause(
+                                     [erl_syntax:variable("_Variables")],
+                                     none,
+                                     [erl_syntax:application(
+                                        none, erl_syntax:atom(FunctionName),
+                                        [erl_syntax:variable("_Variables"), erl_syntax:list([])])
+                                     ])
+                                  ]),
+                    Function2 = erl_syntax:function(
+                                  erl_syntax:atom(FunctionName),
+                                  [erl_syntax:clause(
+                                     [erl_syntax:variable("_Variables"),
+                                      erl_syntax:variable("RenderOptions")],
+                                     none,
+                                     MatchAst ++ [BodyAst])
+                                  ]),
+                    {{FunctionName, Function1, Function2}, {merge_info(AstInfo, BodyInfo), TreeWalker1}}
+            end,
+            {#ast_info{}, init_treewalker(Context)},
+            ParserResults),
     Forms = custom_forms(Dir, Context#dtl_context.module, Functions, AstInfo),
-    compile_forms_and_reload(Dir, Forms, Context).
+    compile_forms(Forms, Context).
 
 compile_to_binary(File, DjangoParseTree, Context, CheckSum) ->
     try body_ast(DjangoParseTree, Context, init_treewalker(Context)) of
@@ -220,7 +224,7 @@ compile_to_binary(File, DjangoParseTree, Context, CheckSum) ->
                 {{CustomTagsAst, CustomTagsInfo}, _} ->
                     Forms = forms(File, Context#dtl_context.module, {BodyAst, BodyInfo},
                                   {CustomTagsAst, CustomTagsInfo}, CheckSum, Context, BodyTreeWalker),
-                    compile_forms_and_reload(File, Forms, Context)
+                    compile_forms(Forms, Context)
             catch
                 throw:Error -> Error
             end
@@ -228,8 +232,59 @@ compile_to_binary(File, DjangoParseTree, Context, CheckSum) ->
         throw:Error -> Error
     end.
 
-compile_forms_and_reload(File, Forms, Context) ->
-    case proplists:get_value(debug_compiler, Context#dtl_context.compiler_options) of
+compile_forms(Forms, Context) ->
+    dump_forms(Forms, Context),
+    Options = Context#dtl_context.compiler_options,
+    case compile:forms(Forms, Options) of
+        Compiled when element(1, Compiled) =:= ok ->
+            [ok, Module, Bin|Info] = tuple_to_list(Compiled),
+            lists:foldl(
+              fun (F, ok) -> F(Module, Bin, Context);
+                  (_, Res) -> Res
+              end,
+              ok,
+              [fun maybe_write_binary/3,
+               fun maybe_load/3,
+               fun (_, _, _) ->
+                       list_to_tuple([ok, Module|Info])
+               end
+              ]);
+        Err when Err =:= error; element(1, Err) =:= error ->
+            Err
+    end.
+
+maybe_write_binary(Module, Bin, Context) ->
+    case proplists:get_value(outdir, Context#dtl_context.all_options) of
+        undefined ->
+            print("Template module: ~w not saved (no outdir option)\n", [Module], Context);
+        OutDir ->
+            BeamFile = filename:join([OutDir, atom_to_list(Module) ++ ".beam"]),
+            print("Template module: ~w -> ~s\n", [Module, BeamFile], Context),
+            case file:write_file(BeamFile, Bin) of
+                ok -> ok;
+                {error, Reason} ->
+                    {error, lists:flatten(
+                              io_lib:format("Beam generation of '~s' failed: ~p",
+                                            [BeamFile, file:format_error(Reason)]))}
+            end
+    end.
+
+maybe_load(Module, Bin, Context) ->
+    case proplists:get_bool(no_load, Context#dtl_context.all_options) of
+        true -> ok;
+        false -> load_code(Module, Bin)
+    end.
+
+load_code(Module, Bin) ->
+    code:purge(Module),
+    case code:load_binary(Module, atom_to_list(Module) ++ ".erl", Bin) of
+        {module, Module} -> ok;
+        _ -> {error, lists:concat(["code reload failed: ", Module])}
+    end.
+
+dump_forms(Forms, Context) ->
+    %% undocumented option to debug the compiled Forms
+    case proplists:get_value(debug_compiler, Context#dtl_context.all_options) of
         true ->
             io:format("template source:~n~s~n",
                       [try
@@ -241,23 +296,6 @@ compile_forms_and_reload(File, Forms, Context) ->
                        end
                       ]);
         _ -> nop
-    end,
-    case compile:forms(Forms, Context#dtl_context.compiler_options) of
-        {ok, Module1, Bin} ->
-            load_code(Module1, Bin, []);
-        {ok, Module1, Bin, Warnings} ->
-            load_code(Module1, Bin, Warnings);
-        error ->
-            {error, lists:concat(["compilation failed: ", File])};
-        OtherError ->
-            OtherError
-    end.
-
-load_code(Module, Bin, Warnings) ->
-    code:purge(Module),
-    case code:load_binary(Module, atom_to_list(Module) ++ ".erl", Bin) of
-        {module, _} -> {ok, Module, Bin, Warnings};
-        _ -> {error, lists:concat(["code reload failed: ", Module])}
     end.
 
 init_context(IsCompilingDir, ParseTrail, DefDir, Module, Options) ->
@@ -267,14 +305,18 @@ init_context(IsCompilingDir, ParseTrail, DefDir, Module, Options) ->
                  parse_trail = ParseTrail,
                  module = Module,
                  doc_root = proplists:get_value(doc_root, Options, DefDir),
-                 filter_modules = proplists:get_value(custom_filters_modules, Options, Ctx#dtl_context.filter_modules) ++ [erlydtl_filters],
-                 custom_tags_dir = proplists:get_value(custom_tags_dir, Options, filename:join([erlydtl_deps:get_base_dir(), "priv", "custom_tags"])),
+                 filter_modules = proplists:get_value(
+                                    custom_filters_modules, Options,
+                                    Ctx#dtl_context.filter_modules) ++ [erlydtl_filters],
+                 custom_tags_dir = proplists:get_value(
+                                     custom_tags_dir, Options,
+                                     filename:join([erlydtl_deps:get_base_dir(), "priv", "custom_tags"])),
                  custom_tags_modules = proplists:get_value(custom_tags_modules, Options, Ctx#dtl_context.custom_tags_modules),
                  blocktrans_fun = proplists:get_value(blocktrans_fun, Options, Ctx#dtl_context.blocktrans_fun),
                  blocktrans_locales = proplists:get_value(blocktrans_locales, Options, Ctx#dtl_context.blocktrans_locales),
                  vars = proplists:get_value(vars, Options, Ctx#dtl_context.vars),
                  reader = proplists:get_value(reader, Options, Ctx#dtl_context.reader),
-                 compiler_options = proplists:get_value(compiler_options, Options, Ctx#dtl_context.compiler_options),
+                 compiler_options = proplists:append_values(compiler_options, Options),
                  binary_strings = proplists:get_value(binary_strings, Options, Ctx#dtl_context.binary_strings),
                  force_recompile = proplists:get_value(force_recompile, Options, Ctx#dtl_context.force_recompile),
                  locale = proplists:get_value(locale, Options, Ctx#dtl_context.locale),
@@ -1566,10 +1608,8 @@ custom_tags_modules_ast(Name, InterpretedArgs, #dtl_context{ custom_tags_modules
                                     Context#dtl_context{ custom_tags_modules = Rest })
     end.
 
-print(true, Fmt, Args) ->
-    io:format(Fmt, Args);
-print(_, _Fmt, _Args) ->
-    ok.
+print(Fmt, Args, #dtl_context{ verbose = true }) -> io:format(Fmt, Args);
+print(_Fmt, _Args, _Context) -> ok.
 
 call_ast(Module, TreeWalkerAcc) ->
     call_ast(Module, erl_syntax:variable("_Variables"), #ast_info{}, TreeWalkerAcc).

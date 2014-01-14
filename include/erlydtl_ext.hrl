@@ -14,7 +14,7 @@
           custom_tags_modules = [],
           reader = {file, read_file},
           module = [],
-          compiler_options = [verbose, report_errors],
+          compiler_options = [],
           binary_strings = true,
           force_recompile = false,
           locale = none,

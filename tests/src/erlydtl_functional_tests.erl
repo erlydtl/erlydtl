@@ -218,7 +218,7 @@ run_tests() ->
 
 
 run_test(Name) ->
-    test_compile_render(filename:join([templates_docroot(), Name])).
+    test_compile_render(Name).
 
 
 %%====================================================================
@@ -249,12 +249,12 @@ test_compile_render(Name) ->
             Options = [
                        {vars, CompileVars},
                        {force_recompile, true},
-                       %% {compiler_options, [debug_compiler]},
+                       %% debug_compiler,
                        {custom_tags_modules, [erlydtl_custom_tags]}],
             io:format("compiling ... "),
             case erlydtl:compile(File, Module, Options) of
-                ok ->
-                    if CompileStatus =:= ok -> test_render(Name, list_to_atom(Module));
+                {ok, Mod} ->
+                    if CompileStatus =:= ok -> test_render(Name, Mod);
                        true ->
                             io:format("missing error"),
                             {error, "compiling should have failed :" ++ File}
