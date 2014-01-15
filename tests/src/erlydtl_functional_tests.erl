@@ -248,7 +248,7 @@ test_compile_render(Name) ->
         {CompileStatus, CompileVars} ->
             Options = [
                        {vars, CompileVars},
-                       {force_recompile, true},
+                       force_recompile,
                        %% debug_compiler,
                        {custom_tags_modules, [erlydtl_custom_tags]}],
             io:format("compiling ... "),

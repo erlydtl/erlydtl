@@ -4,6 +4,7 @@
 %%% @author    Evan Miller <emmiller@gmail.com>
 %%% @author    Andreas Stenius <kaos@astekk.se>
 %%% @copyright 2008 Roberto Saccon, Evan Miller
+%%% @copyright 2014 Andreas Stenius
 %%% @doc
 %%% ErlyDTL template compiler
 %%% @end
@@ -11,6 +12,7 @@
 %%% The MIT License
 %%%
 %%% Copyright (c) 2007 Roberto Saccon, Evan Miller
+%%% Copyright (c) 2014 Andreas Stenius
 %%%
 %%% Permission is hereby granted, free of charge, to any person obtaining a copy
 %%% of this software and associated documentation files (the "Software"), to deal
@@ -31,6 +33,7 @@
 %%% THE SOFTWARE.
 %%%
 %%% @since 2007-12-16 by Roberto Saccon, Evan Miller
+%%% @since 2014 by Andreas Stenius
 %%%-------------------------------------------------------------------
 -module(erlydtl_compiler).
 -author('rsaccon@gmail.com').
@@ -59,24 +62,24 @@ compile(FileOrBinary, Module) ->
 
 compile(Binary, Module, Options0) when is_binary(Binary) ->
     File = "",
-    CheckSum = binary_to_list(erlang:md5(Binary)),
     Options = [{compiler_options, [{source, "/<text>"}]}
                |process_opts(Options0)],
     Context = init_dtl_context(File, Module, Options),
     case parse(Binary, Context) of
-        {ok, DjangoParseTree} ->
+        up_to_date -> ok;
+        {ok, DjangoParseTree, CheckSum} ->
             compile_to_binary(File, DjangoParseTree, Context, CheckSum);
-        Err -> Err
+        Other -> Other
     end;
 
 compile(File, Module, Options0) ->
     Options = process_opts(Options0),
     Context = init_dtl_context(File, Module, Options),
     case parse(File, Context) of
-        ok -> ok; %% up to date, not recompiled, maybe change return value to reflect this better?
+        up_to_date -> ok;
         {ok, DjangoParseTree, CheckSum} ->
             compile_to_binary(File, DjangoParseTree, Context, CheckSum);
-        Err -> Err
+        Other -> Other
     end.
 
 
@@ -102,7 +105,7 @@ compile_dir(Dir, Module, Options0) ->
                                     {ResultAcc, ErrorAcc};
                                 false ->
                                     case parse(FilePath, Context) of
-                                        ok -> {ResultAcc, ErrorAcc};
+                                        up_to_date -> {ResultAcc, ErrorAcc};
                                         {ok, DjangoParseTree, CheckSum} ->
                                             {[{File, DjangoParseTree, CheckSum}|ResultAcc], ErrorAcc};
                                         Err -> {ResultAcc, [Err|ErrorAcc]}
@@ -115,6 +118,9 @@ compile_dir(Dir, Module, Options0) ->
             compile_multiple_to_binary(Dir, ParserResults, Context);
         [Error|_] -> Error %% just the first error?
     end.
+
+parse(Data) ->
+    parse(Data, #dtl_context{}).
 
 
 %%====================================================================
@@ -149,7 +155,8 @@ update_defaults(Options) ->
     Options1 = maybe_add_env_default_opts(Options),
     case proplists:get_value(compiler_options, Options1) of
         undefined ->
-            [{compiler_options, [verbose, report_errors]}|Options1];
+            [{compiler_options, (#dtl_context{})#dtl_context.compiler_options}
+             |Options1];
         _ -> Options1
     end.
 
@@ -321,7 +328,7 @@ init_context(IsCompilingDir, ParseTrail, DefDir, Module, Options) ->
                  reader = proplists:get_value(reader, Options, Ctx#dtl_context.reader),
                  compiler_options = proplists:append_values(compiler_options, Options),
                  binary_strings = proplists:get_value(binary_strings, Options, Ctx#dtl_context.binary_strings),
-                 force_recompile = proplists:get_value(force_recompile, Options, Ctx#dtl_context.force_recompile),
+                 force_recompile = proplists:get_bool(force_recompile, Options),
                  locale = proplists:get_value(locale, Options, Ctx#dtl_context.locale),
                  verbose = proplists:get_value(verbose, Options, Ctx#dtl_context.verbose),
                  is_compiling_dir = IsCompilingDir,
@@ -386,18 +393,22 @@ is_up_to_date(CheckSum, Context) ->
             false
     end.
 
-parse(Data) ->
-    parse(Data, #dtl_context{}).
-
-parse(Data, #dtl_context{ scanner_module=Scanner }=Context)
+parse(Data, Context)
   when is_binary(Data) ->
-    check_scan(apply(Scanner, scan, [binary_to_list(Data)]), Context);
+    CheckSum = binary_to_list(erlang:md5(Data)),
+    case is_up_to_date(CheckSum, Context) of
+        true -> up_to_date;
+        false ->
+            case do_parse(Data, Context) of
+                {ok, Val} -> {ok, Val, CheckSum};
+                Err -> Err
+            end
+    end;
 parse(File, Context) ->
     {M, F} = Context#dtl_context.reader,
     case catch M:F(File) of
-        {ok, Data} ->
-            CheckSum = binary_to_list(erlang:md5(Data)),
-            case parse(CheckSum, Data, Context) of
+        {ok, Data} when is_binary(Data) ->
+            case parse(Data, Context) of
                 {error, Msg} when is_list(Msg) ->
                     {error, File ++ ": " ++ Msg};
                 {error, Msg} ->
@@ -409,17 +420,10 @@ parse(File, Context) ->
             {error, {File, [{0, Context#dtl_context.module, "Failed to read file"}]}}
     end.
 
-parse(CheckSum, Data, Context) ->
-    case is_up_to_date(CheckSum, Context) of
-        true -> ok;
-        _ ->
-            case parse(Data, Context) of
-                {ok, Val} ->
-                    {ok, Val, CheckSum};
-                Err ->
-                    Err
-            end
-    end.
+do_parse(Data, #dtl_context{ scanner_module=Scanner }=Context) ->
+    check_scan(
+      apply(Scanner, scan, [binary_to_list(Data)]),
+      Context).
 
 call_extension(#dtl_context{ extension_module=undefined }, _Fun, _Args) ->
     undefined;
@@ -1066,7 +1070,7 @@ blocktrans_ast(ArgList, Contents, Context, TreeWalker) ->
                                                                                default ->
                                                                                    {AstInfoAcc, ThisTreeWalker, ClauseAcc};
                                                                                Body ->
-                                                                                   {ok, DjangoParseTree} = parse(Body, Context),
+                                                                                   {ok, DjangoParseTree} = do_parse(Body, Context),
                                                                                    {{ThisAst, ThisAstInfo}, TreeWalker3} = body_ast(DjangoParseTree, NewContext, ThisTreeWalker),
                                                                                    {merge_info(ThisAstInfo, AstInfoAcc), TreeWalker3,
                                                                                     [erl_syntax:clause([erl_syntax:string(Locale)], none, [ThisAst])|ClauseAcc]}
@@ -1145,21 +1149,24 @@ include_ast(File, ArgList, Scopes, Context, TreeWalker) ->
     FilePath = full_path(File, Context#dtl_context.doc_root),
     case parse(FilePath, Context) of
         {ok, InclusionParseTree, CheckSum} ->
-            {NewScope, {ArgInfo, TreeWalker1}} = lists:mapfoldl(fun
-                                                                    ({{identifier, _, LocalVarName}, Value}, {AstInfo1, TreeWalker1}) ->
-                                                                       {{Ast, Info}, TreeWalker2} = value_ast(Value, false, false, Context, TreeWalker1),
-                                                                       {{LocalVarName, Ast}, {merge_info(AstInfo1, Info), TreeWalker2}}
-                                                               end, {#ast_info{}, TreeWalker}, ArgList),
+            {NewScope, {ArgInfo, TreeWalker1}}
+                = lists:mapfoldl(
+                    fun ({{identifier, _, LocalVarName}, Value}, {AstInfo1, TreeWalker1}) ->
+                            {{Ast, Info}, TreeWalker2} = value_ast(Value, false, false, Context, TreeWalker1),
+                            {{LocalVarName, Ast}, {merge_info(AstInfo1, Info), TreeWalker2}}
+                    end, {#ast_info{}, TreeWalker}, ArgList),
 
-            {{BodyAst, BodyInfo}, TreeWalker2} = with_dependency({FilePath, CheckSum},
-                                                                 body_ast(InclusionParseTree, Context#dtl_context{
-                                                                                                parse_trail = [FilePath | Context#dtl_context.parse_trail],
-                                                                                                local_scopes = [NewScope|Scopes]
-                                                                                               }, TreeWalker1)),
+            {{BodyAst, BodyInfo}, TreeWalker2} = with_dependency(
+                                                   {FilePath, CheckSum},
+                                                   body_ast(
+                                                     InclusionParseTree,
+                                                     Context#dtl_context{
+                                                       parse_trail = [FilePath | Context#dtl_context.parse_trail],
+                                                       local_scopes = [NewScope|Scopes]
+                                                      }, TreeWalker1)),
 
             {{BodyAst, merge_info(BodyInfo, ArgInfo)}, TreeWalker2};
-        Err ->
-            throw(Err)
+        Err -> throw(Err)
     end.
 
                                                 % include at run-time

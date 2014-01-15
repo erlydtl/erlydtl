@@ -1303,7 +1303,9 @@ format_error(Name, Class, Error) ->
     {Name, io_lib:format("~s:~p~n  ~p", [Class, Error, erlang:get_stacktrace()])}.
 
 compile_test(DTL, Opts) ->
-    Options = [{custom_filters_modules, [erlydtl_contrib_humanize]}|Opts],
+    Options = [force_recompile,
+               {custom_filters_modules, [erlydtl_contrib_humanize]}
+               |Opts],
     timer:tc(erlydtl, compile, [DTL, erlydtl_running_test, Options]).
 
 render_test(Vars, RenderOpts) ->
