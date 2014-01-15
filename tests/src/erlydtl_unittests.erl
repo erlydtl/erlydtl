@@ -1220,7 +1220,7 @@ tests() ->
          [{extension_module, erlydtl_extension_test}], <<"ok">>},
         {"proper error message", <<"{{ bar # }}">>, [{bar, "ok"}], [],
          [{extension_module, erlydtl_extension_test}],
-         {error, {1,erlydtl_extension_test,"Unexpected '#' in code at column 8"}}},
+         {error, [{"<text>", [{1,erlydtl_extension_test,"Unexpected '#' in code at column 8"}]}], []}},
         %% accept identifiers as expressions (this is a dummy functionality to test the parser extensibility)
         {"identifiers as expressions", <<"{{ foo.bar or baz }}">>, [{baz, "ok"}], [],
          [{extension_module, erlydtl_extension_test}], <<"ok">>}
@@ -1304,6 +1304,7 @@ format_error(Name, Class, Error) ->
 
 compile_test(DTL, Opts) ->
     Options = [force_recompile,
+               return_errors,
                {custom_filters_modules, [erlydtl_contrib_humanize]}
                |Opts],
     timer:tc(erlydtl, compile, [DTL, erlydtl_running_test, Options]).

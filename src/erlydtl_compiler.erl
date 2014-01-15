@@ -43,7 +43,8 @@
 %% --------------------------------------------------------------------
 %% Definitions
 %% --------------------------------------------------------------------
--export([compile/2, compile/3, compile_dir/2, compile_dir/3, parse/1]).
+-export([compile/2, compile/3, compile_dir/2, compile_dir/3,
+         parse/1, format_error/1]).
 
 %% exported for use by extension modules
 -export([
@@ -61,33 +62,20 @@ compile(FileOrBinary, Module) ->
     compile(FileOrBinary, Module, []).
 
 compile(Binary, Module, Options0) when is_binary(Binary) ->
-    File = "",
-    Options = [{compiler_options, [{source, "/<text>"}]}
-               |process_opts(Options0)],
-    Context = init_dtl_context(File, Module, Options),
-    case parse(Binary, Context) of
-        up_to_date -> ok;
-        {ok, DjangoParseTree, CheckSum} ->
-            compile_to_binary(File, DjangoParseTree, Context, CheckSum);
-        Other -> Other
-    end;
+    Options = process_opts("/<text>", Options0),
+    Context = init_dtl_context("<text>", Module, Options),
+    compile(Context#dtl_context{ bin = Binary });
 
 compile(File, Module, Options0) ->
-    Options = process_opts(Options0),
+    Options = process_opts(File, Options0),
     Context = init_dtl_context(File, Module, Options),
-    case parse(File, Context) of
-        up_to_date -> ok;
-        {ok, DjangoParseTree, CheckSum} ->
-            compile_to_binary(File, DjangoParseTree, Context, CheckSum);
-        Other -> Other
-    end.
-
+    compile(Context).
 
 compile_dir(Dir, Module) ->
     compile_dir(Dir, Module, []).
 
 compile_dir(Dir, Module, Options0) ->
-    Options = process_opts(Options0),
+    Options = process_opts(Dir, Options0),
     Context = init_dtl_context_dir(Dir, Module, Options),
     %% Find all files in Dir (recursively), matching the regex (no
     %% files ending in "~").
@@ -122,19 +110,41 @@ compile_dir(Dir, Module, Options0) ->
 parse(Data) ->
     parse(Data, #dtl_context{}).
 
+format_error(no_outdir) ->
+    "Compiled template not saved (need outdir option)";
+format_error(unexpected_extends_tag) ->
+    "The extends tag must be at the very top of the template";
+format_error(circular_include) ->
+    "Circular file inclusion!";
+format_error({read_file, Error}) ->
+    io_lib:format(
+      "Failed to read file: ~s",
+      [file:format_error(Error)]);
+format_error({read_file, File, Error}) ->
+    io_lib:format(
+      "Failed to include file ~s: ~s",
+      [File, file:format_error(Error)]);
+format_error({write_file, Error}) ->
+    io_lib:format(
+      "Failed to write file: ~s",
+      [file:format_error(Error)]);
+format_error(Other) ->
+    io_lib:format("## Error description for ~p not implemented.", [Other]).
+
 
 %%====================================================================
 %% Internal functions
 %%====================================================================
 
-process_opts(Options) ->
+process_opts(Source, Options) ->
     Options1 = proplists:normalize(
                  update_defaults(Options),
                  [{aliases, [{out_dir, outdir}]}
                  ]),
-    process_opts(Options1, []).
+    [{compiler_options, [{source, Source}]}
+     |compiler_opts(Options1, [])].
 
-process_opts([CompilerOption|Os], Acc)
+compiler_opts([CompilerOption|Os], Acc)
   when
       CompilerOption =:= return;
       CompilerOption =:= return_warnings;
@@ -145,10 +155,10 @@ process_opts([CompilerOption|Os], Acc)
       CompilerOption =:= warnings_as_errors;
       CompilerOption =:= verbose;
       element(1, CompilerOption) =:= outdir ->
-    process_opts(Os, [CompilerOption, {compiler_options, [CompilerOption]}|Acc]);
-process_opts([O|Os], Acc) ->
-    process_opts(Os, [O|Acc]);
-process_opts([], Acc) ->
+    compiler_opts(Os, [CompilerOption, {compiler_options, [CompilerOption]}|Acc]);
+compiler_opts([O|Os], Acc) ->
+    compiler_opts(Os, [O|Acc]);
+compiler_opts([], Acc) ->
     lists:reverse(Acc).
 
 update_defaults(Options) ->
@@ -189,6 +199,56 @@ maybe_add_env_default_opts(Options) ->
         _ -> Options ++ env_default_opts()
     end.
 
+compile(Context) ->
+    Context1 = do_compile(Context),
+    collect_result(Context1).
+
+collect_result(#dtl_context{
+                  module=Module, 
+                  errors=#error_info{ list=[] },
+                  warnings=Ws }=Context) ->
+    Info = case Ws of
+               #error_info{ return=true, list=Warnings } ->
+                   [pack_error_list(Warnings)];
+               _ ->
+                   []
+           end,
+    Res = case proplists:get_bool(binary, Context#dtl_context.all_options) of
+              true ->
+                  [ok, Module, Context#dtl_context.bin | Info];
+              false ->
+                  [ok, Module | Info]
+          end,
+    list_to_tuple(Res);
+collect_result(#dtl_context{ errors=Es, warnings=Ws }) ->
+    if Es#error_info.return ->
+            {error,
+             pack_error_list(Es#error_info.list),
+             case Ws of
+                 #error_info{ list=L } ->
+                     pack_error_list(L);
+                 _ ->
+                     []
+             end};
+       true -> error
+    end.
+
+do_compile(#dtl_context{ bin=undefined, parse_trail=[File|_] }=Context) ->
+    {M, F} = Context#dtl_context.reader,
+    case catch M:F(File) of
+        {ok, Data} when is_binary(Data) ->
+            do_compile(Context#dtl_context{ bin=Data });
+        {error, Reason} ->
+            add_error({read_file, Reason}, Context)
+    end;
+do_compile(#dtl_context{ bin=Binary }=Context) ->
+    case parse(Binary, Context) of
+        up_to_date -> Context;
+        {ok, DjangoParseTree, CheckSum} ->
+            compile_to_binary(DjangoParseTree, CheckSum, Context);
+        {error, Reason} -> add_error(Reason, Context)
+    end.
+
 compile_multiple_to_binary(Dir, ParserResults, Context) ->
     MatchAst = options_match_ast(Context),
     {Functions, {AstInfo, _}}
@@ -224,19 +284,24 @@ compile_multiple_to_binary(Dir, ParserResults, Context) ->
     Forms = custom_forms(Dir, Context#dtl_context.module, Functions, AstInfo),
     compile_forms(Forms, Context).
 
-compile_to_binary(File, DjangoParseTree, Context, CheckSum) ->
+compile_to_binary(DjangoParseTree, CheckSum, Context) ->
     try body_ast(DjangoParseTree, Context, init_treewalker(Context)) of
         {{BodyAst, BodyInfo}, BodyTreeWalker} ->
             try custom_tags_ast(BodyInfo#ast_info.custom_tags, Context, BodyTreeWalker) of
                 {{CustomTagsAst, CustomTagsInfo}, _} ->
-                    Forms = forms(File, Context#dtl_context.module, {BodyAst, BodyInfo},
-                                  {CustomTagsAst, CustomTagsInfo}, CheckSum, Context, BodyTreeWalker),
+                    Forms = forms(
+                              Context#dtl_context.module,
+                              {BodyAst, BodyInfo},
+                              {CustomTagsAst, CustomTagsInfo},
+                              CheckSum,
+                              BodyTreeWalker,
+                              Context),
                     compile_forms(Forms, Context)
             catch
-                throw:Error -> Error
+                throw:Error -> add_error(Error, Context)
             end
     catch
-        throw:Error -> Error
+        throw:Error -> add_error(Error, Context)
     end.
 
 compile_forms(Forms, Context) ->
@@ -246,50 +311,49 @@ compile_forms(Forms, Context) ->
         Compiled when element(1, Compiled) =:= ok ->
             [ok, Module, Bin|Info] = tuple_to_list(Compiled),
             lists:foldl(
-              fun (F, ok) -> F(Module, Bin, Context);
-                  (_, Res) -> Res
-              end,
-              ok,
-              [fun maybe_write_binary/3,
+              fun (F, C) -> F(Module, Bin, C) end,
+              Context#dtl_context{ bin=Bin },
+              [fun maybe_write/3,
                fun maybe_load/3,
-               fun (_, _, _) ->
-                       case proplists:get_bool(binary, Context#dtl_context.all_options) of
-                           true -> Compiled;
-                           false -> list_to_tuple([ok, Module|Info])
+               fun (_, _, C) ->
+                       case Info of
+                           [Ws] when length(Ws) > 0 ->
+                               add_warning({compile_beam, Ws}, C);
+                           _ -> C
                        end
                end
               ]);
-        Err when Err =:= error; element(1, Err) =:= error ->
-            Err
+        error ->
+            add_error(compile_beam, Context);
+        {error, Es, Ws} ->
+            add_error({compile_beam, Es, Ws}, Context)
     end.
 
-maybe_write_binary(Module, Bin, Context) ->
+maybe_write(Module, Bin, Context) ->
     case proplists:get_value(outdir, Context#dtl_context.all_options) of
         undefined ->
-            print("Template module: ~w not saved (no outdir option)\n", [Module], Context);
+            add_warning(no_outdir, Context);
         OutDir ->
             BeamFile = filename:join([OutDir, atom_to_list(Module) ++ ".beam"]),
             print("Template module: ~w -> ~s\n", [Module, BeamFile], Context),
             case file:write_file(BeamFile, Bin) of
-                ok -> ok;
+                ok -> Context;
                 {error, Reason} ->
-                    {error, lists:flatten(
-                              io_lib:format("Beam generation of '~s' failed: ~p",
-                                            [BeamFile, file:format_error(Reason)]))}
+                    add_error({write_file, Reason}, Context)
             end
     end.
 
 maybe_load(Module, Bin, Context) ->
     case proplists:get_bool(no_load, Context#dtl_context.all_options) of
-        true -> ok;
-        false -> load_code(Module, Bin)
+        true -> Context;
+        false -> load_code(Module, Bin, Context)
     end.
 
-load_code(Module, Bin) ->
+load_code(Module, Bin, Context) ->
     code:purge(Module),
     case code:load_binary(Module, atom_to_list(Module) ++ ".erl", Bin) of
-        {module, Module} -> ok;
-        _ -> {error, lists:concat(["code reload failed: ", Module])}
+        {module, Module} -> Context;
+        Error -> add_warning({load, Error}, Context)
     end.
 
 dump_forms(Forms, Context) ->
@@ -335,13 +399,46 @@ init_context(IsCompilingDir, ParseTrail, DefDir, Module, Options) ->
                  extension_module = proplists:get_value(extension_module, Options, Ctx#dtl_context.extension_module),
                  scanner_module = proplists:get_value(scanner_module, Options, Ctx#dtl_context.scanner_module),
                  record_info = [{R, lists:zip(I, lists:seq(2, length(I) + 1))}
-                                || {R, I} <- proplists:get_value(record_info, Options, Ctx#dtl_context.record_info)]
+                                || {R, I} <- proplists:get_value(record_info, Options, Ctx#dtl_context.record_info)],
+                 errors = init_error_info(errors, Ctx#dtl_context.errors, Options),
+                 warnings = init_error_info(warnings, Ctx#dtl_context.warnings, Options)
                 },
     case call_extension(Context, init_context, [Context]) of
         {ok, C} when is_record(C, dtl_context) -> C;
         undefined -> Context
     end.
 
+init_error_info(warnings, Ei, Options) ->
+    case proplists:get_bool(warnings_as_errors, Options) of
+        true -> warnings_as_errors;
+        false ->
+            init_error_info(get_error_info_opts(warnings, Options), Ei)
+    end;
+init_error_info(Class, Ei, Options) ->
+    init_error_info(get_error_info_opts(Class, Options), Ei).
+
+init_error_info([{return, true}|Flags], #error_info{ return = false }=Ei) ->
+    init_error_info(Flags, Ei#error_info{ return = true });
+init_error_info([{report, true}|Flags], #error_info{ report = false }=Ei) ->
+    init_error_info(Flags, Ei#error_info{ report = true });
+init_error_info([_|Flags], Ei) ->
+    init_error_info(Flags, Ei);
+init_error_info([], Ei) -> Ei.
+
+get_error_info_opts(Class, Options) ->
+    Flags = case Class of
+                errors ->
+                    [return, report, {return_errors, return}, {report_errors, report}];
+                warnings ->
+                    [return, report, {return_warnings, return}, {report_warnings, report}]
+            end,
+    [begin
+         {Key, Value} = if is_atom(Flag) -> {Flag, Flag};
+                           true -> Flag
+                        end,
+         {Value, proplists:get_bool(Key, Options)}
+     end || Flag <- Flags].
+    
 init_dtl_context(File, Module, Options) when is_list(Module) ->
     init_dtl_context(File, list_to_atom(Module), Options);
 init_dtl_context(File, Module, Options) ->
@@ -408,16 +505,9 @@ parse(File, Context) ->
     {M, F} = Context#dtl_context.reader,
     case catch M:F(File) of
         {ok, Data} when is_binary(Data) ->
-            case parse(Data, Context) of
-                {error, Msg} when is_list(Msg) ->
-                    {error, File ++ ": " ++ Msg};
-                {error, Msg} ->
-                    {error, {File, [Msg]}};
-                Result ->
-                    Result
-            end;
-        _ ->
-            {error, {File, [{0, Context#dtl_context.module, "Failed to read file"}]}}
+            parse(Data, Context);
+        {error, Reason} ->
+            {read_file, File, Reason}
     end.
 
 do_parse(Data, #dtl_context{ scanner_module=Scanner }=Context) ->
@@ -680,7 +770,8 @@ custom_forms(Dir, Module, Functions, AstInfo) ->
               | FunctionAsts] ++ AstInfo#ast_info.pre_render_asts
     ].
 
-forms(File, Module, {BodyAst, BodyInfo}, {CustomTagsFunctionAst, CustomTagsInfo}, CheckSum, Context, TreeWalker) ->
+forms(Module, {BodyAst, BodyInfo}, {CustomTagsFunctionAst, CustomTagsInfo}, CheckSum, TreeWalker,
+      #dtl_context{ parse_trail=[File|_] }=Context) ->
     MergedInfo = merge_info(BodyInfo, CustomTagsInfo),
     Render0FunctionAst = erl_syntax:function(
                            erl_syntax:atom(render),
@@ -804,7 +895,7 @@ body_ast([{'extends', {string_literal, _Pos, String}} | ThisParseTree], Context,
     File = full_path(unescape_string_literal(String), Context#dtl_context.doc_root),
     case lists:member(File, Context#dtl_context.parse_trail) of
         true ->
-            throw({error, "Circular file inclusion!"});
+            throw(circular_include);
         _ ->
             case parse(File, Context) of
                 {ok, ParentParseTree, CheckSum} ->
@@ -932,7 +1023,7 @@ body_ast(DjangoParseTree, Context, TreeWalker) ->
                                        ({'extension', Tag}, TreeWalkerAcc) ->
                                                        extension_ast(Tag, Context, TreeWalkerAcc);
                                        ({'extends', _}, _TreeWalkerAcc) ->
-                                                       throw({error, "The extends tag must be at the very top of the template"});
+                                                       throw(unexpected_extends_tag);
                                        (ValueToken, TreeWalkerAcc) ->
                                                        {{ValueAst,ValueInfo},ValueTreeWalker} = value_ast(ValueToken, true, true, Context, TreeWalkerAcc),
                                                        {{format(ValueAst, Context, ValueTreeWalker),ValueInfo},ValueTreeWalker}
@@ -1006,7 +1097,7 @@ value_ast(ValueToken, AsString, EmptyIfUndefined, Context, TreeWalker) ->
 extension_ast(Tag, Context, TreeWalker) ->
     case call_extension(Context, compile_ast, [Tag, Context, TreeWalker]) of
         undefined ->
-            throw({error, {unknown_extension, Tag}});
+            throw({unknown_extension, Tag});
         Result ->
             Result
     end.
@@ -1274,7 +1365,7 @@ filter_ast2(Name, Args, #dtl_context{ filter_modules = [Module|Rest] } = Context
             filter_ast2(Name, Args, Context#dtl_context{ filter_modules = Rest })
     end;
 filter_ast2(Name, Args, _) ->
-    throw({error, {unknown_filter, Name, length(Args)}}).
+    throw({unknown_filter, Name, length(Args)}).
 
 search_for_escape_filter(Variable, Filter, #dtl_context{auto_escape = on}) ->
     search_for_safe_filter(Variable, Filter);
@@ -1708,3 +1799,57 @@ call_ast(Module, Variable, AstInfo, TreeWalker) ->
                  [ErrStrAst]),
     CallAst = erl_syntax:case_expr(AppAst, [OkAst, ErrorAst]),
     with_dependencies(Module:dependencies(), {{CallAst, AstInfo}, TreeWalker}).
+
+
+add_error(Error, #dtl_context{ errors=Es }=Context) ->
+    Context#dtl_context{
+      errors=log_error_info(
+               "", error_info(Error),
+               Es, Context)
+     }.
+
+add_warning(Warning, #dtl_context{ warnings=warnings_as_errors }=Context) ->
+    add_error(Warning, Context);
+add_warning(Warning, #dtl_context{ warnings=Ws }=Context) ->
+    Context#dtl_context{
+      warnings=log_error_info(
+                 "Warning: ",
+                 error_info(Warning),
+                 Ws, Context) 
+     }.
+
+error_info({Line, ErrorDesc}) when is_integer(Line) ->
+    {Line, ?MODULE, ErrorDesc};
+error_info({Line, Module, _ErrorDesc}=ErrorInfo)
+  when is_integer(Line), is_atom(Module) -> ErrorInfo;
+error_info(ErrorDesc) -> {none, ?MODULE, ErrorDesc}.
+
+log_error_info(Prefix, {Line, Module, ErrorDesc}=ErrorInfo,
+               #error_info{ report=Report, list=L }=Ei,
+               #dtl_context{ parse_trail=[File|_] }) ->
+    if Report ->
+            io:format("~s:~s~s~s~n",
+                      [File, line_info(Line), Prefix,
+                       Module:format_error(ErrorDesc)]);
+       true -> nop
+    end,
+    Ei#error_info{ list=[{File, ErrorInfo}|L] }.
+
+line_info(none) -> " ";
+line_info(Line) when is_integer(Line) ->
+    io_lib:format("~b: ", [Line]).
+
+pack_error_list(Es) ->
+    collect_error_info([], Es, []).
+
+collect_error_info([], [], Acc) ->
+    lists:reverse(Acc);
+collect_error_info([{File, ErrorInfo}|Es], Rest, [{File, FEs}|Acc]) ->
+    collect_error_info(Es, Rest, [{File, [ErrorInfo|FEs]}|Acc]);
+collect_error_info([E|Es], Rest, Acc) ->
+    collect_error_info(Es, [E|Rest], Acc);
+collect_error_info([], Rest, Acc) ->
+    case lists:reverse(Rest) of
+        [{File, ErrorInfo}|Es] ->
+            collect_error_info(Es, [], [{File, [ErrorInfo]}|Acc])
+    end.

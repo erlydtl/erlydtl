@@ -27,7 +27,7 @@ in this directory.
 Template compilation
 --------------------
 
-Four ways:
+Usage:
 
     erlydtl:compile("/path/to/template.dtl", my_module_name)
 
@@ -37,6 +37,18 @@ Four ways:
 
     erlydtl:compile(<<"<html>{{ foo }}</html>">>, my_module_name, Options)
 
+Result:
+
+    ok %% existing compiled template is up to date.
+    
+    {ok, Module}
+    {ok, Module, Warnings}
+    {ok, Module, Binary}
+    {ok, Module, Binary, Warnings}
+    
+    error
+    {error, Errors, Warnings}
+    
 Options is a proplist possibly containing:
 
 * `outdir` - Directory to store generated .beam files. If not
@@ -86,8 +98,8 @@ Options is a proplist possibly containing:
 * `compiler_options` - Proplist with extra options passed directly to
   `compiler:forms/2`. This option can be supplied multiple times. Note
   that the most common options can be given directly with the list of
-  options to the erlydtl compiler (see Erlang Compiler options,
-  below).
+  options to the erlydtl compiler (see options affecting the Erlang
+  compiler, below).
 
 * `force_recompile` - Recompile the module even if the source's
   checksum has not changed. Useful for debugging.
@@ -111,8 +123,6 @@ Options is a proplist possibly containing:
 * `binary_strings` - Whether to compile strings as binary terms
   (rather than lists). Defaults to `true`.
 
-* `verbose` - Enable verbose printing of compilation results.
-
 * `record_info` - List of records to look for when rendering the
   template. Each record info is a tuple with the fields of the record:
 
@@ -129,30 +139,26 @@ Options is a proplist possibly containing:
   similar use, except that this option does NOT affect whether or not
   a .beam file is saved.
 
-*Erlang Compiler options*
+*The following options also affect the Erlang Compiler*
 
-As a convenience, the following options are forwarded to
-`compile:forms/2`, along with those from `compiler_options`:
+The following options are forwarded to `compile:forms/2`, (in
+addition to those given with the `compiler_options`):
 
-* `return`
-* `return_warnings`
-* `return_errors`
-* `report`
-* `report_warnings`
-* `report_errors`
-* `warnings_as_errors`
-* `verbose`
+* `return` - Short form for both `return_warnings` and `return_errors`.
+* `return_warnings` - If this flag is set, then an extra field
+  containing warnings is added to the tuple returned on success.
+* `return_errors` - If this flag is set, then an error-tuple with two
+  extra fields containing errors and warnings is returned when there
+  are errors.
+* `report` - Short form for both `report_warnings` and `report_errors`.
+* `report_warnings` - Print warnings as they occur.
+* `report_errors` - Print errors as they occur.
+* `warnings_as_errors` - Treat warnings as errors.
+* `verbose` - Enable verbose printing of compilation results.
 
-_Notice_ that the return value from `erlydtl:compile` is affected by
-the options passed to the compiler. See
+See
 [Erlang compiler documentation](http://www.erlang.org/doc/man/compile.html#forms-2)
-for details. _Exception_ to the rule is that we have reverted the
-`forms` statement that `binary` is treated as implicitly set. That is,
-you need to pass the `binary` option to erlydtl in order to get the
-code in the result tuple.
-
-Default compiler options are `[verbose, report_errors]`, which gives
-either a `{ok, Module}` or `error` as return value.
+for documentation of these options with regard to the beam compiler.
 
 
 Helper compilation
