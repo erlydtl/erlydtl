@@ -27,6 +27,21 @@ test: compile compile_test
 			halt(0) \
 		catch throw:failed -> halt(1) end"
 
+check: test dialyze
+
+DIALYZER_OPTS ?= -Werror_handling -Wrace_conditions -Wunmatched_returns
+dialyze:
+	@dialyzer -nn $(DIALYZER_OPTS) ebin || [ $$? -eq 2 ];
+
+## In case you are missing a plt file for dialyzer,
+## you can run/adapt this command
+PLT_APPS ?=
+plt:
+	@dialyzer -n -nn --build_plt --apps \
+		erts kernel stdlib sasl compiler \
+		crypto syntax_tools runtime_tools \
+		tools webtool hipe inets eunit
+
 clean:
 	@$(REBAR) clean
 	rm -fv ebintest/*
