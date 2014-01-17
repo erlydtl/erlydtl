@@ -1220,7 +1220,7 @@ tests() ->
          [{extension_module, erlydtl_extension_test}], <<"ok">>},
         {"proper error message", <<"{{ bar # }}">>, [{bar, "ok"}], [],
          [{extension_module, erlydtl_extension_test}],
-         {error, [{"<text>", [{1,erlydtl_extension_test,"Unexpected '#' in code at column 8"}]}], []}},
+         {error, [{"/<text>", [{1,erlydtl_extension_test,"Unexpected '#' in code at column 8"}]}], []}},
         %% accept identifiers as expressions (this is a dummy functionality to test the parser extensibility)
         {"identifiers as expressions", <<"{{ foo.bar or baz }}">>, [{baz, "ok"}], [],
          [{extension_module, erlydtl_extension_test}], <<"ok">>}
@@ -1231,6 +1231,8 @@ tests() ->
         [{record_info, [{testrec, record_info(fields, testrec)}]}],
         <<"Baz">>}
       ]}
+     %% {"error reporting",
+     %%  [{"return warnings"}]}
     ].
 
 run_tests() ->
@@ -1304,7 +1306,7 @@ format_error(Name, Class, Error) ->
 
 compile_test(DTL, Opts) ->
     Options = [force_recompile,
-               return_errors,
+               return_errors, return_warnings,
                {custom_filters_modules, [erlydtl_contrib_humanize]}
                |Opts],
     timer:tc(erlydtl, compile, [DTL, erlydtl_running_test, Options]).
@@ -1324,7 +1326,7 @@ process_unit_test({Name, DTL, Vars, RenderOpts, Output}) ->
     process_unit_test({Name, DTL, Vars, RenderOpts, [], Output});
 process_unit_test({Name, DTL, Vars, RenderOpts, CompilerOpts, Output}) ->
     case compile_test(DTL, CompilerOpts) of
-        {Tcompile, {ok, _}} ->
+        {Tcompile, {ok, _, _}} ->
             Tc = [{compile, Tcompile}],
             case render_test(Vars, RenderOpts) of
                 {TrenderL, {ok, IOList}} ->
@@ -1362,7 +1364,7 @@ process_unit_test({Name, DTL, Vars, RenderOpts, CompilerOpts, Output}) ->
                             test_pass([{render_binary, TrenderB}|TrL]);
                         {TrenderB, Err} ->
                             test_fail(Name, "Render error (with binary variables): ~p", [Err],
-                                     [{render_binary, TrenderB}|TrL])
+                                      [{render_binary, TrenderB}|TrL])
                     end;
                 {TrenderL, Output} ->
                     test_pass([{render_list, TrenderL}|Tc]);

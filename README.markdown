@@ -51,7 +51,7 @@ Result:
     
 Options is a proplist possibly containing:
 
-* `outdir` - Directory to store generated .beam files. If not
+* `out_dir` - Directory to store generated .beam files. If not
   specified, no .beam files will be created.
 
 * `doc_root` - Included template paths will be relative to this
@@ -95,12 +95,6 @@ Options is a proplist possibly containing:
   and returns a binary with the file contents. Defaults to `{file,
   read_file}`. Useful for reading templates from a network resource.
 
-* `compiler_options` - Proplist with extra options passed directly to
-  `compiler:forms/2`. This option can be supplied multiple times. Note
-  that the most common options can be given directly with the list of
-  options to the erlydtl compiler (see options affecting the Erlang
-  compiler, below).
-
 * `force_recompile` - Recompile the module even if the source's
   checksum has not changed. Useful for debugging.
 
@@ -139,26 +133,28 @@ Options is a proplist possibly containing:
   similar use, except that this option does NOT affect whether or not
   a .beam file is saved.
 
-*The following options also affect the Erlang Compiler*
-
-The following options are forwarded to `compile:forms/2`, (in
-addition to those given with the `compiler_options`):
-
 * `return` - Short form for both `return_warnings` and `return_errors`.
+
 * `return_warnings` - If this flag is set, then an extra field
   containing warnings is added to the tuple returned on success.
+
 * `return_errors` - If this flag is set, then an error-tuple with two
   extra fields containing errors and warnings is returned when there
   are errors.
+
 * `report` - Short form for both `report_warnings` and `report_errors`.
+
 * `report_warnings` - Print warnings as they occur.
+
 * `report_errors` - Print errors as they occur.
+
 * `warnings_as_errors` - Treat warnings as errors.
+
 * `verbose` - Enable verbose printing of compilation results.
 
-See
-[Erlang compiler documentation](http://www.erlang.org/doc/man/compile.html#forms-2)
-for documentation of these options with regard to the beam compiler.
+* `compiler_options` - Proplist with extra options passed directly to
+  `compiler:forms/2`. This can prove useful when using extensions to
+  add extra defines etc when compiling the generated code.
 
 
 Helper compilation

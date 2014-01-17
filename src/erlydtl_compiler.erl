@@ -59,16 +59,18 @@
 -include("erlydtl_ext.hrl").
 
 compile(FileOrBinary, Module) ->
-    compile(FileOrBinary, Module, []).
+    compile(FileOrBinary, Module, [verbose, report_errors]).
 
 compile(Binary, Module, Options0) when is_binary(Binary) ->
-    Options = process_opts("/<text>", Options0),
-    Context = init_dtl_context("<text>", Module, Options),
+    File = "/<text>",
+    Options = process_opts(File, Options0),
+    Context = init_dtl_context(File, Module, Options),
     compile(Context#dtl_context{ bin = Binary });
 
 compile(File, Module, Options0) ->
     Options = process_opts(File, Options0),
     Context = init_dtl_context(File, Module, Options),
+    print("Compile template: ~s~n", [File], Context),
     compile(Context).
 
 compile_dir(Dir, Module) ->
@@ -110,7 +112,7 @@ compile_dir(Dir, Module, Options0) ->
 parse(Data) ->
     parse(Data, #dtl_context{}).
 
-format_error(no_outdir) ->
+format_error(no_out_dir) ->
     "Compiled template not saved (need outdir option)";
 format_error(unexpected_extends_tag) ->
     "The extends tag must be at the very top of the template";
@@ -128,6 +130,8 @@ format_error({write_file, Error}) ->
     io_lib:format(
       "Failed to write file: ~s",
       [file:format_error(Error)]);
+format_error(compile_beam) ->
+    "Failed to compile template to .beam file";
 format_error(Other) ->
     io_lib:format("## Error description for ~p not implemented.", [Other]).
 
@@ -139,7 +143,7 @@ format_error(Other) ->
 process_opts(Source, Options) ->
     Options1 = proplists:normalize(
                  update_defaults(Options),
-                 [{aliases, [{out_dir, outdir}]}
+                 [{aliases, [{outdir, out_dir}]}
                  ]),
     [{compiler_options, [{source, Source}]}
      |compiler_opts(Options1, [])].
@@ -153,8 +157,7 @@ compiler_opts([CompilerOption|Os], Acc)
       CompilerOption =:= report_warnings;
       CompilerOption =:= report_errors;
       CompilerOption =:= warnings_as_errors;
-      CompilerOption =:= verbose;
-      element(1, CompilerOption) =:= outdir ->
+      CompilerOption =:= verbose ->
     compiler_opts(Os, [CompilerOption, {compiler_options, [CompilerOption]}|Acc]);
 compiler_opts([O|Os], Acc) ->
     compiler_opts(Os, [O|Acc]);
@@ -162,13 +165,7 @@ compiler_opts([], Acc) ->
     lists:reverse(Acc).
 
 update_defaults(Options) ->
-    Options1 = maybe_add_env_default_opts(Options),
-    case proplists:get_value(compiler_options, Options1) of
-        undefined ->
-            [{compiler_options, (#dtl_context{})#dtl_context.compiler_options}
-             |Options1];
-        _ -> Options1
-    end.
+    maybe_add_env_default_opts(Options).
 
 %% shamelessly borrowed from:
 %% https://github.com/erlang/otp/blob/21095e6830f37676dd29c33a590851ba2c76499b/\
@@ -318,7 +315,7 @@ compile_forms(Forms, Context) ->
                fun (_, _, C) ->
                        case Info of
                            [Ws] when length(Ws) > 0 ->
-                               add_warning({compile_beam, Ws}, C);
+                               add_warnings(Ws, C);
                            _ -> C
                        end
                end
@@ -326,13 +323,13 @@ compile_forms(Forms, Context) ->
         error ->
             add_error(compile_beam, Context);
         {error, Es, Ws} ->
-            add_error({compile_beam, Es, Ws}, Context)
+            add_warnings(Ws, add_errors(Es, Context))
     end.
 
 maybe_write(Module, Bin, Context) ->
-    case proplists:get_value(outdir, Context#dtl_context.all_options) of
+    case proplists:get_value(out_dir, Context#dtl_context.all_options) of
         undefined ->
-            add_warning(no_outdir, Context);
+            add_warning(no_out_dir, Context);
         OutDir ->
             BeamFile = filename:join([OutDir, atom_to_list(Module) ++ ".beam"]),
             print("Template module: ~w -> ~s\n", [Module, BeamFile], Context),
@@ -1768,9 +1765,6 @@ custom_tags_modules_ast(Name, InterpretedArgs, #dtl_context{ custom_tags_modules
                                     Context#dtl_context{ custom_tags_modules = Rest })
     end.
 
-print(Fmt, Args, #dtl_context{ verbose = true }) -> io:format(Fmt, Args);
-print(_Fmt, _Args, _Context) -> ok.
-
 call_ast(Module, TreeWalkerAcc) ->
     call_ast(Module, erl_syntax:variable("_Variables"), #ast_info{}, TreeWalkerAcc).
 
@@ -1801,39 +1795,59 @@ call_ast(Module, Variable, AstInfo, TreeWalker) ->
     with_dependencies(Module:dependencies(), {{CallAst, AstInfo}, TreeWalker}).
 
 
-add_error(Error, #dtl_context{ errors=Es }=Context) ->
+print(Fmt, Args, #dtl_context{ verbose = true }) -> io:format(Fmt, Args);
+print(_Fmt, _Args, _Context) -> ok.
+
+
+add_error(Error, #dtl_context{
+                    errors=#error_info{ report=Report, list=Es }=Ei,
+                    parse_trail=[File|_] }=Context) ->
+    Item = get_error_item(Report, "", File, Error),
     Context#dtl_context{
-      errors=log_error_info(
-               "", error_info(Error),
-               Es, Context)
+      errors=Ei#error_info{ list=[Item|Es] }
      }.
+
+add_errors(Errors, Context) ->
+    lists:foldl(
+      fun (E, C) -> add_error(E, C) end,
+      Context, Errors).
 
 add_warning(Warning, #dtl_context{ warnings=warnings_as_errors }=Context) ->
     add_error(Warning, Context);
-add_warning(Warning, #dtl_context{ warnings=Ws }=Context) ->
+add_warning(Warning, #dtl_context{
+                        warnings=#error_info{ report=Report, list=Ws }=Wi,
+                        parse_trail=[File|_] }=Context) ->
+    Item = get_error_item(Report, "Warning: ", File, Warning),
     Context#dtl_context{
-      warnings=log_error_info(
-                 "Warning: ",
-                 error_info(Warning),
-                 Ws, Context) 
+      warnings=Wi#error_info{ list=[Item|Ws] }
      }.
 
-error_info({Line, ErrorDesc}) when is_integer(Line) ->
-    {Line, ?MODULE, ErrorDesc};
-error_info({Line, Module, _ErrorDesc}=ErrorInfo)
-  when is_integer(Line), is_atom(Module) -> ErrorInfo;
-error_info(ErrorDesc) -> {none, ?MODULE, ErrorDesc}.
+add_warnings(Warnings, Context) ->
+    lists:foldl(
+      fun (W, C) -> add_warning(W, C) end,
+      Context, Warnings).
 
-log_error_info(Prefix, {Line, Module, ErrorDesc}=ErrorInfo,
-               #error_info{ report=Report, list=L }=Ei,
-               #dtl_context{ parse_trail=[File|_] }) ->
-    if Report ->
+get_error_item(Report, Prefix, File, Error) ->
+    case Error of
+        {Line, ErrorDesc}
+          when is_integer(Line) ->
+            new_error_item(Report, Prefix, File, Line, ?MODULE, ErrorDesc);
+        {Line, Module, ErrorDesc}
+          when is_integer(Line), is_atom(Module) ->
+            new_error_item(Report, Prefix, File, Line, Module, ErrorDesc);
+        {_, InfoList} when is_list(InfoList) -> Error;
+        ErrorDesc ->
+            new_error_item(Report, Prefix, File, none, ?MODULE, ErrorDesc)
+    end.
+    
+new_error_item(Report, Prefix, File, Line, Module, ErrorDesc) ->
+    if Report  ->
             io:format("~s:~s~s~s~n",
                       [File, line_info(Line), Prefix,
                        Module:format_error(ErrorDesc)]);
        true -> nop
     end,
-    Ei#error_info{ list=[{File, ErrorInfo}|L] }.
+    {File, [{Line, Module, ErrorDesc}]}.
 
 line_info(none) -> " ";
 line_info(Line) when is_integer(Line) ->
@@ -1845,11 +1859,11 @@ pack_error_list(Es) ->
 collect_error_info([], [], Acc) ->
     lists:reverse(Acc);
 collect_error_info([{File, ErrorInfo}|Es], Rest, [{File, FEs}|Acc]) ->
-    collect_error_info(Es, Rest, [{File, [ErrorInfo|FEs]}|Acc]);
+    collect_error_info(Es, Rest, [{File, ErrorInfo ++ FEs}|Acc]);
 collect_error_info([E|Es], Rest, Acc) ->
     collect_error_info(Es, [E|Rest], Acc);
 collect_error_info([], Rest, Acc) ->
     case lists:reverse(Rest) of
-        [{File, ErrorInfo}|Es] ->
-            collect_error_info(Es, [], [{File, [ErrorInfo]}|Acc])
+        [E|Es] ->
+            collect_error_info(Es, [], [E|Acc])
     end.
