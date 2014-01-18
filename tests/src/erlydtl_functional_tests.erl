@@ -76,11 +76,14 @@ setup_compile("var_preset") ->
     CompileVars = [{preset_var1, "preset-var1"}, {preset_var2, "preset-var2"}],
     {ok, CompileVars};
 setup_compile("extends2") ->
-    {{error, "The extends tag must be at the very top of the template"}, []};
+    File = templates_dir("input/extends2"),
+    Error = {none, erlydtl_compiler, unexpected_extends_tag},
+    {{error, [{File, [Error]}], []}, []};
 setup_compile("extends3") ->
-    File = templates_dir("input/imaginary"),
-    Error = {0, functional_test_extends3, "Failed to read file"},
-    {{error, {File, [Error]}}, []}; %% Huh?! what kind of error message is that!?
+    File = templates_dir("input/extends3"),
+    Include = templates_dir("input/imaginary"),
+    Error = {none, erlydtl_compiler, {read_file, Include, enoent}},
+    {{error, [{File, [Error]}], []}, []};
 setup_compile(_) ->
     {ok, []}.
 
@@ -249,17 +252,19 @@ test_compile_render(Name) ->
             Options = [
                        {vars, CompileVars},
                        force_recompile,
+                       return_errors,
+                       return_warnings,
                        %% debug_compiler,
                        {custom_tags_modules, [erlydtl_custom_tags]}],
             io:format("compiling ... "),
             case erlydtl:compile(File, Module, Options) of
-                {ok, Mod} ->
+                {ok, Mod, [{File, [{none,erlydtl_compiler,no_out_dir}]}]} ->
                     if CompileStatus =:= ok -> test_render(Name, Mod);
                        true ->
                             io:format("missing error"),
                             {error, "compiling should have failed :" ++ File}
                     end;
-                {error, _}=Err ->
+                {error, _, _}=Err ->
                     if CompileStatus =:= Err -> io:format("ok");
                        true ->
                             io:format("failed"),

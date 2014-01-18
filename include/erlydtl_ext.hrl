@@ -1,4 +1,10 @@
 
+-record(error_info, {
+          return = false,
+          report = false,
+          list = []
+         }).
+
 -record(dtl_context, {
           local_scopes = [], 
           block_dict = dict:new(), 
@@ -13,8 +19,8 @@
           custom_tags_dir = [],
           custom_tags_modules = [],
           reader = {file, read_file},
-          module = [],
-          compiler_options = [verbose, report_errors],
+          module = undefined,
+          compiler_options = [],
           binary_strings = true,
           force_recompile = false,
           locale = none,
@@ -23,7 +29,10 @@
           extension_module = undefined,
           scanner_module = erlydtl_scanner,
           scanned_tokens = [],
-          all_options = []
+          all_options = [],
+          errors = #error_info{},
+          warnings = #error_info{},
+          bin = undefined
          }).
 
 -record(ast_info, {

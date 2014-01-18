@@ -238,12 +238,13 @@ init_counter_stats(List) ->
     init_counter_stats(List, undefined).
 
 init_counter_stats(List, Parent) when is_list(List) ->
+    ListLen = length(List),
     [{counter, 1},
      {counter0, 0},
-     {revcounter, length(List)},
-     {revcounter0, length(List) - 1},
+     {revcounter, ListLen},
+     {revcounter0, ListLen - 1},
      {first, true},
-     {last, length(List) =:= 1},
+     {last, ListLen =:= 1},
      {parentloop, Parent}].
 
 increment_counter_stats([{counter, Counter}, {counter0, Counter0}, {revcounter, RevCounter},
@@ -255,9 +256,10 @@ increment_counter_stats([{counter, Counter}, {counter0, Counter0}, {revcounter, 
      {first, false}, {last, RevCounter0 =:= 1},
      {parentloop, Parent}].
 
-forloop(Fun, Acc0, Values) ->
+forloop(_Fun, [], _Parent) -> empty;
+forloop(Fun, Values, Parent) ->
     push_ifchanged_context(),
-    Result = lists:mapfoldl(Fun, Acc0, Values),
+    Result = lists:mapfoldl(Fun, init_counter_stats(Values, Parent), Values),
     pop_ifchanged_context(),
     Result.
 
