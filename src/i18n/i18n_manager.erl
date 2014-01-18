@@ -32,7 +32,7 @@ generate_pos([Lang,Files])->
 						insert_tokens(ProcessedFiles),
 						
 						%%Recover already present translations
-						TranslationsForLanguage = po_scanner:scan(BaseDir ++ Language ++ "/gettext.po"),
+						TranslationsForLanguage = po_scanner:parse_po_file(BaseDir ++ Language ++ "/gettext.po"),
 						io:format("Updating translations~n"),
 						insert_translations(TranslationsForLanguage),
 						Data = dets_data(),
