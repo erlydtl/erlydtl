@@ -17,10 +17,10 @@ Template Languge, there are still a few
 Compilation
 -----------
 
-To compile ErlyDTL, run 
+To compile ErlyDTL, run
 
     make
-    
+
 in this directory.
 
 
@@ -40,15 +40,15 @@ Usage:
 Result:
 
     ok %% existing compiled template is up to date.
-    
+
     {ok, Module}
     {ok, Module, Warnings}
     {ok, Module, Binary}
     {ok, Module, Binary, Warnings}
-    
+
     error
     {error, Errors, Warnings}
-    
+
 Options is a proplist possibly containing:
 
 * `out_dir` - Directory to store generated .beam files. If not
@@ -125,6 +125,9 @@ Options is a proplist possibly containing:
 * `no_env` - Do not read additional options from the OS environment
   variable `ERLYDTL_COMPILER_OPTIONS`.
 
+* `auto_escape` - Turn on auto escape by default (this is on by
+  default in Django).
+
 * `no_load` - Do not load the compiled template.
 
 * `binary` - Include the compiled template binary code in the result
@@ -165,7 +168,7 @@ conjunction with the `custom_tags_module` option above. They can be
 created from a directory of templates thusly:
 
     erlydtl:compile_dir("/path/to/dir", my_helper_module_name)
-    
+
     erlydtl:compile_dir("/path/to/dir", my_helper_module_name, Options)
 
 The resulting module will export a function for each template
@@ -188,7 +191,7 @@ can be atoms, strings, binaries, or (nested) variables.
 
 IOList is the rendered template.
 
-    my_compiled_template:render(Variables, Options) -> 
+    my_compiled_template:render(Variables, Options) ->
             {ok, IOList} | {error, Err}
 
 Same as `render/1`, but with the following options:
@@ -232,6 +235,9 @@ Same as `render/1`, but with the following options:
 
 Differences from standard Django Template Language
 --------------------------------------------------
+
+* `auto_escape` is not enabled by default in ErlyDTL. Pass the
+  `auto_escape` option when compiling your template if you need this.
 
 * `csrf_token` The
   [Cross Site Request Forgery](https://docs.djangoproject.com/en/1.6/ref/contrib/csrf/)

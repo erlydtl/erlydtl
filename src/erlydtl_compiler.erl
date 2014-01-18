@@ -392,6 +392,10 @@ init_context(ParseTrail, DefDir, Module, Options) ->
     Ctx = #dtl_context{},
     Context = #dtl_context{
                  all_options = Options,
+                 auto_escape = case proplists:get_bool(auto_escape, Options) of
+                                   true -> on;
+                                   false -> off
+                               end,
                  parse_trail = ParseTrail,
                  module = Module,
                  doc_root = proplists:get_value(doc_root, Options, DefDir),
