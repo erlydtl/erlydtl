@@ -275,7 +275,9 @@ tests() ->
                <<"Al\nAlbert\nJo\nJoseph\n">>},
               {"Access parent loop counters",
                <<"{% for outer in list %}{% for inner in outer %}({{ forloop.parentloop.counter0 }}, {{ forloop.counter0 }})\n{% endfor %}{% endfor %}">>,
-               [{'list', [["One", "two"], ["One", "two"]]}], <<"(0, 0)\n(0, 1)\n(1, 0)\n(1, 1)\n">>},
+               [{'list', [["One", "two"], ["One", "two"]]}], [], [], <<"(0, 0)\n(0, 1)\n(1, 0)\n(1, 1)\n">>,
+               %% the warnings we get from the erlang compiler still needs some care..
+               [error_info([no_out_dir]), {"/erlydtl_running_test.erl", [{0, erl_lint, {unused_var, 'Var_inner/1_1:31'}}]}]},
               {"If changed",
                <<"{% for x in list %}{% ifchanged %}{{ x }}\n{% endifchanged %}{% endfor %}">>,
                [{'list', ["one", "two", "two", "three", "three", "three"]}], <<"one\ntwo\nthree\n">>},
@@ -1220,7 +1222,7 @@ tests() ->
          [{extension_module, erlydtl_extension_test}], <<"ok">>},
         {"proper error message", <<"{{ bar # }}">>, [{bar, "ok"}], [],
          [{extension_module, erlydtl_extension_test}],
-         {error, [{"/<text>", [{1,erlydtl_extension_test,"Unexpected '#' in code at column 8"}]}], []}},
+         {error, [error_info([{1,erlydtl_extension_test,"Unexpected '#' in code at column 8"}])], []}},
         %% accept identifiers as expressions (this is a dummy functionality to test the parser extensibility)
         {"identifiers as expressions", <<"{{ foo.bar or baz }}">>, [{baz, "ok"}], [],
          [{extension_module, erlydtl_extension_test}], <<"ok">>}
@@ -1321,12 +1323,14 @@ test_fail(Name, Fmt, Args, T) ->
     {T, {Name, io_lib:format(Fmt, Args)}}.
 
 process_unit_test({Name, DTL, Vars, Output}) ->
-    process_unit_test({Name, DTL, Vars, [], [], Output});
+    process_unit_test({Name, DTL, Vars, [], [], Output, default_warnings()});
 process_unit_test({Name, DTL, Vars, RenderOpts, Output}) ->
-    process_unit_test({Name, DTL, Vars, RenderOpts, [], Output});
+    process_unit_test({Name, DTL, Vars, RenderOpts, [], Output, default_warnings()});
 process_unit_test({Name, DTL, Vars, RenderOpts, CompilerOpts, Output}) ->
+    process_unit_test({Name, DTL, Vars, RenderOpts, CompilerOpts, Output, default_warnings()});
+process_unit_test({Name, DTL, Vars, RenderOpts, CompilerOpts, Output, Warnings}) ->
     case compile_test(DTL, CompilerOpts) of
-        {Tcompile, {ok, _, _}} ->
+        {Tcompile, {ok, _, Warnings}} ->
             Tc = [{compile, Tcompile}],
             case render_test(Vars, RenderOpts) of
                 {TrenderL, {ok, IOList}} ->
@@ -1372,6 +1376,12 @@ process_unit_test({Name, DTL, Vars, RenderOpts, CompilerOpts, Output}) ->
                     test_fail(Name, "Render error (with list variables): ~p", [Err],
                               [{render_list, TrenderL}|Tc])
             end;
+        {Tcompile, {ok, _, ActualWarnings}} ->
+            test_fail(
+              Name,
+              "Unexpected warnings: ~p~n"
+              "Expected: ~p",
+              [ActualWarnings, Warnings], [{compile, Tcompile}]);
         {Tcompile, Output} -> test_pass([{compile, Tcompile}]);
         {Tcompile, Err} ->
             test_fail(Name, "Compile error: ~p", [Err], [{compile, Tcompile}])
@@ -1410,3 +1420,21 @@ generate_test_date() ->
                     " of ", lists:nth(M, MonthName),
                     " ", integer_to_list(Y), "."
                    ]).
+
+
+default_warnings() ->
+    [error_info([no_out_dir])].
+
+error_info(File, Ws) ->
+    {File, [error_info(W) || W <- Ws]}.
+
+error_info({Line, ErrorDesc})
+  when is_integer(Line) ->
+  {Line, erlydtl_compiler, ErrorDesc};
+error_info({Line, Module, ErrorDesc})
+  when is_integer(Line), is_atom(Module) ->
+    {Line, Module, ErrorDesc};
+error_info(Ws) when is_list(Ws) ->
+    error_info("/erlydtl_running_test", Ws);
+error_info(ErrorDesc) ->
+    {none, erlydtl_compiler, ErrorDesc}.

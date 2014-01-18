@@ -253,11 +253,12 @@ test_compile_render(Name) ->
                        {vars, CompileVars},
                        force_recompile,
                        return_errors,
+                       return_warnings,
                        %% debug_compiler,
                        {custom_tags_modules, [erlydtl_custom_tags]}],
             io:format("compiling ... "),
             case erlydtl:compile(File, Module, Options) of
-                {ok, Mod} ->
+                {ok, Mod, [{File, [{none,erlydtl_compiler,no_out_dir}]}]} ->
                     if CompileStatus =:= ok -> test_render(Name, Mod);
                        true ->
                             io:format("missing error"),
