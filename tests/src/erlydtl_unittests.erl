@@ -1232,10 +1232,19 @@ tests() ->
         <<"{{ r.baz }}">>, [{r, #testrec{ foo="Foo", bar="Bar", baz="Baz" }}], [],
         [{record_info, [{testrec, record_info(fields, testrec)}]}],
         <<"Baz">>}
+      ]},
+     {"error reporting",
+      [{"no out dir warning",
+        <<"foo bar">>, [], [], [], <<"foo bar">>, [error_info([no_out_dir])]},
+       {"warnings as errors",
+        <<"foo bar">>, [], [], [warnings_as_errors], {error, [error_info([no_out_dir])], []}}
       ]}
-     %% {"error reporting",
-     %%  [{"return warnings"}]}
     ].
+
+%% {Name, DTL, Vars, Output}
+%% {Name, DTL, Vars, RenderOpts, Output}
+%% {Name, DTL, Vars, RenderOpts, CompilerOpts, Output}
+%% {Name, DTL, Vars, RenderOpts, CompilerOpts, Output, Warnings}
 
 run_tests() ->
     io:format("Running unit tests..."),
