@@ -19,15 +19,15 @@
 
 generate_pos([Lang,Files])->
     io:format("~s -> ~s ~n",[Lang,Files]),
-    {ok, SplittedLocales} = string:tokens(Lang,","),
-    {ok, SplittedFiles} = string:tokens(Files, ","),
+    SplittedLocales = string:tokens(Lang,","),
+    SplittedFiles = string:tokens(Files, ","),
     ProcessedFiles = sources_parser:parse(SplittedFiles),
     io:format("Parsed tokens are ~p~n",[ProcessedFiles]),
     BaseDir = "lang/default/",
 
-    PopulateTable = fun(Language)->
+    PopulateTable = fun(Language) ->
                             io:format("-------------------------Generating po file for ~s-------------------------~n",[Language]),
-                            open_table(Language),
+                            ok = open_table(Language),
                             put(locale, Language),
                             insert_tokens(ProcessedFiles),
 
@@ -40,13 +40,12 @@ generate_pos([Lang,Files])->
                             Fuzzy = dets_fuzzy(),
                             po_generator:generate_file(Language, Data, Fuzzy),
                             io:format("Closing files ~n"),
-                            close_tables(Language),
+                            ok = close_tables(Language),
                             io:format("All files closed ~n")
                     end,
 
-    lists:map(PopulateTable, SplittedLocales),
-    init:stop()
-        .
+    lists:foreach(PopulateTable, SplittedLocales),
+    init:stop().
 
 
 %%
@@ -57,9 +56,9 @@ generate_pos([Lang,Files])->
 open_table(Locale)->
     Dir = "./lang/tmp/" ++ Locale,
     io:format("Creating dir ~s~n",[Dir]),
-    file:del_dir(Dir),
-    file:make_dir(Dir),
-    OpenTable = fun({TableName, TableFile}) ->
+    ok = file:del_dir(Dir),
+    ok = file:make_dir(Dir),
+    OpenTable = fun({TableName, TableFile}, ok) ->
                         File = Dir ++ TableFile,
                         case dets:open_file(TableName, [{file, File}]) of
                             {ok,Ref} ->  io:format("Opened DETS ~p ~p~n",[TableName,Ref]);
@@ -67,14 +66,14 @@ open_table(Locale)->
                         end
                 end,
 
-    lists:map(OpenTable, [{?EPOT_TABLE,"/epot.dets"},{?EPOT_TABLE_FUZZY,"/epot_fuzzy.dets"}]).
+    lists:foldl(OpenTable, ok, [{?EPOT_TABLE,"/epot.dets"},{?EPOT_TABLE_FUZZY,"/epot_fuzzy.dets"}]).
 
 %%TODO better way to do cleanup
 close_tables(Locale) ->
     %%dets:delete_all_objects(?EPOT_TABLE),
     ok = dets:close(?EPOT_TABLE),
     ok = dets:close(?EPOT_TABLE_FUZZY),
-    file:delete("./lang/tmp/" ++ Locale ++ "/epot.dets"),
+    ok = file:delete("./lang/tmp/" ++ Locale ++ "/epot.dets"),
     file:delete("./lang/tmp/" ++ Locale ++ "/epot_fuzzy.dets").
 
 %%Get all data from dets table
@@ -83,7 +82,7 @@ dets_fuzzy() -> dets:foldl(fun(E, Acc) -> [E|Acc] end, [], ?EPOT_TABLE_FUZZY).
 
 insert_tokens([]) -> noop;
 insert_tokens([{Id,{Fname,Line,_Col}}|Tail]) ->
-    insert_token(Id, Id, Fname, Line),
+    ok = insert_token(Id, Id, Fname, Line),
     insert_tokens(Tail).
 
 insert_token(Id, Translation,Fname,Line)->
@@ -100,7 +99,7 @@ insert_translations(L = [H|T]) ->
             insert_translations(T);
         _Other ->
             [{id,Id}, {str,Str}|Tail] = L,
-            insert_translation(Id,Str),
+            ok = insert_translation(Id,Str),
             insert_translations(Tail)
     end.
 

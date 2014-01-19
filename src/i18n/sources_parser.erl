@@ -7,6 +7,9 @@
 %% Include files
 %%
 
+-define(bail(Fmt, Args),
+        throw(lists:flatten(io_lib:format(Fmt, Args)))).
+
 %%
 %% Exported Functions
 %%
@@ -34,7 +37,7 @@ parse_file(Path) ->
         {ok, Content} ->
             process_content(Path, Content);
         Error ->
-            bail("Cannot read file ~s problem ~p~n", [Path, Error])
+            ?bail("Cannot read file ~s problem ~p~n", [Path, Error])
     end.
 
 process_content(Path,Content)->
@@ -43,7 +46,7 @@ process_content(Path,Content)->
             {ok, Result} = process_ast(Path, Data),
             Result;
         Error ->
-            bail("Template parsing failed for template ~s, cause ~p~n", [Path, Error])
+            ?bail("Template parsing failed for template ~s, cause ~p~n", [Path, Error])
     end.
 
 
@@ -65,6 +68,3 @@ process_token(Fname, {_Instr, _Cond, Children, Children2}, Acc) ->
 process_token(_,_AST,Acc) -> Acc.
 
 unescape(String) ->string:sub_string(String, 2, string:len(String) -1).
-
-bail(Fmt, Args) ->
-    throw(lists:flatten(io_lib:format(Fmt, Args))).

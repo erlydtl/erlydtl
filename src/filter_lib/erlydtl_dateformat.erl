@@ -356,8 +356,7 @@ dayname(3) -> "wednesday";
 dayname(4) -> "thursday";
 dayname(5) -> "friday";
 dayname(6) -> "saturday";
-dayname(7) -> "sunday";
-dayname(_) -> "???".
+dayname(7) -> "sunday".
 
 monthname(1) ->  "january";
 monthname(2) ->  "february";
@@ -370,8 +369,7 @@ monthname(8) ->  "august";
 monthname(9) ->  "september";
 monthname(10) -> "october";
 monthname(11) -> "november";
-monthname(12) -> "december";
-monthname(_) -> "???".
+monthname(12) -> "december".
 
 %% Utility functions
 integer_to_list_zerofill(N) when is_float(N) ->

@@ -567,9 +567,7 @@ check_scan({error, Err, State}, Context) ->
     end.
 
 check_parse({ok, _}=Ok, [], _Context) -> Ok;
-check_parse({ok, _, _}=Ok, [], _Context) -> Ok;
 check_parse({ok, Parsed}, Acc, _Context) -> {ok, Acc ++ Parsed};
-check_parse({ok, Parsed, C}, Acc, _Context) -> {ok, Acc ++ Parsed, C};
 check_parse({error, _}=Err, _, _Context) -> Err;
 check_parse({error, Err, State}, Acc, Context) ->
     {State1, Parsed} = reset_parse_state(State, Context),

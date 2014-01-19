@@ -531,10 +531,8 @@ random(_) ->
     "".
 
 random_num(Value) ->
-    {A1,A2,A3} = now(),
-    random:seed(A1, A2, A3),
-    Rand = random:uniform(Value),
-    Rand.
+    random:seed(now()),
+    random:uniform(Value).
 
 %% random tags to be used when using erlydtl in testing
 random_range(Range) ->

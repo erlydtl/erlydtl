@@ -36,22 +36,22 @@ write_entries(Items)->
     F = fun({Id,Translation,Finfo}) ->
                 Fi = gettext_compile:fmt_fileinfo(Finfo),
                 io:format(Fd, "~n#: ~s~n", [Fi]),
-                file:write(Fd, "msgid \"\"\n"),
+                ok = file:write(Fd, "msgid \"\"\n"),
                 gettext_compile:write_pretty(Id),
-                file:write(Fd, "msgstr \"\"\n"),
+                ok = file:write(Fd, "msgstr \"\"\n"),
                 gettext_compile:write_pretty(Translation)
         end,
     lists:foreach(F, Items).
 
 write_fuzzy_entries(Items) ->
     Fd = get(fd),
-    file:write(Fd, "\n"),
+    ok = file:write(Fd, "\n"),
     F = fun({Id,Translation,_}) ->
-                file:write(Fd, "#, fuzzy\n"),
-                file:write(Fd, "msgid \"\"\n"),
+                ok = file:write(Fd, "#, fuzzy\n"),
+                ok = file:write(Fd, "msgid \"\"\n"),
                 gettext_compile:write_pretty(Id),
-                file:write(Fd, "msgstr \"\"\n"),
+                ok = file:write(Fd, "msgstr \"\"\n"),
                 gettext_compile:write_pretty(Translation),
-                file:write(Fd, "\n")
+                ok = file:write(Fd, "\n")
         end,
     lists:foreach(F, Items).
