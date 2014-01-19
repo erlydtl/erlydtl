@@ -31,7 +31,7 @@
 
 -export([parse/1, parse_and_scan/1, format_error/1, resume/1]).
 
--type yecc_ret() :: {'error', _} | {'ok', _}.
+-type yecc_ret() :: {'error', _, _} | {'ok', _}.
 
 -spec parse(Tokens :: list()) -> yecc_ret().
 parse(Tokens) ->
@@ -72,20 +72,23 @@ return_state() ->
 yeccpars0(Tokens, Tzr, State, States, Vstack) ->
     try yeccpars1(Tokens, Tzr, State, States, Vstack)
     catch 
-        error: Error ->
-            Stacktrace = erlang:get_stacktrace(),
-            try yecc_error_type(Error, Stacktrace) of
-                Desc ->
-                    erlang:raise(error, {yecc_bug, ?CODE_VERSION, Desc},
-                                 Stacktrace)
-            catch _:_ -> erlang:raise(error, Error, Stacktrace)
+        error:function_clause = Error ->
+            case erlang:get_stacktrace() of
+                %% [{atom() | tuple(),atom(),[any()] | byte(),[{'file',string()} | {'line',pos_integer()}]}]
+                [{?MODULE, F, ArityOrArgs, _Source}|_]=Stacktrace ->
+                    erlang:raise(
+                      error,
+                      yecc_error_type(Error, F, ArityOrArgs),
+                      Stacktrace);
+                Stacktrace ->
+                    erlang:raise(error, Error, Stacktrace)
             end;
         %% Probably thrown from return_error/2:
         throw: {error, {_Line, ?MODULE, _M}} = Error ->
             Error
     end.
 
-yecc_error_type(function_clause, [{?MODULE,F,ArityOrArgs} | _]) ->
+yecc_error_type(function_clause=Error, F, ArityOrArgs) ->
     case atom_to_list(F) of
         "yeccgoto_" ++ SymbolL ->
             {ok,[{atom,_,Symbol}],_} = erl_scan:string(SymbolL),
@@ -93,7 +96,9 @@ yecc_error_type(function_clause, [{?MODULE,F,ArityOrArgs} | _]) ->
                         [S,_,_,_,_,_,_] -> S;
                         _ -> state_is_unknown
                     end,
-            {Symbol, State, missing_in_goto_table}
+            Desc = {Symbol, State, missing_in_goto_table},
+            {yecc_bug, ?CODE_VERSION, Desc};
+        _ -> Error
     end.
 
 -define(checkparse(CALL, STATE),
