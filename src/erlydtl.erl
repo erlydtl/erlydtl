@@ -41,16 +41,25 @@
 
 %% @spec compile( FileOrBinary, Module::atom() ) -> ok | {error, Reason}
 compile(FileOrBinary, Module) ->
-    erlydtl_compiler:compile(FileOrBinary, Module).
+    strip_results(erlydtl_compiler:compile(FileOrBinary, Module)).
 
 %% @spec compile( FileOrBinary, Module::atom(), Options ) -> ok | {error, Reason}
 compile(FileOrBinary, Module, Options) ->
-    erlydtl_compiler:compile(FileOrBinary, Module, Options).
+    strip_results(erlydtl_compiler:compile(FileOrBinary, Module, Options)).
 
 %% @spec compile_dir( DirectoryPath::string(), Module::atom() ) -> ok | {error, Reason}
 compile_dir(DirectoryPath, Module) ->
-    erlydtl_compiler:compile_dir(DirectoryPath, Module).
+    strip_results(erlydtl_compiler:compile_dir(DirectoryPath, Module)).
 
 %% @spec compile_dir( DirectoryPath::string(), Module::atom(), Options ) -> ok | {error, Reason}
 compile_dir(DirectoryPath, Module, Options) ->
-    erlydtl_compiler:compile_dir(DirectoryPath, Module, Options).
+    strip_results(erlydtl_compiler:compile_dir(DirectoryPath, Module, Options)).
+
+strip_results({ok, Module}) ->
+    ok;
+strip_results({ok, Module, Warnings}) ->
+    {ok, Module, Warnings};
+strip_results({ok, Module, Bin, Warnings}) ->
+    {ok, Module, Bin, Warnings};
+strip_results(Err) ->
+    Err.

@@ -291,7 +291,7 @@ compile_multiple_to_binary(Dir, ParserResults, Context) ->
             {#ast_info{}, init_treewalker(Context)},
             ParserResults),
     Forms = custom_forms(Dir, Context#dtl_context.module, Functions, AstInfo),
-    compile_forms(Forms, Context).
+    collect_result(compile_forms(Forms, Context)).
 
 compile_to_binary(DjangoParseTree, CheckSum, Context) ->
     try body_ast(DjangoParseTree, Context, init_treewalker(Context)) of
