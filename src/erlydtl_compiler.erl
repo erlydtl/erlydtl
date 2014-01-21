@@ -102,7 +102,7 @@ compile_dir(Dir, Module, Options) ->
             end, {[], []}, Files),
     case ParserErrors of
         [] ->
-            {ok, compile_multiple_to_binary(Dir, ParserResults, Context)};
+            compile_multiple_to_binary(Dir, ParserResults, Context);
         [Error|_] -> Error %% just the first error?
     end.
 
