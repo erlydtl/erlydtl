@@ -39,18 +39,27 @@
 -export([compile/2, compile/3]).
 -export([compile_dir/2, compile_dir/3]).
 
-%% @spec compile( FileOrBinary, Module::atom() ) -> ok | {error, Reason}
+-type error_info() :: {File::list(),
+                       [{Line::integer() | none,
+                         Module::atom(),
+                         ErrorDesc::term()}]}.
+-type errors() :: list(error_info()).
+-type warnings() :: list(error_info()).
+-type ok_ret() :: {ok, Module::atom()} | {ok, Module::atom(), warnings()}.
+-type err_ret() :: error | {error, errors(), warnings()}.
+
+-spec compile( list() | binary(), atom() ) -> {ok, Module::atom()} | error.
 compile(FileOrBinary, Module) ->
     erlydtl_compiler:compile(FileOrBinary, Module).
 
-%% @spec compile( FileOrBinary, Module::atom(), Options ) -> ok | {error, Reason}
+-spec compile( list() | binary(), atom(), list() ) -> ok_ret() | err_ret().
 compile(FileOrBinary, Module, Options) ->
     erlydtl_compiler:compile(FileOrBinary, Module, Options).
 
-%% @spec compile_dir( DirectoryPath::string(), Module::atom() ) -> ok | {error, Reason}
+-spec compile_dir(list() | binary(), atom()) -> {ok, Module::atom()} | error.
 compile_dir(DirectoryPath, Module) ->
     erlydtl_compiler:compile_dir(DirectoryPath, Module).
 
-%% @spec compile_dir( DirectoryPath::string(), Module::atom(), Options ) -> ok | {error, Reason}
+-spec compile_dir(list() | binary(), atom(), list()) -> ok_ret() | err_ret().
 compile_dir(DirectoryPath, Module, Options) ->
     erlydtl_compiler:compile_dir(DirectoryPath, Module, Options).

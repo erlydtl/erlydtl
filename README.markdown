@@ -173,7 +173,7 @@ created from a directory of templates thusly:
 
 The resulting module will export a function for each template
 appearing in the specified directory. Options is the same as for
-compile/3.
+`compile/3`.
 
 Compiling a helper module can be more efficient than using
 `custom_tags_dir` because the helper functions will be compiled only

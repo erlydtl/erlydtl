@@ -60,7 +60,7 @@
 -include("erlydtl_ext.hrl").
 
 compile(FileOrBinary, Module) ->
-    compile(FileOrBinary, Module, [verbose, report_errors]).
+    compile(FileOrBinary, Module, [verbose, report]).
 
 compile(Binary, Module, Options) when is_binary(Binary) ->
     Context = process_opts(undefined, Module, Options),
@@ -72,39 +72,42 @@ compile(File, Module, Options) ->
     compile(Context).
 
 compile_dir(Dir, Module) ->
-    compile_dir(Dir, Module, [verbose, report_errors]).
+    compile_dir(Dir, Module, [verbose, report]).
 
 compile_dir(Dir, Module, Options) ->
-    Context = process_opts(Dir, Module, Options),
+    Context0 = process_opts({dir, Dir}, Module, Options),
     %% Find all files in Dir (recursively), matching the regex (no
     %% files ending in "~").
     Files = filelib:fold_files(Dir, ".+[^~]$", true, fun(F1,Acc1) -> [F1 | Acc1] end, []),
-    {ParserResults, ParserErrors}
+    {ParserResults,
+     #dtl_context{ errors=#error_info{ list=ParserErrors } }=Context1}
         = lists:foldl(
-            fun (File, {ResultAcc, ErrorAcc}) ->
+            fun (File, {ResultAcc, Ctx}) ->
                     case filename:basename(File) of
                         "."++_ ->
-                            {ResultAcc, ErrorAcc};
+                            {ResultAcc, Ctx};
                         _ ->
                             FilePath = filename:absname(File),
                             case filelib:is_dir(FilePath) of
                                 true ->
-                                    {ResultAcc, ErrorAcc};
+                                    {ResultAcc, Ctx};
                                 false ->
-                                    case parse(FilePath, Context) of
-                                        up_to_date -> {ResultAcc, ErrorAcc};
+                                    case parse(FilePath, Ctx) of
+                                        up_to_date -> {ResultAcc, Ctx};
                                         {ok, DjangoParseTree, CheckSum} ->
-                                            {[{File, DjangoParseTree, CheckSum}|ResultAcc], ErrorAcc};
-                                        Err -> {ResultAcc, [Err|ErrorAcc]}
+                                            {[{File, DjangoParseTree, CheckSum}|ResultAcc], Ctx};
+                                        {error, Reason} -> {ResultAcc, add_error(Reason, Ctx)}
                                     end
                             end
                     end
-            end, {[], []}, Files),
-    case ParserErrors of
-        [] ->
-            compile_multiple_to_binary(Dir, ParserResults, Context);
-        [Error|_] -> Error %% just the first error?
-    end.
+            end,
+            {[], Context0},
+            Files),
+    Context2 = if length(ParserErrors) == 0 ->
+                       compile_multiple_to_binary(Dir, ParserResults, Context1);
+                  true -> Context1
+               end,
+    collect_result(Context2).
 
 parse(Data) ->
     parse(Data, #dtl_context{}).
@@ -147,14 +150,14 @@ process_opts(File, Module, Options0) ->
                      filename:join(
                        [proplists:get_value(out_dir, Options1, ""),
                         Module]);
-                 {dir, Dir} -> Dir;
+                 {dir, Dir} -> filename:absname(Dir);
                  _ -> File
              end,
-    Options = [{compiler_options, [{source, lists:concat([Source, ".erl"])}]}
+    Options = [{compiler_options, [{source, Source}]}
                |compiler_opts(Options1, [])],
     case File of
-        {dir, Dir1} ->
-            init_context([], Dir1, Module, Options);
+        {dir, _} ->
+            init_context([], Source, Module, Options);
         _ ->
             init_context([Source], filename:dirname(Source), Module, Options)
     end.
@@ -258,40 +261,53 @@ do_compile(#dtl_context{ bin=Binary }=Context) ->
         {error, Reason} -> add_error(Reason, Context)
     end.
 
-compile_multiple_to_binary(Dir, ParserResults, Context) ->
-    MatchAst = options_match_ast(Context),
-    {Functions, {AstInfo, _}}
+compile_multiple_to_binary(Dir, ParserResults, Context0) ->
+    MatchAst = options_match_ast(Context0),
+    {Functions,
+     {AstInfo, _,
+      #dtl_context{ errors=#error_info{ list=Errors } }=Context1}}
         = lists:mapfoldl(
-            fun({File, DjangoParseTree, CheckSum}, {AstInfo, TreeWalker}) ->
-                    FilePath = full_path(File, Context#dtl_context.doc_root),
-                    {{BodyAst, BodyInfo}, TreeWalker1} = with_dependency(
-                                                           {FilePath, CheckSum},
-                                                           body_ast(DjangoParseTree, Context, TreeWalker)),
-                    FunctionName = filename:rootname(filename:basename(File)),
-                    Function1 = erl_syntax:function(
-                                  erl_syntax:atom(FunctionName),
-                                  [erl_syntax:clause(
-                                     [erl_syntax:variable("_Variables")],
-                                     none,
-                                     [erl_syntax:application(
-                                        none, erl_syntax:atom(FunctionName),
-                                        [erl_syntax:variable("_Variables"), erl_syntax:list([])])
-                                     ])
-                                  ]),
-                    Function2 = erl_syntax:function(
-                                  erl_syntax:atom(FunctionName),
-                                  [erl_syntax:clause(
-                                     [erl_syntax:variable("_Variables"),
-                                      erl_syntax:variable("RenderOptions")],
-                                     none,
-                                     MatchAst ++ [BodyAst])
-                                  ]),
-                    {{FunctionName, Function1, Function2}, {merge_info(AstInfo, BodyInfo), TreeWalker1}}
+            fun({File, DjangoParseTree, CheckSum}, {AstInfo, TreeWalker, Ctx}) ->
+                    try
+                        FilePath = full_path(File, Ctx#dtl_context.doc_root),
+                        {{BodyAst, BodyInfo}, TreeWalker1} = with_dependency(
+                                                               {FilePath, CheckSum},
+                                                               body_ast(DjangoParseTree, Ctx, TreeWalker)),
+                        FunctionName = filename:rootname(filename:basename(File)),
+                        Function1 = erl_syntax:function(
+                                      erl_syntax:atom(FunctionName),
+                                      [erl_syntax:clause(
+                                         [erl_syntax:variable("_Variables")],
+                                         none,
+                                         [erl_syntax:application(
+                                            none, erl_syntax:atom(FunctionName),
+                                            [erl_syntax:variable("_Variables"), erl_syntax:list([])])
+                                         ])
+                                      ]),
+                        Function2 = erl_syntax:function(
+                                      erl_syntax:atom(FunctionName),
+                                      [erl_syntax:clause(
+                                         [erl_syntax:variable("_Variables"),
+                                          erl_syntax:variable("RenderOptions")],
+                                         none,
+                                         MatchAst ++ [BodyAst])
+                                      ]),
+                        {{FunctionName, Function1, Function2}, {merge_info(AstInfo, BodyInfo), TreeWalker1, Ctx}}
+                    catch
+                        throw:Error ->
+                            {error, {AstInfo, TreeWalker, add_error(Error, Ctx)}}
+                    end
             end,
-            {#ast_info{}, init_treewalker(Context)},
+            {#ast_info{},
+             init_treewalker(Context0),
+             Context0},
             ParserResults),
-    Forms = custom_forms(Dir, Context#dtl_context.module, Functions, AstInfo),
-    compile_forms(Forms, Context).
+    if length(Errors) == 0 ->
+            Forms = custom_forms(Dir, Context1#dtl_context.module, Functions, AstInfo),
+            compile_forms(Forms, Context1);
+       true ->
+            Context1
+    end.
 
 compile_to_binary(DjangoParseTree, CheckSum, Context) ->
     try body_ast(DjangoParseTree, Context, init_treewalker(Context)) of
@@ -374,7 +390,7 @@ maybe_debug_template(Forms, Context) ->
             print("Compiler options: ~p~n", [Options], Context),
             try
                 Source = erl_prettypr:format(erl_syntax:form_list(Forms)),
-                File = proplists:get_value(source, Options),
+                File = lists:concat([proplists:get_value(source, Options), ".erl"]),
                 io:format("Saving template source to: ~s.. ~p~n",
                           [File, file:write_file(File, Source)])
             catch
@@ -1872,11 +1888,16 @@ call_ast(Module, Variable, AstInfo, TreeWalker) ->
 print(Fmt, Args, #dtl_context{ verbose = true }) -> io:format(Fmt, Args);
 print(_Fmt, _Args, _Context) -> ok.
 
+get_current_file(#dtl_context{ parse_trail=[File|_] }) -> File;
+get_current_file(#dtl_context{ doc_root=Root }) -> Root.
 
 add_error(Error, #dtl_context{
-                    errors=#error_info{ report=Report, list=Es }=Ei,
-                    parse_trail=[File|_] }=Context) ->
-    Item = get_error_item(Report, "", File, Error),
+                    errors=#error_info{ report=Report, list=Es }=Ei
+                   }=Context) ->
+    Item = get_error_item(
+             Report, "",
+             get_current_file(Context),
+             Error),
     Context#dtl_context{
       errors=Ei#error_info{ list=[Item|Es] }
      }.
@@ -1889,9 +1910,12 @@ add_errors(Errors, Context) ->
 add_warning(Warning, #dtl_context{ warnings=warnings_as_errors }=Context) ->
     add_error(Warning, Context);
 add_warning(Warning, #dtl_context{
-                        warnings=#error_info{ report=Report, list=Ws }=Wi,
-                        parse_trail=[File|_] }=Context) ->
-    Item = get_error_item(Report, "Warning: ", File, Warning),
+                        warnings=#error_info{ report=Report, list=Ws }=Wi
+                       }=Context) ->
+    Item = get_error_item(
+             Report, "Warning: ",
+             get_current_file(Context),
+             Warning),
     Context#dtl_context{
       warnings=Wi#error_info{ list=[Item|Ws] }
      }.
