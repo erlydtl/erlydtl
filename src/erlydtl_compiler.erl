@@ -290,7 +290,7 @@ compile_multiple_to_binary(Dir, ParserResults, Context0) ->
                                          [erl_syntax:variable("_Variables"),
                                           erl_syntax:variable("RenderOptions")],
                                          none,
-                                         MatchAst ++ [BodyAst])
+                                         MatchAst ++ stringify(BodyAst, Ctx))
                                       ]),
                         {{FunctionName, Function1, Function2}, {merge_info(AstInfo, BodyInfo), TreeWalker1, Ctx}}
                     catch
@@ -796,6 +796,13 @@ custom_forms(Dir, Module, Functions, AstInfo) ->
               | FunctionAsts] ++ AstInfo#ast_info.pre_render_asts
     ].
 
+stringify(BodyAst, #dtl_context{ binary_strings=BinaryStrings }) ->
+    [erl_syntax:application(
+       erl_syntax:atom(erlydtl_runtime),
+       erl_syntax:atom(stringify_final),
+       [BodyAst, erl_syntax:atom(BinaryStrings)])
+    ].
+
 forms(Module, {BodyAst, BodyInfo}, {CustomTagsFunctionAst, CustomTagsInfo}, CheckSum, TreeWalker,
       #dtl_context{ parse_trail=[File|_] }=Context) ->
     MergedInfo = merge_info(BodyInfo, CustomTagsInfo),
@@ -853,11 +860,7 @@ forms(Module, {BodyAst, BodyInfo}, {CustomTagsFunctionAst, CustomTagsInfo}, Chec
 
     MatchAst = options_match_ast(Context, TreeWalker),
 
-    BodyAstTmp = MatchAst ++ [erl_syntax:application(
-                                erl_syntax:atom(erlydtl_runtime),
-                                erl_syntax:atom(stringify_final),
-                                [BodyAst, erl_syntax:atom(Context#dtl_context.binary_strings)])
-                             ],
+    BodyAstTmp = MatchAst ++ stringify(BodyAst, Context),
 
     RenderInternalFunctionAst = erl_syntax:function(
                                   erl_syntax:atom(render_internal),
