@@ -1383,7 +1383,7 @@ spaceless_ast(Contents, Context, TreeWalker) ->
 	[Ast]), Info}, TreeWalker1}.
 
 unescape_string_literal(String) ->
-    unescape_string_literal(string:strip(String, both, 34), [], noslash).
+    unescape_string_literal(remove_quotes(String), [], noslash).
 
 unescape_string_literal([], Acc, noslash) ->
     lists:reverse(Acc);
@@ -1400,6 +1400,16 @@ unescape_string_literal("t" ++ Rest, Acc, slash) ->
 unescape_string_literal([C | Rest], Acc, slash) ->
     unescape_string_literal(Rest, [C | Acc], noslash).
 
+remove_quotes(String) ->
+    remove_last_quote(remove_first_quote(String)).
+
+remove_first_quote([34 | Rest]) ->
+    Rest;
+remove_first_quote(String) ->
+    String.
+
+remove_last_quote(String) ->
+    lists:reverse(remove_first_quote(lists:reverse(String))).
 
 full_path(File, DocRoot) ->
     case filename:absname(File) of
