@@ -256,7 +256,7 @@ test_compile_render(Name) ->
                        force_recompile,
                        return_errors,
                        return_warnings,
-                       %% debug_compiler,
+                       %% debug_info,
                        {custom_tags_modules, [erlydtl_custom_tags]}],
             io:format("compiling ... "),
             case erlydtl:compile(File, Module, Options) of

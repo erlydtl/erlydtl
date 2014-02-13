@@ -36,7 +36,7 @@
 %%%-------------------------------------------------------------------
 -module(erlydtl_scanner).
 
-%% This file was generated 2014-02-17 11:20:49 UTC by slex 0.2.1.
+%% This file was generated 2014-02-21 13:38:27 UTC by slex 0.2.1.
 %% http://github.com/erlydtl/slex
 -slex_source(["src/erlydtl_scanner.slex"]).
 
@@ -532,7 +532,10 @@ post_process(_, {string, _, L} = T, _) ->
 post_process(_, {string_literal, _, L} = T, _) ->
     setelement(3, T, begin L1 = lists:reverse(L), L1 end);
 post_process(_, {number_literal, _, L} = T, _) ->
-    setelement(3, T, begin L1 = lists:reverse(L), L1 end);
+    setelement(3, T,
+	       begin
+		 L1 = lists:reverse(L), L2 = list_to_integer(L1), L2
+	       end);
 post_process(_, {open_var, _, L} = T, _) ->
     setelement(3, T, begin L1 = to_atom(L), L1 end);
 post_process(_, {close_var, _, L} = T, _) ->

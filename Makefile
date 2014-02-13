@@ -4,12 +4,20 @@ REBAR=./rebar $(REBAR_ARGS)
 
 all: compile
 
-compile: check-slex
+compile: check-slex deps/merl
 	@$(REBAR) compile
 
 check-slex: src/erlydtl_scanner.erl
 src/erlydtl_scanner.erl: src/erlydtl_scanner.slex
 	@echo Notice: $@ is outdated by $<, consider running "'make slex'".
+
+deps/merl:
+	@$(REBAR) get-deps
+	@echo "Make merl..." ; $(MAKE) -C deps/merl
+
+update:
+	@$(REBAR) update-deps
+	@echo "Make merl..." ; $(MAKE) -C deps/merl
 
 compile_test:
 	-mkdir -p ebintest
@@ -17,7 +25,7 @@ compile_test:
 	$(ERL) -make
 
 test: compile compile_test
-	$(ERL) -noshell -pa ebin -pa ebintest \
+	$(ERL) -noshell -pa ebin -pa ebintest -pa deps/merl/ebin \
 		-eval \
 		"try \
 			erlydtl_functional_tests:run_tests(), \
@@ -43,6 +51,7 @@ plt:
 		tools webtool hipe inets eunit
 
 clean:
+	@echo "Clean merl..." ; $(MAKE) -C deps/merl clean
 	@$(REBAR) clean
 	rm -fv ebintest/*
 	rm -fv erl_crash.dump

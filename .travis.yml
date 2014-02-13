@@ -1,7 +1,11 @@
 language: erlang
 otp_release:
-#  - R16B03 (not yet available on travis)
+#  - 17.0-rc1
+  - R16B03-1
   - R16B02
   - R15B03
 #  - R14B04 (seems lists:concat/1 is broken on R14B04..)
-script: "make test"
+
+# since Travis is naughty and calls rebar get-deps behind our backs,
+# we'll have to clean it up and build merl our selves..
+script: "make -C deps/merl && make test"

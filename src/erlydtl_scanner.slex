@@ -257,7 +257,7 @@ end.
 
 string: lists reverse.
 string_literal: lists reverse.
-number_literal: lists reverse.
+number_literal: lists reverse, list_to_integer.
 open_var: to_atom.
 close_var: to_atom.
 open_tag: to_atom.
