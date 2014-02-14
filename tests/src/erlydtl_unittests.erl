@@ -1190,9 +1190,14 @@ tests() ->
         <<"{% blocktrans %}Hello, {{ name }}{% endblocktrans %}">>, [{name, "Mr. President"}], [{locale, "de"}],
         [{blocktrans_locales, ["de"]}, {blocktrans_fun, fun("Hello, {{ name }}", "de") -> <<"Guten tag, {{ name }}">> end}], <<"Guten tag, Mr. President">>},
        {"blocktrans with args",
-        <<"{% blocktrans with var1=foo %}{{ var1 }}{% endblocktrans %}">>, [{foo, "Hello"}], <<"Hello">>}
-       %% {"blocktrans complex not allowed",
+        <<"{% blocktrans with var1=foo %}{{ var1 }}{% endblocktrans %}">>, [{foo, "Hello"}], <<"Hello">>},
+       %% {"blocktrans complex not allowed - this should fall",
        %%  <<"{% blocktrans %}Hello{%if user%}, {{ user.name }}{%endif%}!{% endblocktrans %}">>, [], assert-raise-syntax-error}
+       {"blocktrans runtime",
+        <<"{% blocktrans with v1=foo%}Hello, {{ name }}! See {{v1}}.{%endblocktrans%}">>,
+        [{name, "Mr. President"}, {foo, <<"rubber-duck">>}],
+        [{translation_fun, fun("Hello, {{ name }}! See {{ v1 }}.") -> <<"Guten tag, {{name}}! Sehen {{    v1   }}.">> end}],
+        [], <<"Guten tag, Mr. President! Sehen rubber-duck.">>}
       ]},
      {"verbatim", [
                    {"Plain verbatim",

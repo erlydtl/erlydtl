@@ -106,7 +106,7 @@ Options is a proplist possibly containing:
   trans "StringValue" %}` on templates).  See README_I18N.
 
 * `blocktrans_fun` - A two-argument fun to use for translating
-  `blocktrans` blocks. This will be called once for each pair of
+  `blocktrans` blocks at compile-time. This will be called once for each pair of
   `blocktrans` block and locale specified in `blocktrans_locales`. The
   fun should take the form:
 
@@ -198,8 +198,9 @@ IOList is the rendered template.
 Same as `render/1`, but with the following options:
 
 * `translation_fun` - A fun/1 that will be used to translate strings
-  appearing inside `{% trans %}` tags. The simplest TranslationFun
-  would be `fun(Val) -> Val end`
+  appearing inside `{% trans %}` and `{% blocktrans %}` tags. The simplest
+  TranslationFun would be `fun(Val) -> Val end`. Placeholders for
+  blocktrans variable interpolation should be wrapped to `{{` and `}}`.
 
 * `locale` - A string specifying the current locale, for use with the
   `blocktrans_fun` compile-time option.
