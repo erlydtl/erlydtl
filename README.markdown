@@ -205,34 +205,35 @@ Same as `render/1`, but with the following options:
 * `locale` - A string specifying the current locale, for use with the
   `blocktrans_fun` compile-time option.
 
-      my_compiled_template:translatable_strings() -> [String]
+```erlang
+my_compiled_template:translatable_strings() -> [String]
+```
+List of strings appearing in `{% trans %}` tags that can be
+overridden with a dictionary passed to `render/2`.
 
-  List of strings appearing in `{% trans %}` tags that can be
-  overridden with a dictionary passed to `render/2`.
+    my_compiled_template:translated_blocks() -> [String]
 
-      my_compiled_template:translated_blocks() -> [String]
+List of strings appearing in `{% blocktrans %}...{% endblocktrans %}`
+blocks; the translations (which can contain ErlyDTL code) are
+hard-coded into the module and appear at render-time. To get a list
+of translatable blocks before compile-time, use the provided
+`blocktrans_extractor` module.
 
-  List of strings appearing in `{% blocktrans %}...{% endblocktrans
-  %}` blocks; the translations (which can contain ErlyDTL code) are
-  hard-coded into the module and appear at render-time. To get a list
-  of translatable blocks before compile-time, use the provided
-  `blocktrans_extractor` module.
+    my_compiled_template:source() -> {FileName, CheckSum}
 
-      my_compiled_template:source() -> {FileName, CheckSum}
+Name and checksum of the original template file.
 
-  Name and checksum of the original template file.
+    my_compiled_template:dependencies() -> [{FileName, CheckSum}]
 
-      my_compiled_template:dependencies() -> [{FileName, CheckSum}]
-
-  List of names/checksums of templates included by the original
+List of names/checksums of templates included by the original
   template file. Useful for frameworks that recompile a template only
   when the template's dependencies change.
 
       my_compiled_template:variables() -> [Variable::atom()]
 
-  Sorted list of unique variables used in the template's body. The
-  list can be used for determining which variable bindings need to be
-  passed to the render/3 function.
+Sorted list of unique variables used in the template's body. The
+list can be used for determining which variable bindings need to be
+passed to the render/3 function.
 
 
 Differences from standard Django Template Language
