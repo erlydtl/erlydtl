@@ -52,7 +52,8 @@ Result:
 Options is a proplist possibly containing:
 
 * `out_dir` - Directory to store generated .beam files. If not
-  specified, no .beam files will be created.
+  specified, no .beam files will be created and a warning is
+  emitted. To silence the warning, use `{out_dir, false}`.
 
 * `doc_root` - Included template paths will be relative to this
   directory; defaults to the compiled template's directory.

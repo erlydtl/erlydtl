@@ -196,8 +196,10 @@ setup(_) ->
 
 run_tests() ->
     io:format("Running functional tests...~n"),
+    file:set_cwd(erlydtl_deps:get_base_dir()),
     case [filelib:ensure_dir(
             filename:join([templates_dir(Dir), "foo"]))
+
           || Dir <- ["output", "expect"]] -- [ok,ok]
     of
         [] ->
@@ -264,12 +266,11 @@ test_compile_render(Name) ->
                             io:format("missing error"),
                             {error, "compiling should have failed :" ++ File}
                     end;
-                {error, _, _}=Err ->
-                    if CompileStatus =:= Err -> io:format("ok");
-                       true ->
-                            io:format("failed"),
-                            {compile_error, io_lib:format("~p", [Err])}
-                    end
+                {error, _, _}=CompileStatus ->
+                    io:format("ok");
+                Err ->
+                    io:format("failed"),
+                    {compile_error, io_lib:format("Actual: ~p, Expected: ~p", [Err, CompileStatus])}
             end;
         skip -> io:format("skipped")
     end.
@@ -333,4 +334,4 @@ get_expected_result(Name) ->
     end.
 
 templates_docroot() -> templates_dir("input").
-templates_dir(Name) -> filename:join([erlydtl_deps:get_base_dir(), "tests", Name]).
+templates_dir(Name) -> filename:join(["tests", Name]).

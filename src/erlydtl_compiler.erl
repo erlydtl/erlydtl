@@ -145,14 +145,21 @@ process_opts(File, Module, Options0) ->
                  update_defaults(Options0),
                  [{aliases, [{outdir, out_dir}]}
                  ]),
-    Source = case File of
-                 undefined ->
-                     filename:join(
-                       [proplists:get_value(out_dir, Options1, ""),
-                        Module]);
-                 {dir, Dir} -> filename:absname(Dir);
-                 _ -> File
-             end,
+    Source0 = filename:absname(
+                case File of
+                    undefined ->
+                        filename:join(
+                          [case proplists:get_value(out_dir, Options1, false) of
+                               false -> ".";
+                               OutDir -> OutDir
+                           end,
+                           Module]);
+                    {dir, Dir} ->
+                        Dir;
+                    _ ->
+                        File
+                end),
+    Source = shorten_filename(Source0),
     Options = [{compiler_options, [{source, Source}]}
                |compiler_opts(Options1, [])],
     case File of
@@ -182,6 +189,12 @@ compiler_opts([], Acc) ->
 update_defaults(Options) ->
     maybe_add_env_default_opts(Options).
 
+maybe_add_env_default_opts(Options) ->
+    case proplists:get_bool(no_env, Options) of
+        true -> Options;
+        _ -> Options ++ env_default_opts()
+    end.
+
 %% shamelessly borrowed from:
 %% https://github.com/erlang/otp/blob/21095e6830f37676dd29c33a590851ba2c76499b/\
 %% lib/compiler/src/compile.erl#L128
@@ -205,10 +218,16 @@ env_default_opts() ->
             end
     end.
 
-maybe_add_env_default_opts(Options) ->
-    case proplists:get_bool(no_env, Options) of
-        true -> Options;
-        _ -> Options ++ env_default_opts()
+%% shorten_filename/1 copied from Erlang/OTP lib/compiler/src/compile.erl
+shorten_filename(Name0) ->
+    {ok,Cwd} = file:get_cwd(),
+    case lists:prefix(Cwd, Name0) of
+	false -> Name0;
+	true ->
+	    case lists:nthtail(length(Cwd), Name0) of
+		"/"++N -> N;
+		N -> N
+	    end
     end.
 
 compile(Context) ->
@@ -356,6 +375,7 @@ compile_forms(Forms, Context) ->
 
 maybe_write(Module, Bin, Context) ->
     case proplists:get_value(out_dir, Context#dtl_context.all_options) of
+        false -> Context;
         undefined ->
             add_warning(no_out_dir, Context);
         OutDir ->
