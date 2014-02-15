@@ -113,6 +113,7 @@ Nonterminals
     SSITag
 
     BlockTransBlock
+    BlockTransContent
     TransTag    
 
     TemplatetagTag
@@ -367,8 +368,12 @@ SpacelessBlock -> open_tag spaceless_keyword close_tag Elements open_tag endspac
 SSITag -> open_tag ssi_keyword Value close_tag : {ssi, '$3'}.
 SSITag -> open_tag ssi_keyword string_literal parsed_keyword close_tag : {ssi_parsed, '$3'}.
 
-BlockTransBlock -> open_tag blocktrans_keyword close_tag Elements open_tag endblocktrans_keyword close_tag : {blocktrans, [], '$4'}.
-BlockTransBlock -> open_tag blocktrans_keyword with_keyword Args close_tag Elements open_tag endblocktrans_keyword close_tag : {blocktrans, '$4', '$6'}.
+BlockTransBlock -> open_tag blocktrans_keyword close_tag BlockTransContent open_tag endblocktrans_keyword close_tag : {blocktrans, [], '$4'}.
+BlockTransBlock -> open_tag blocktrans_keyword with_keyword Args close_tag BlockTransContent open_tag endblocktrans_keyword close_tag : {blocktrans, '$4', '$6'}.
+BlockTransContent -> '$empty' : [].
+BlockTransContent -> BlockTransContent open_var identifier close_var : '$1' ++ [{variable, '$3'}].
+BlockTransContent -> BlockTransContent string : '$1' ++ ['$2'].
+%% TODO: {% plural %}
 
 TemplatetagTag -> open_tag templatetag_keyword Templatetag close_tag : {templatetag, '$3'}.
 

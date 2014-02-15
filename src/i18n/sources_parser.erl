@@ -61,6 +61,8 @@ process_token(Fname, {block,{identifier,{_Line,_Col},_Identifier},Children}, Acc
 process_token(Fname, {trans,{string_literal,{Line,Col},String}}, Acc ) -> [{unescape(String), {Fname, Line, Col}} | Acc];
 process_token(_Fname, {apply_filter, _Value, _Filter}, Acc) -> Acc;
 process_token(_Fname, {date, now, _Filter}, Acc) -> Acc;
+process_token(Fname, {blocktrans, Args, Contents}, Acc) -> [{lists:flatten(erlydtl_unparser:unparse(Contents)),
+                                                             guess_blocktrans_lc(Fname, Args, Contents)} | Acc];
 process_token(Fname, {_Instr, _Cond, Children}, Acc) -> process_ast(Fname, Children, Acc);
 process_token(Fname, {_Instr, _Cond, Children, Children2}, Acc) ->
     AccModified = process_ast(Fname, Children, Acc),
@@ -68,3 +70,16 @@ process_token(Fname, {_Instr, _Cond, Children, Children2}, Acc) ->
 process_token(_,_AST,Acc) -> Acc.
 
 unescape(String) ->string:sub_string(String, 2, string:len(String) -1).
+
+%% hack to guess ~position of blocktrans
+guess_blocktrans_lc(Fname, [{{identifier, {L, C}, _}, _} | _], _) ->
+    %% guess by 1'st with
+    {Fname, L, C - length("blocktrans with ")};
+guess_blocktrans_lc(Fname, _, [{string, {L, C}, _} | _]) ->
+    %% guess by 1'st string
+    {Fname, L, C - length("blocktrans %}")};
+guess_blocktrans_lc(Fname, _, [{variable, {identifier, {L, C}, _}} | _]) ->
+    %% guess by 1'st {{...}}
+    {Fname, L, C - length("blocktrans %}")};
+guess_blocktrans_lc(Fname, _, _) ->
+    {Fname, -1, -1}.
