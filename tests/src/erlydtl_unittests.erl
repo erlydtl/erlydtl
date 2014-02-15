@@ -4,6 +4,13 @@
 
 -record(testrec, {foo, bar, baz}).
 
+-ifndef(GRP_ERROR_REPORTING_COMPILER_OPTS).
+-define(GRP_ERROR_REPORTING_COMPILER_OPTS,[]).
+%%-define(GRP_ERROR_REPORTING_COMPILER_OPTS,[report]).
+%% define GRP_ERROR_REPORTING_COMPILER_OPTS to [report] to print
+%% tested error messages.
+-endif.
+
 tests() ->
     [
      %% {"scanner",
@@ -1239,9 +1246,54 @@ tests() ->
       ]},
      {"error reporting",
       [{"no out dir warning",
-        <<"foo bar">>, [], [], [], <<"foo bar">>, [error_info([no_out_dir])]},
+        <<"foo bar">>,
+        [], [], %% Vars, RenderOpts
+        %%[report], %% CompilerOpts
+        ?GRP_ERROR_REPORTING_COMPILER_OPTS,
+        <<"foo bar">>, %% Output
+        [error_info([no_out_dir])] %% Warnings
+       },
        {"warnings as errors",
-        <<"foo bar">>, [], [], [warnings_as_errors], {error, [error_info([no_out_dir])], []}}
+        <<"foo bar">>,
+        [], [],
+        %%[report, warnings_as_errors],
+        [warnings_as_errors|?GRP_ERROR_REPORTING_COMPILER_OPTS],
+        {error, %% Output...
+         [error_info([no_out_dir])], %% Errors
+         [] %% Warnings
+        }
+       },
+       {"illegal character",
+        <<"{{{">>,
+        [], [],
+        %%[report],
+        ?GRP_ERROR_REPORTING_COMPILER_OPTS,
+        {error,
+         [error_info(
+            [{{1,3},erlydtl_scanner,{illegal_char, ${}}] )],
+         []
+        }
+       },
+       {"unexpected end of file - in code",
+        <<"{{">>,
+        [], [],
+        ?GRP_ERROR_REPORTING_COMPILER_OPTS,
+        {error,
+         [error_info(
+           [{{1,3},erlydtl_scanner,{eof, in_code}}] )],
+         []
+        }
+       },
+       {"unexpected end of file - in comment",
+        <<"{#">>,
+        [], [],
+        ?GRP_ERROR_REPORTING_COMPILER_OPTS,
+        {error,
+         [error_info(
+           [{{1,3},erlydtl_scanner,{eof, in_comment}}] )],
+         []
+        }
+       }
       ]}
     ].
 
@@ -1397,7 +1449,8 @@ process_unit_test({Name, DTL, Vars, RenderOpts, CompilerOpts, Output, Warnings})
               [ActualWarnings, Warnings], [{compile, Tcompile}]);
         {Tcompile, Output} -> test_pass([{compile, Tcompile}]);
         {Tcompile, Err} ->
-            test_fail(Name, "Compile error: ~p", [Err], [{compile, Tcompile}])
+            test_fail(Name, "Compile error: ~p~nExpected: ~p",
+                      [Err, Output], [{compile, Tcompile}])
     end.
 
 
@@ -1444,9 +1497,12 @@ error_info(File, Ws) ->
 error_info({Line, ErrorDesc})
   when is_integer(Line) ->
   {Line, erlydtl_compiler, ErrorDesc};
-error_info({Line, Module, ErrorDesc})
+error_info({Line, Module, _}=ErrorDesc)
   when is_integer(Line), is_atom(Module) ->
-    {Line, Module, ErrorDesc};
+    ErrorDesc;
+error_info({{Line, Col}, Module, _}=ErrorDesc)
+  when is_integer(Line), is_integer(Col), is_atom(Module) ->
+    ErrorDesc;
 error_info(Ws) when is_list(Ws) ->
     error_info("erlydtl_running_test", Ws);
 error_info(ErrorDesc) ->

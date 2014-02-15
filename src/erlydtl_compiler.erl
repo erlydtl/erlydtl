@@ -600,7 +600,9 @@ check_scan({error, Err, State}, Context) ->
             check_scan(apply(Context#dtl_context.scanner_module, resume, [NewState]), Context);
         ExtRes ->
             ExtRes
-    end.
+    end;
+check_scan({error, _}=Error, _Context) ->
+    Error.
 
 check_parse({ok, _}=Ok, [], _Context) -> Ok;
 check_parse({ok, Parsed}, Acc, _Context) -> {ok, Acc ++ Parsed};
@@ -1949,30 +1951,41 @@ add_warnings(Warnings, Context) ->
       Context, Warnings).
 
 get_error_item(Report, Prefix, File, Error) ->
-    case Error of
-        {Line, ErrorDesc}
-          when is_integer(Line) ->
-            new_error_item(Report, Prefix, File, Line, ?MODULE, ErrorDesc);
-        {Line, Module, ErrorDesc}
-          when is_integer(Line), is_atom(Module) ->
-            new_error_item(Report, Prefix, File, Line, Module, ErrorDesc);
-        {_, InfoList} when is_list(InfoList) -> Error;
-        ErrorDesc ->
-            new_error_item(Report, Prefix, File, none, ?MODULE, ErrorDesc)
+    case compose_error_desc(Error) of
+        {Pos, Module, ErrorDesc} ->
+            new_error_item(Report, Prefix, File, Pos, Module, ErrorDesc);
+        ErrorItem ->
+            ErrorItem
     end.
-    
-new_error_item(Report, Prefix, File, Line, Module, ErrorDesc) ->
+
+compose_error_desc({Line, ErrorDesc})
+  when is_integer(Line) ->
+    {Line, ?MODULE, ErrorDesc};
+compose_error_desc({{Line, Col}, Module, _}=ErrorDesc)
+  when is_integer(Line), is_integer(Col), is_atom(Module) ->
+    ErrorDesc;
+compose_error_desc({Line, Module, _}=ErrorDesc)
+  when is_integer(Line), is_atom(Module) ->
+    ErrorDesc;
+compose_error_desc({_, InfoList}=ErrorDesc)
+  when is_list(InfoList) -> ErrorDesc;
+compose_error_desc(ErrorDesc) ->
+    {none, ?MODULE, ErrorDesc}.
+
+new_error_item(Report, Prefix, File, Pos, Module, ErrorDesc) ->
     if Report  ->
             io:format("~s:~s~s~s~n",
-                      [File, line_info(Line), Prefix,
+                      [File, pos_info(Pos), Prefix,
                        Module:format_error(ErrorDesc)]);
        true -> nop
     end,
-    {File, [{Line, Module, ErrorDesc}]}.
+    {File, [{Pos, Module, ErrorDesc}]}.
 
-line_info(none) -> " ";
-line_info(Line) when is_integer(Line) ->
-    io_lib:format("~b: ", [Line]).
+pos_info(none) -> " ";
+pos_info(Line) when is_integer(Line) ->
+    io_lib:format("~b: ", [Line]);
+pos_info({Line, Col}) when is_integer(Line), is_integer(Col) ->
+    io_lib:format("~b:~b ", [Line, Col]).
 
 pack_error_list(Es) ->
     collect_error_info([], Es, []).

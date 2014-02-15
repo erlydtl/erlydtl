@@ -36,15 +36,15 @@
 %%%-------------------------------------------------------------------
 -module(erlydtl_scanner).
 
-%% This file was generated 2013-12-02 15:52:41 UTC by slex 0.1.0-2-gb81b78b.
+%% This file was generated 2014-02-15 07:03:20 UTC by slex 0.2.0-2-g8e71a02.
 %% http://github.com/erlydtl/slex
--slex_source("src/erlydtl_scanner.slex").
+-slex_source(["src/erlydtl_scanner.slex"]).
 
 -export([scan/1, scan/4]).
 
 -compile(nowarn_unused_vars).
 
--export([resume/1]).
+-export([resume/1, format_error/1]).
 
 -record(scanner_state,
 	{template = [], scanned = [], pos = {1, 1},
@@ -53,6 +53,14 @@
 resume(#scanner_state{template = Template,
 		      scanned = Scanned, pos = Pos, state = State}) ->
     scan(Template, Scanned, Pos, State).
+
+return_error(Error, P, T, S, St) ->
+    {error, {P, erlydtl_scanner, Error},
+     #scanner_state{template = T,
+		    scanned = post_process(S, err), pos = P, state = St}}.
+
+return_error(Error, P) ->
+    {error, {P, erlydtl_scanner, Error}}.
 
 to_atom(L) when is_list(L) -> list_to_atom(L).
 
@@ -129,6 +137,15 @@ is_keyword(open, "trans") -> true;
 is_keyword(open, "blocktrans") -> true;
 is_keyword(open, "endblocktrans") -> true;
 is_keyword(_, _) -> false.
+
+format_error({illegal_char, C}) ->
+    io_lib:format("Illegal character '~s'", [[C]]);
+format_error({eof, Where}) ->
+    io_lib:format("Unexpected end of file ~s",
+		  [format_where(Where)]).
+
+format_where(in_comment) -> "in comment";
+format_where(in_code) -> "in code block".
 
 scan(Template) when is_list(Template) ->
     scan(Template, [], {1, 1}, in_text).
@@ -465,11 +482,7 @@ scan([H | T], S, {R, C} = P, {in_code, E})
 	 end,
 	 {in_number, E});
 scan([H | T], S, {R, C} = P, {in_code, E} = St) ->
-    {error,
-     {R, erlydtl_scanner,
-      lists:concat(["Illegal character in column ", C])},
-     #scanner_state{template = [H | T],
-		    scanned = post_process(S, err), pos = P, state = St}};
+    return_error({illegal_char, H}, P, [H | T], S, St);
 scan([H | T], S, {R, C} = P, {in_number, E} = St)
     when H >= $0 andalso H =< $9 ->
     scan(T,
@@ -486,12 +499,7 @@ scan([H | T], S, {R, C} = P, {in_number, E} = St)
 	 end,
 	 St);
 scan([H | T], S, {R, C} = P, {in_number, E} = St) ->
-    {error,
-     {R, erlydtl_scanner,
-      lists:concat(["Illegal character in column ", C])},
-     #scanner_state{template = [H | T],
-		    scanned = post_process(S, err), pos = P,
-		    state = {in_code, E}}};
+    return_error({illegal_char, H}, P, [H | T], S, St);
 scan([H | T], S, {R, C} = P, {in_identifier, E})
     when H >= $a andalso H =< $z orelse
 	   H >= $A andalso H =< $Z orelse
@@ -509,18 +517,13 @@ scan([H | T], S, {R, C} = P, {in_identifier, E})
 	 end,
 	 {in_identifier, E});
 scan([H | T], S, {R, C} = P, {in_identifier, E} = St) ->
-    {error,
-     {R, erlydtl_scanner,
-      lists:concat(["Illegal character in column ", C])},
-     #scanner_state{template = [H | T],
-		    scanned = post_process(S, err), pos = P,
-		    state = {in_code, E}}};
+    return_error({illegal_char, H}, P, [H | T], S, St);
 scan([], S, {R, C} = P, in_text = St) ->
     {ok, lists:reverse(post_process(S, eof))};
 scan([], S, {R, C} = P, {in_comment, E} = St) ->
-    {error, "Reached end of file inside a comment."};
+    return_error({eof, in_comment}, P);
 scan([], S, {R, C} = P, {_, E} = St) ->
-    {error, "Reached end of file inside a code block."}.
+    return_error({eof, in_code}, P).
 
 post_process(_, {string, _, L} = T, _) ->
     setelement(3, T, begin L1 = lists:reverse(L), L1 end);
