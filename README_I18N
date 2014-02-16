@@ -44,4 +44,5 @@ is also provided.
     4.  Update strings. Edit po files on $(GETTEXT_DIR)/lang/default/$(LOCALE)/gettext.po 
         translating msgstr to the translated version of their corresponding msgstr.
 
-    5.  Generate localized templates providing locale compile option.
+    5.  Generate localized templates providing `blocktraans_fun` and
+        `blocktrans_locales` compile options.
