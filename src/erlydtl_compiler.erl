@@ -1250,7 +1250,7 @@ runtime_trans_ast(ValueAst, AstInfo, TreeWalker) ->
     StringLookupAst = erl_syntax:application(
                         erl_syntax:atom(erlydtl_runtime),
                         erl_syntax:atom(translate),
-                        [ValueAst, erl_syntax:variable("_TranslationFun"), ValueAst]), %TODO: remove 3'rd arg
+                        [ValueAst, erl_syntax:variable("_TranslationFun")]),
     {{StringLookupAst, AstInfo}, TreeWalker}.
 
 compiletime_trans_ast(String, AstInfo,
