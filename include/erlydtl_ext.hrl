@@ -8,8 +8,8 @@
 -record(dtl_context, {
           local_scopes = [], 
           block_dict = dict:new(), 
-          blocktrans_fun = none,
-          blocktrans_locales = [],
+          trans_fun = none,
+          trans_locales = [],
           auto_escape = off, 
           doc_root = "", 
           parse_trail = [],
@@ -23,7 +23,6 @@
           compiler_options = [],
           binary_strings = true,
           force_recompile = false,
-          locale = none,
           verbose = false,
           is_compiling_dir = false,
           extension_module = undefined,

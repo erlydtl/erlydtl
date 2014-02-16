@@ -108,13 +108,13 @@ regroup([Item|Rest], Attribute, [[{grouper, PrevGrouper}, {list, PrevList}]|Acc]
             regroup(Rest, Attribute, [[{grouper, Value}, {list, [Item]}], [{grouper, PrevGrouper}, {list, lists:reverse(PrevList)}]|Acc])
     end.
 
-translate(_, none, Default) ->
-    Default;
-translate(String, TranslationFun, Default) when is_function(TranslationFun) ->
+translate(String, none) ->
+    String;
+translate(String, TranslationFun) when is_function(TranslationFun) ->
     case TranslationFun(String) of
-        undefined -> Default;
-        <<"">> -> Default;
-        "" -> Default;
+        undefined -> String;
+        <<"">> -> String;
+        "" -> String;
         Str -> Str
     end.
 
