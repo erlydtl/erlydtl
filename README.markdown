@@ -99,18 +99,14 @@ Options is a proplist possibly containing:
 * `force_recompile` - Recompile the module even if the source's
   checksum has not changed. Useful for debugging.
 
-* `locale` - The locale used for template compile. Requires
-  erlang_gettext. It will ask gettext_server for the string value on
-  the provided locale.  For example, adding {locale, "en_US"} will
-  call {key2str, Key, "en_US"} for all string marked as trans (`{%
-  trans "StringValue" %}` on templates).  See README_I18N.
+* `locale` - DEPRECATED. The same as {blocktrans_locales, [Val]}.
 
 * `blocktrans_fun` - A two-argument fun to use for translating
-  `blocktrans` blocks at compile-time. This will be called once for each pair of
-  `blocktrans` block and locale specified in `blocktrans_locales`. The
-  fun should take the form:
+  `blocktrans` blocks, `trans` tags and `_(..)` expressions. This will
+  be called once for each pair of translated element and locale
+  specified in `blocktrans_locales`. The fun should take the form:
 
-      Fun(Block::string(), Locale::string()) -> <<"ErlyDTL code">> | default
+      Fun(Block::string(), Locale::string()) -> <<"ErlyDTL code">>::binary() | default
 
 * `blocktrans_locales` - A list of locales to be passed to
   `blocktrans_fun`.  Defaults to [].
@@ -208,15 +204,15 @@ Same as `render/1`, but with the following options:
 ```erlang
 my_compiled_template:translatable_strings() -> [String]
 ```
-List of strings appearing in `{% trans %}` tags that can be
-overridden with a dictionary passed to `render/2`.
+
+List of strings appearing in `{% trans %}` and `_(..)` tags.
 
     my_compiled_template:translated_blocks() -> [String]
 
 List of strings appearing in `{% blocktrans %}...{% endblocktrans %}`
 blocks; the translations (which can contain ErlyDTL code) are
-hard-coded into the module and appear at render-time. To get a list
-of translatable blocks before compile-time, use the provided
+hard-coded into the module and appear at render-time. To get a list of
+translatable blocks before compile-time, use the provided
 `blocktrans_extractor` module.
 
     my_compiled_template:source() -> {FileName, CheckSum}
@@ -225,15 +221,15 @@ Name and checksum of the original template file.
 
     my_compiled_template:dependencies() -> [{FileName, CheckSum}]
 
-List of names/checksums of templates included by the original
-  template file. Useful for frameworks that recompile a template only
-  when the template's dependencies change.
+List of names/checksums of templates included by the original template
+file. Useful for frameworks that recompile a template only when the
+template's dependencies change.
 
-      my_compiled_template:variables() -> [Variable::atom()]
+    my_compiled_template:variables() -> [Variable::atom()]
 
-Sorted list of unique variables used in the template's body. The
-list can be used for determining which variable bindings need to be
-passed to the render/3 function.
+Sorted list of unique variables used in the template's body. The list
+can be used for determining which variable bindings need to be passed
+to the render/3 function.
 
 
 Differences from standard Django Template Language

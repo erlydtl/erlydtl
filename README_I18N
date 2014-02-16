@@ -61,5 +61,6 @@ compilation options and add `translation_fun` option to `my_compiled_template:re
     4.  Update strings. Edit po files on $(GETTEXT_DIR)/lang/default/$(LOCALE)/gettext.po 
         translating msgstr to the translated version of their corresponding msgstr.
 
-    5.  Generate localized templates providing `locale` compile option or use runtime
+    5.  Generate localized templates providing `blocktrans_fun` and
+        `blocktrans_locales` compile options or use runtime
         translation via `translation_fun` rendering option.
