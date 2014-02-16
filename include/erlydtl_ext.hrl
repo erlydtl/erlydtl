@@ -23,7 +23,6 @@
           compiler_options = [],
           binary_strings = true,
           force_recompile = false,
-          locale = none,
           verbose = false,
           is_compiling_dir = false,
           extension_module = undefined,

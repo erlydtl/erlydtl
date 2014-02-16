@@ -1167,7 +1167,9 @@ tests() ->
         <<"Hello {% trans \"Hi\" %}">>, [], <<"Hello Hi">>
        },
        {"trans functional reverse locale",
-        <<"Hello {% trans \"Hi\" %}">>, [], [], [{locale, "reverse"}], <<"Hello iH">>
+        <<"Hello {% trans \"Hi\" %}">>, [], [{locale, "reverse"}],
+        [{blocktrans_locales, ["reverse"]}, {blocktrans_fun, fun("Hi"=Key, "reverse") -> list_to_binary(lists:reverse(Key)) end}],
+        <<"Hello iH">>
        },
        {"trans literal at run-time",
         <<"Hello {% trans \"Hi\" %}">>, [], [{translation_fun, fun("Hi") -> "Konichiwa" end}], [],

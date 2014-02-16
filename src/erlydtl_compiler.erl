@@ -449,7 +449,7 @@ init_context(ParseTrail, DefDir, Module, Options) ->
                  compiler_options = proplists:append_values(compiler_options, Options),
                  binary_strings = proplists:get_value(binary_strings, Options, Ctx#dtl_context.binary_strings),
                  force_recompile = proplists:get_bool(force_recompile, Options),
-                 locale = proplists:get_value(locale, Options, Ctx#dtl_context.locale),
+                 %% convert to blocktrans_locales locale = proplists:get_value(locale, Options, Ctx#dtl_context.locale),
                  verbose = proplists:get_value(verbose, Options, Ctx#dtl_context.verbose),
                  is_compiling_dir = ParseTrail == [],
                  extension_module = proplists:get_value(extension_module, Options, Ctx#dtl_context.extension_module),
@@ -1227,25 +1227,50 @@ translated_ast({string_literal, _, String}, Context, TreeWalker) ->
     UnescapedStr = unescape_string_literal(String),
     case call_extension(Context, translate_ast, [UnescapedStr, Context, TreeWalker]) of
         undefined ->
-            DefaultString = case Context#dtl_context.locale of
-                                none -> UnescapedStr;
-                                Locale -> erlydtl_i18n:translate(UnescapedStr,Locale)
-                            end,
-            translated_ast2(erl_syntax:string(UnescapedStr), erl_syntax:string(DefaultString),
-                            #ast_info{translatable_strings = [UnescapedStr]}, TreeWalker);
+            AstInfo = #ast_info{translatable_strings = [UnescapedStr]},
+            case Context#dtl_context.blocktrans_fun of
+                none -> runtime_trans_ast(erl_syntax:string(UnescapedStr), AstInfo, TreeWalker);
+                _ -> compiletime_trans_ast(UnescapedStr, AstInfo, Context, TreeWalker)
+            end;
         Translated ->
             Translated
     end;
 translated_ast(ValueToken, Context, TreeWalker) ->
     {{Ast, Info}, TreeWalker1} = value_ast(ValueToken, true, false, Context, TreeWalker),
-    translated_ast2(Ast, Ast, Info, TreeWalker1).
+    runtime_trans_ast(Ast, Info, TreeWalker1).
 
-translated_ast2(UnescapedStrAst, DefaultStringAst, AstInfo, TreeWalker) ->
+runtime_trans_ast(ValueAst, AstInfo, TreeWalker) ->
     StringLookupAst = erl_syntax:application(
                         erl_syntax:atom(erlydtl_runtime),
                         erl_syntax:atom(translate),
-                        [UnescapedStrAst, erl_syntax:variable("_TranslationFun"), DefaultStringAst]),
+                        [ValueAst, erl_syntax:variable("_TranslationFun"), ValueAst]), %TODO: remove 3'rd arg
     {{StringLookupAst, AstInfo}, TreeWalker}.
+
+compiletime_trans_ast(String, AstInfo,
+                      #dtl_context{blocktrans_fun=TFun,
+                                   blocktrans_locales=TLocales}=Context,
+                      TreeWalker) ->
+    {{DefaultAst, Info1}, TWalker1} = Default =  string_ast(String, Context, TreeWalker),
+    DefaultClauseAst = erl_syntax:clause([erl_syntax:underscore()], none, [DefaultAst]), %or runtime trans?
+    FoldFun = fun(Locale, {ClausesAcc, Info2, TWalker2}) ->
+                      {{TranslatedAst, Info3}, TWalker3} =
+                          case TFun(String, Locale) of
+                              default -> Default; %or runtime trans?
+                              Translated ->
+                                  string_ast(binary_to_list(Translated), Context, TWalker2)
+                          end,
+                      ClauseAst = erl_syntax:clause(
+                                    [erl_syntax:string(Locale)],
+                                    none,
+                                    [TranslatedAst]),
+                      {[ClauseAst | ClausesAcc], merge_info(Info2, Info3), TWalker3}
+              end,
+    {ClAst, ClInfo, ClTreeWalker} = lists:foldl(
+                                      FoldFun,
+                                      {[DefaultClauseAst], merge_info(AstInfo, Info1), TWalker1},
+                                      TLocales),
+    CaseAst = erl_syntax:case_expr(erl_syntax:variable("_CurrentLocale"), ClAst),
+    {{CaseAst, ClInfo}, ClTreeWalker}.
 
                                                 % Completely unnecessary in ErlyDTL (use {{ "{%" }} etc), but implemented for compatibility.
 templatetag_ast("openblock", Context, TreeWalker) ->
