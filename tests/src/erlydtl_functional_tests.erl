@@ -289,24 +289,21 @@ test_render(Name, Module) ->
             Data = iolist_to_binary(Output),
             if RenderStatus =:= ok ->
                     if RenderResult =:= undefined ->
-                            Devs = [begin
-                                        FileName = filename:join([templates_dir(Dir), Name]),
-                                        {ok, IoDev} = file:open(FileName, [write]),
-                                        IoDev
-                                    end || Dir <- ["output", "expect"]],
-                            try
-                                [file:write(IoDev, Data) || IoDev <- Devs],
-                                io:format("~n    #### NOTE: created new expected output file: \"tests/expect/~s\"."
-                                          "~n    Please verify contents.", [Name])
-                            after
-                                [file:close(IoDev) || IoDev <- Devs]
-                            end;
+                            [with_template_filename(
+                               Dir, Name,
+                               fun(F) -> file:write_file(F, Data) end)
+                             || Dir <- ["output", "expect"]],
+                            io:format("~n    #### NOTE: created new expected output file: \"tests/expect/~s\"."
+                                      "~n    Please verify contents.", [Name]);
                        RenderResult =:= Data ->
                             io:format("ok");
                        RenderResult =:= skip_check ->
                             io:format("ok (not checked for regression)");
                        true ->
                             io:format("failed"),
+                            with_template_filename(
+                              "output", Name,
+                              fun(F) -> file:write_file(F, Data) end),
                             {error, io_lib:format(
                                       "Expected output does not match rendered output~n"
                                       "==Expected==~n~p~n--Actual--~n~p~n==End==~n",
@@ -327,11 +324,18 @@ test_render(Name, Module) ->
     end.
 
 get_expected_result(Name) ->
-    FileName = filename:join([templates_dir("expect"), Name]),
-    case filelib:is_regular(FileName) of
-        true -> {ok, Data} = file:read_file(FileName), Data;
-        false -> undefined
-    end.
+    with_template_filename(
+      "expect", Name,
+      fun(F) ->
+              case filelib:is_regular(F) of
+                  true -> {ok, Data} = file:read_file(F), Data;
+                  false -> undefined
+              end
+      end).
+
+with_template_filename(Dir, Name, Fun) ->
+    FileName = filename:join([templates_dir(Dir), Name]),
+    Fun(FileName).
 
 templates_docroot() -> templates_dir("input").
 templates_dir(Name) -> filename:join(["tests", Name]).

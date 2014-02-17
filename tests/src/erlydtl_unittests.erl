@@ -55,11 +55,7 @@ tests() ->
                       [{var1, "<b>bold</b>"}], <<"&lt;b&gt;bold&lt;/b&gt;">>},
                      {"Nested autoescape",
                       <<"{% autoescape on %}{{ var1 }}{% autoescape off %}{{ var1 }}{% endautoescape %}{% endautoescape %}">>,
-                      [{var1, "<b>"}], <<"&lt;b&gt;<b>">>},
-                     {"Autoescape by default (using compile option)",
-                      <<"{{ var1 }}">>,
-                      [{var1, "<b>bold</b>"}], [], [auto_escape],
-                      <<"&lt;b&gt;bold&lt;/b&gt;">>}
+                      [{var1, "<b>"}], <<"&lt;b&gt;<b>">>}
                     ]},
      {"string literal", [
                          {"Render literal",
@@ -1384,6 +1380,7 @@ format_error(Name, Class, Error) ->
 
 compile_test(DTL, Opts) ->
     Options = [force_recompile,
+               {auto_escape, false},
                return_errors, return_warnings,
                {custom_filters_modules, [erlydtl_contrib_humanize]}
                |Opts],

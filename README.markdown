@@ -126,8 +126,8 @@ Options is a proplist possibly containing:
 * `no_env` - Do not read additional options from the OS environment
   variable `ERLYDTL_COMPILER_OPTIONS`.
 
-* `auto_escape` - Turn on auto escape by default (this is on by
-  default in Django).
+* `auto_escape` - Control automatic HTML escaping of template
+  values. Enabled by default.
 
 * `no_load` - Do not load the compiled template.
 
@@ -238,9 +238,6 @@ passed to the render/3 function.
 
 Differences from standard Django Template Language
 --------------------------------------------------
-
-* `auto_escape` is not enabled by default in ErlyDTL. Pass the
-  `auto_escape` option when compiling your template if you need this.
 
 * `csrf_token` The
   [Cross Site Request Forgery](https://docs.djangoproject.com/en/1.6/ref/contrib/csrf/)

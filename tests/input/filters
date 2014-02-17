@@ -1,3 +1,4 @@
+{% autoescape off %}
 Add: 2 + 2 = {{ 2|add:2 }}
 
 Capfirst: {{ "capitalized"|capfirst }}
@@ -43,3 +44,4 @@ Right adjust:
 Uppercase: {{ "uppercase"|upper }}
 
 URL Encode: {{ "Let's go!"|urlencode }}
+{% endautoescape %}
