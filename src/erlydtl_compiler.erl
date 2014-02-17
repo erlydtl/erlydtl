@@ -428,9 +428,9 @@ init_context(ParseTrail, DefDir, Module, Options) ->
     BlocktransLocales = proplists:get_value(blocktrans_locales, Options),
     TransLocales = case {Locale, BlocktransLocales} of
                        {undefined, undefined} -> Ctx#dtl_context.trans_locales;
-                       {undefined, Val} when Val =/= undefined -> Val;
-                       {Val, undefined} when Val =/= undefined -> [Val];
-                       _ -> ordsets:add_element(Locale, ordsets:from_list(BlocktransLocales))
+                       {undefined, Val} -> Val;
+                       {Val, undefined} -> [Val];
+                       _ -> lists:usort([Locale | BlocktransLocales])
                    end,
     Context = #dtl_context{
                  all_options = Options,
