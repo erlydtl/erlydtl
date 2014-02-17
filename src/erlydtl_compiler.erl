@@ -43,11 +43,13 @@
 %% --------------------------------------------------------------------
 %% Definitions
 %% --------------------------------------------------------------------
--export([compile/2, compile/3, compile_dir/2, compile_dir/3,
-         parse/1, format_error/1]).
 
-%% exported for use by extension modules
+-export([compile_file/3, compile_template/3, compile_dir/3,
+         format_error/1, default_options/0]).
+
+%% internal use
 -export([
+         parse/1,
          merge_info/2,
          format/3,
          value_ast/5,
@@ -59,20 +61,16 @@
 
 -include("erlydtl_ext.hrl").
 
-compile(FileOrBinary, Module) ->
-    compile(FileOrBinary, Module, [verbose, report]).
+default_options() -> [verbose, report].
 
-compile(Binary, Module, Options) when is_binary(Binary) ->
+compile_template(Template, Module, Options) ->
     Context = process_opts(undefined, Module, Options),
-    compile(Context#dtl_context{ bin = Binary });
+    compile(Context#dtl_context{ bin = Template }).
 
-compile(File, Module, Options) ->
+compile_file(File, Module, Options) ->
     Context = process_opts(File, Module, Options),
     print("Compile template: ~s~n", [File], Context),
     compile(Context).
-
-compile_dir(Dir, Module) ->
-    compile_dir(Dir, Module, [verbose, report]).
 
 compile_dir(Dir, Module, Options) ->
     Context0 = process_opts({dir, Dir}, Module, Options),
@@ -92,7 +90,7 @@ compile_dir(Dir, Module, Options) ->
                                 true ->
                                     {ResultAcc, Ctx};
                                 false ->
-                                    case parse(FilePath, Ctx) of
+                                    case parse_file(FilePath, Ctx) of
                                         up_to_date -> {ResultAcc, Ctx};
                                         {ok, DjangoParseTree, CheckSum} ->
                                             {[{File, DjangoParseTree, CheckSum}|ResultAcc], Ctx};
@@ -110,7 +108,7 @@ compile_dir(Dir, Module, Options) ->
     collect_result(Context2).
 
 parse(Data) ->
-    parse(Data, #dtl_context{}).
+    parse_template(Data, #dtl_context{}).
 
 format_error(no_out_dir) ->
     "Compiled template not saved (need out_dir option)";
@@ -272,8 +270,8 @@ do_compile(#dtl_context{ bin=undefined, parse_trail=[File|_] }=Context) ->
         {error, Reason} ->
             add_error({read_file, Reason}, Context)
     end;
-do_compile(#dtl_context{ bin=Binary }=Context) ->
-    case parse(Binary, Context) of
+do_compile(#dtl_context{ bin=Template }=Context) ->
+    case parse_template(Template, Context) of
         up_to_date -> Context;
         {ok, DjangoParseTree, CheckSum} ->
             compile_to_binary(DjangoParseTree, CheckSum, Context);
@@ -536,8 +534,16 @@ is_up_to_date(CheckSum, Context) ->
             false
     end.
 
-parse(Data, Context)
-  when is_binary(Data) ->
+parse_file(File, Context) ->
+    {M, F} = Context#dtl_context.reader,
+    case catch M:F(File) of
+        {ok, Data} ->
+            parse_template(Data, Context);
+        {error, Reason} ->
+            {read_file, File, Reason}
+    end.
+
+parse_template(Data, Context) ->
     CheckSum = binary_to_list(erlang:md5(Data)),
     case is_up_to_date(CheckSum, Context) of
         true -> up_to_date;
@@ -546,19 +552,11 @@ parse(Data, Context)
                 {ok, Val} -> {ok, Val, CheckSum};
                 Err -> Err
             end
-    end;
-parse(File, Context) ->
-    {M, F} = Context#dtl_context.reader,
-    case catch M:F(File) of
-        {ok, Data} when is_binary(Data) ->
-            parse(Data, Context);
-        {error, Reason} ->
-            {read_file, File, Reason}
     end.
 
 do_parse(Data, #dtl_context{ scanner_module=Scanner }=Context) ->
     check_scan(
-      apply(Scanner, scan, [binary_to_list(Data)]),
+      apply(Scanner, scan, [Data]),
       Context).
 
 call_extension(#dtl_context{ extension_module=undefined }, _Fun, _Args) ->
@@ -698,7 +696,7 @@ custom_tags_clauses_ast1([Tag|CustomTags], ExcludeTags, ClauseAcc, InfoAcc, Cont
             CustomTagFile = full_path(Tag, Context#dtl_context.custom_tags_dir),
             case filelib:is_file(CustomTagFile) of
                 true ->
-                    case parse(CustomTagFile, Context) of
+                    case parse_file(CustomTagFile, Context) of
                         {ok, DjangoParseTree, CheckSum} ->
                             {{BodyAst, BodyAstInfo}, TreeWalker1} = with_dependency(
                                                                       {CustomTagFile, CheckSum},
@@ -948,7 +946,7 @@ body_ast([{'extends', {string_literal, _Pos, String}} | ThisParseTree], Context,
         true ->
             throw(circular_include);
         _ ->
-            case parse(File, Context) of
+            case parse_file(File, Context) of
                 {ok, ParentParseTree, CheckSum} ->
                     BlockDict = lists:foldl(
                                   fun
@@ -1319,7 +1317,7 @@ string_ast(S, Context, TreeWalker) when is_atom(S) ->
 
 include_ast(File, ArgList, Scopes, Context, TreeWalker) ->
     FilePath = full_path(File, Context#dtl_context.doc_root),
-    case parse(FilePath, Context) of
+    case parse_file(FilePath, Context) of
         {ok, InclusionParseTree, CheckSum} ->
             {NewScope, {ArgInfo, TreeWalker1}}
                 = lists:mapfoldl(

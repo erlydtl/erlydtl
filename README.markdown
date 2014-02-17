@@ -29,13 +29,13 @@ Template compilation
 
 Usage:
 
-    erlydtl:compile("/path/to/template.dtl", my_module_name)
+    erlydtl:compile_file("/path/to/template.dtl", my_module_name)
 
-    erlydtl:compile("/path/to/template.dtl", my_module_name, Options)
+    erlydtl:compile_file("/path/to/template.dtl", my_module_name, Options)
 
-    erlydtl:compile(<<"<html>{{ foo }}</html>">>, my_module_name)
+    erlydtl:compile_template("<html>{{ foo }}</html>", my_module_name)
 
-    erlydtl:compile(<<"<html>{{ foo }}</html>">>, my_module_name, Options)
+    erlydtl:compile_template("<html>{{ foo }}</html>", my_module_name, Options)
 
 Result:
 

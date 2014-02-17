@@ -36,7 +36,7 @@
 %%%-------------------------------------------------------------------
 -module(erlydtl_scanner).
 
-%% This file was generated 2014-02-15 07:03:20 UTC by slex 0.2.0-2-g8e71a02.
+%% This file was generated 2014-02-17 11:20:49 UTC by slex 0.2.1.
 %% http://github.com/erlydtl/slex
 -slex_source(["src/erlydtl_scanner.slex"]).
 
@@ -148,7 +148,9 @@ format_where(in_comment) -> "in comment";
 format_where(in_code) -> "in code block".
 
 scan(Template) when is_list(Template) ->
-    scan(Template, [], {1, 1}, in_text).
+    scan(Template, [], {1, 1}, in_text);
+scan(Template) when is_binary(Template) ->
+    scan(binary_to_list(Template)).
 
 scan("{{" ++ T, S, {R, C} = P, in_text) ->
     scan(T,

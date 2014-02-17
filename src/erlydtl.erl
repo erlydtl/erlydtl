@@ -36,6 +36,8 @@
 -author('emmiller@gmail.com').
 
 %% API
+-export([compile_file/2, compile_file/3]).
+-export([compile_template/2, compile_template/3]).
 -export([compile/2, compile/3]).
 -export([compile_dir/2, compile_dir/3]).
 
@@ -48,18 +50,54 @@
 -type ok_ret() :: {ok, Module::atom()} | {ok, Module::atom(), warnings()}.
 -type err_ret() :: error | {error, errors(), warnings()}.
 
--spec compile( list() | binary(), atom() ) -> {ok, Module::atom()} | error.
-compile(FileOrBinary, Module) ->
-    erlydtl_compiler:compile(FileOrBinary, Module).
+-spec compile_file( list() | binary(), atom() ) -> {ok, Module::atom()} | error.
+compile_file(File, Module) ->
+    erlydtl_compiler:compile_file(File, Module, erlydtl_compiler:default_options()).
 
--spec compile( list() | binary(), atom(), list() ) -> ok_ret() | err_ret().
-compile(FileOrBinary, Module, Options) ->
-    erlydtl_compiler:compile(FileOrBinary, Module, Options).
+-spec compile_file( list() | binary(), atom(), list() ) -> ok_ret() | err_ret().
+compile_file(File, Module, Options) ->
+    erlydtl_compiler:compile_file(File, Module, Options).
+
+-spec compile_template( list() | binary(), atom() ) -> {ok, Module::atom()} | error.
+compile_template(Template, Module) ->
+    erlydtl_compiler:compile_template(Template, Module, erlydtl_compiler:default_options()).
+
+-spec compile_template( list() | binary(), atom(), list() ) -> ok_ret() | err_ret().
+compile_template(Template, Module, Options) ->
+    erlydtl_compiler:compile_template(Template, Module, Options).
 
 -spec compile_dir(list() | binary(), atom()) -> {ok, Module::atom()} | error.
 compile_dir(DirectoryPath, Module) ->
-    erlydtl_compiler:compile_dir(DirectoryPath, Module).
+    erlydtl_compiler:compile_dir(DirectoryPath, Module, erlydtl_compiler:default_options()).
 
 -spec compile_dir(list() | binary(), atom(), list()) -> ok_ret() | err_ret().
 compile_dir(DirectoryPath, Module, Options) ->
     erlydtl_compiler:compile_dir(DirectoryPath, Module, Options).
+
+
+%% keep for backwards compatibility, with a tuple-twist to ease migration / offer alternative path..
+-spec compile(FileOrBinary, atom() ) -> {ok, Module::atom()} | error
+                                            when FileOrBinary :: list() | binary() 
+                                                               | {file, list() | binary()}
+                                                               | {template, list() | binary()}.
+compile({file, File}, Module) ->
+    compile_file(File, Module);
+compile({template, Template}, Module) ->
+    compile_template(Template, Module);
+compile(FileOrBinary, Module) when is_binary(FileOrBinary) ->
+    compile_template(FileOrBinary, Module);
+compile(FileOrBinary, Module) ->
+    compile_file(FileOrBinary, Module).
+
+-spec compile( FileOrBinary, atom(), list() ) -> ok_ret() | err_ret()
+                                                     when FileOrBinary :: list() | binary() 
+                                                                        | {file, list() | binary()}
+                                                                        | {template, list() | binary()}.
+compile({file, File}, Module, Options) ->
+    compile_file(File, Module, Options);
+compile({template, Template}, Module, Options) ->
+    compile_template(Template, Module, Options);
+compile(FileOrBinary, Module, Options) when is_binary(FileOrBinary) ->
+    compile_template(FileOrBinary, Module, Options);
+compile(FileOrBinary, Module, Options) ->
+    compile_file(FileOrBinary, Module, Options).
