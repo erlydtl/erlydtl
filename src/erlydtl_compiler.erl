@@ -1194,19 +1194,23 @@ empty_ast(TreeWalker) ->
     {{erl_syntax:list([]), #ast_info{}}, TreeWalker}.
 
 blocktrans_ast(ArgList, Contents, Context, TreeWalker) ->
+    %% add new scope using 'with' values
     {NewScope, {ArgInfo, TreeWalker1}} = lists:mapfoldl(fun
                                                             ({{identifier, _, LocalVarName}, Value}, {AstInfo1, TreeWalker1}) ->
                                                                {{Ast, Info}, TreeWalker2} = value_ast(Value, false, false, Context, TreeWalker1),
                                                                {{LocalVarName, Ast}, {merge_info(AstInfo1, Info), TreeWalker2}}
                                                        end, {#ast_info{}, TreeWalker}, ArgList),
     NewContext = Context#dtl_context{ local_scopes = [NewScope|Context#dtl_context.local_scopes] },
+    %% key for translation lookup
     SourceText = lists:flatten(erlydtl_unparser:unparse(Contents)),
     {{DefaultAst, AstInfo}, TreeWalker2} = body_ast(Contents, NewContext, TreeWalker1),
     MergedInfo = merge_info(AstInfo, ArgInfo),
     case Context#dtl_context.blocktrans_fun of
         none ->
-            {{DefaultAst, MergedInfo}, TreeWalker2};
+            %% translate in runtime
+            blocktrans_runtime_ast({DefaultAst, MergedInfo}, TreeWalker2, SourceText, Contents, NewContext);
         BlockTransFun when is_function(BlockTransFun) ->
+            %% translate in compile-time
             {FinalAstInfo, FinalTreeWalker, Clauses} = lists:foldr(fun(Locale, {AstInfoAcc, ThisTreeWalker, ClauseAcc}) ->
                                                                            case BlockTransFun(SourceText, Locale) of
                                                                                default ->
@@ -1222,6 +1226,32 @@ blocktrans_ast(ArgList, Contents, Context, TreeWalker) ->
                                        Clauses ++ [erl_syntax:clause([erl_syntax:underscore()], none, [DefaultAst])]),
             {{Ast, FinalAstInfo#ast_info{ translated_blocks = [SourceText] }}, FinalTreeWalker}
     end.
+
+blocktrans_runtime_ast({DefaultAst, Info}, Walker, SourceText, Contents, Context) ->
+    %% Contents is flat - only strings and '{{var}}' allowed.
+    %% build sorted list (orddict) of pre-resolved variables to pass to runtime translation function
+    USortedVariables = lists:usort(fun({variable, {identifier, _, A}},
+                                       {variable, {identifier, _, B}}) ->
+                                           A =< B
+                                   end, [Var || {variable, _}=Var <- Contents]),
+    VarBuilder = fun({variable, {identifier, _, Name}}=Var, Walker1) ->
+                         {{Ast2, _InfoIgn}, Walker2}  = resolve_variable_ast(Var, Context, Walker1, false),
+                         KVAst = erl_syntax:tuple([erl_syntax:string(atom_to_list(Name)), Ast2]),
+                         {KVAst, Walker2}
+                 end,
+    {VarAsts, Walker2} = lists:mapfoldl(VarBuilder, Walker, USortedVariables),
+    VarListAst = erl_syntax:list(VarAsts),
+    RuntimeTransAst =  [erl_syntax:application(
+                          erl_syntax:atom(erlydtl_runtime),
+                          erl_syntax:atom(translate_block),
+                          [erl_syntax:string(SourceText),
+                           erl_syntax:variable("_TranslationFun"),
+                           VarListAst])],
+    Ast1 = erl_syntax:case_expr(erl_syntax:variable("_TranslationFun"),
+                                [erl_syntax:clause([erl_syntax:atom(none)], none, [DefaultAst]),
+                                 erl_syntax:clause([erl_syntax:underscore()], none,
+                                                   RuntimeTransAst)]),
+    {{Ast1, Info}, Walker2}.
 
 translated_ast({string_literal, _, String}, Context, TreeWalker) ->
     UnescapedStr = unescape_string_literal(String),

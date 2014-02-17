@@ -2,6 +2,8 @@
 
 -compile(export_all).
 
+-type translate_fun() :: fun((string() | binary()) -> string() | binary() | undefined).
+
 -define(IFCHANGED_CONTEXT_VARIABLE, erlydtl_ifchanged_context).
 
 find_value(Key, Data, Options) when is_atom(Key), is_tuple(Data) ->
@@ -108,6 +110,8 @@ regroup([Item|Rest], Attribute, [[{grouper, PrevGrouper}, {list, PrevList}]|Acc]
             regroup(Rest, Attribute, [[{grouper, Value}, {list, [Item]}], [{grouper, PrevGrouper}, {list, lists:reverse(PrevList)}]|Acc])
     end.
 
+-spec translate(Str, none | translate_fun(), Str) -> Str when
+      Str :: string() | binary().
 translate(_, none, Default) ->
     Default;
 translate(String, TranslationFun, Default) when is_function(TranslationFun) ->
@@ -117,6 +121,48 @@ translate(String, TranslationFun, Default) when is_function(TranslationFun) ->
         "" -> Default;
         Str -> Str
     end.
+
+%% @doc Translate and interpolate 'blocktrans' content.
+%% Pre-requisites:
+%%  * `Variables' should be sorted
+%%  * Each interpolation variable should exist
+%%    (String="{{a}}", Variables=[{"b", "b-val"}] will fall)
+%%  * Orddict keys should be string(), not binary()
+-spec translate_block(string() | binary(), translate_fun(), orddict:orddict()) -> iodata().
+translate_block(String, TranslationFun, Variables) ->
+    TransString = case TranslationFun(String) of
+                      No when (undefined == No)
+                              orelse (<<"">> == No)
+                              orelse ("" == No) -> String;
+                      Str -> Str
+                  end,
+    try interpolate_variables(TransString, Variables)
+    catch _:_ ->
+            %% Fallback to default language in case of errors (like Djando does)
+            interpolate_variables(String, Variables)
+    end.
+
+interpolate_variables(Tpl, []) ->
+    Tpl;
+interpolate_variables(Tpl, Variables) ->
+    BTpl = iolist_to_binary(Tpl),
+    interpolate_variables1(BTpl, Variables).
+
+interpolate_variables1(Tpl, Vars) ->
+    %% pre-compile binary patterns?
+    case binary:split(Tpl, <<"{{">>) of
+        [NotFound] ->
+            [NotFound];
+        [Pre, Post] ->
+            case binary:split(Post, <<"}}">>) of
+                [_] -> throw({no_close_var, Post});
+                [Var, Post1] ->
+                    Var1 = string:strip(binary_to_list(Var)),
+                    Value = orddict:fetch(Var1, Vars),
+                    [Pre, Value | interpolate_variables1(Post1, Vars)]
+            end
+    end.
+
 
 are_equal(Arg1, Arg2) when Arg1 =:= Arg2 ->
     true;

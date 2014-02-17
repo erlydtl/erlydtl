@@ -1190,7 +1190,18 @@ tests() ->
         <<"{% blocktrans %}Hello, {{ name }}{% endblocktrans %}">>, [{name, "Mr. President"}], [{locale, "de"}],
         [{blocktrans_locales, ["de"]}, {blocktrans_fun, fun("Hello, {{ name }}", "de") -> <<"Guten tag, {{ name }}">> end}], <<"Guten tag, Mr. President">>},
        {"blocktrans with args",
-        <<"{% blocktrans with var1=foo %}{{ var1 }}{% endblocktrans %}">>, [{foo, "Hello"}], <<"Hello">>}
+        <<"{% blocktrans with var1=foo %}{{ var1 }}{% endblocktrans %}">>, [{foo, "Hello"}], <<"Hello">>},
+       {"blocktrans blocks in content not allowed",
+        <<"{% blocktrans %}Hello{%if name%}, {{ name }}{%endif%}!{% endblocktrans %}">>, [],
+        {error, [error_info([{{1, 24}, erlydtl_parser, ["syntax error before: ",["\"if\""]]}])], []}},
+       {"blocktrans nested variables not allowed",
+        <<"{% blocktrans %}Hello, {{ user.name }}!{% endblocktrans %}">>, [],
+        {error, [error_info([{{1,31}, erlydtl_parser, ["syntax error before: ","'.'"]}])], []}},
+       {"blocktrans runtime",
+        <<"{% blocktrans with v1=foo%}Hello, {{ name }}! See {{v1}}.{%endblocktrans%}">>,
+        [{name, "Mr. President"}, {foo, <<"rubber-duck">>}],
+        [{translation_fun, fun("Hello, {{ name }}! See {{ v1 }}.") -> <<"Guten tag, {{name}}! Sehen {{    v1   }}.">> end}],
+        [], <<"Guten tag, Mr. President! Sehen rubber-duck.">>}
       ]},
      {"verbatim", [
                    {"Plain verbatim",
