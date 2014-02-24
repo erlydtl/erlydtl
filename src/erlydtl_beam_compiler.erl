@@ -509,140 +509,145 @@ body_ast([{'extends', {string_literal, _Pos, String}} | ThisParseTree], Context,
 
 
 body_ast(DjangoParseTree, Context, TreeWalker) ->
-    {AstInfoList, TreeWalker2} = lists:mapfoldl(
-                                   fun
-                                       ({'autoescape', {identifier, _, OnOrOff}, Contents}, TreeWalkerAcc) ->
-                                                       body_ast(Contents, Context#dtl_context{auto_escape = OnOrOff},
-                                                                TreeWalkerAcc);
-                                       ({'block', {identifier, _, Name}, Contents}, TreeWalkerAcc) ->
-                                                       Block = case dict:find(Name, Context#dtl_context.block_dict) of
-                                                                   {ok, ChildBlock} -> ChildBlock;
-                                                                   _ -> Contents
-                                                               end,
-                                                       body_ast(Block, Context, TreeWalkerAcc);
-                                       ({'blocktrans', Args, Contents}, TreeWalkerAcc) ->
-                                                       blocktrans_ast(Args, Contents, Context, TreeWalkerAcc);
-                                       ({'call', {identifier, _, Name}}, TreeWalkerAcc) ->
-                                                       call_ast(Name, TreeWalkerAcc);
-                                       ({'call', {identifier, _, Name}, With}, TreeWalkerAcc) ->
-                                                       call_with_ast(Name, With, Context, TreeWalkerAcc);
-                                       ({'comment', _Contents}, TreeWalkerAcc) ->
-                                                       empty_ast(TreeWalkerAcc);
-                                       ({'cycle', Names}, TreeWalkerAcc) ->
-                                                       cycle_ast(Names, Context, TreeWalkerAcc);
-                                       ({'cycle_compat', Names}, TreeWalkerAcc) ->
-                                                       cycle_compat_ast(Names, Context, TreeWalkerAcc);
-                                       ({'date', 'now', {string_literal, _Pos, FormatString}}, TreeWalkerAcc) ->
-                                                       now_ast(FormatString, Context, TreeWalkerAcc);
-                                       ({'filter', FilterList, Contents}, TreeWalkerAcc) ->
-                                                       filter_tag_ast(FilterList, Contents, Context, TreeWalkerAcc);
-                                       ({'firstof', Vars}, TreeWalkerAcc) ->
-                                                       firstof_ast(Vars, Context, TreeWalkerAcc);
-                                       ({'for', {'in', IteratorList, Variable, Reversed}, Contents}, TreeWalkerAcc) ->
-                                                       {EmptyAstInfo, TreeWalker1} = empty_ast(TreeWalkerAcc),
-                                                       for_loop_ast(IteratorList, Variable, Reversed, Contents, EmptyAstInfo, Context, TreeWalker1);
-                                       ({'for', {'in', IteratorList, Variable, Reversed}, Contents, EmptyPartContents}, TreeWalkerAcc) ->
-                                                       {EmptyAstInfo, TreeWalker1} = body_ast(EmptyPartContents, Context, TreeWalkerAcc),
-                                                       for_loop_ast(IteratorList, Variable, Reversed, Contents, EmptyAstInfo, Context, TreeWalker1);
-                                       ({'if', Expression, Contents, Elif}, TreeWalkerAcc) ->
-                                                       {IfAstInfo, TreeWalker1} = body_ast(Contents, Context, TreeWalkerAcc),
-                                                       {ElifAstInfo, TreeWalker2} = body_ast(Elif, Context, TreeWalker1),
-                                                       ifelse_ast(Expression, IfAstInfo, ElifAstInfo, Context, TreeWalker2);
-                                       ({'if', Expression, Contents}, TreeWalkerAcc) ->
-                                                       {IfAstInfo, TreeWalker1} = body_ast(Contents, Context, TreeWalkerAcc),
-                                                       {ElseAstInfo, TreeWalker2} = empty_ast(TreeWalker1),
-                                                       ifelse_ast(Expression, IfAstInfo, ElseAstInfo, Context, TreeWalker2);
-                                       ({'ifchanged', '$undefined', Contents}, TreeWalkerAcc) ->
-                                                       {IfAstInfo, TreeWalker1} = body_ast(Contents, Context, TreeWalkerAcc),
-                                                       {ElseAstInfo, TreeWalker2} = empty_ast(TreeWalker1),
-                                                       ifchanged_contents_ast(Contents, IfAstInfo, ElseAstInfo, Context, TreeWalker2);
-                                       ({'ifchanged', Values, Contents}, TreeWalkerAcc) ->
-                                                       {IfAstInfo, TreeWalker1} = body_ast(Contents, Context, TreeWalkerAcc),
-                                                       {ElseAstInfo, TreeWalker2} = empty_ast(TreeWalker1),
-                                                       ifchanged_values_ast(Values, IfAstInfo, ElseAstInfo, Context, TreeWalker2);
-                                       ({'ifchangedelse', '$undefined', IfContents, ElseContents}, TreeWalkerAcc) ->
-                                                       {IfAstInfo, TreeWalker1} = body_ast(IfContents, Context, TreeWalkerAcc),
-                                                       {ElseAstInfo, TreeWalker2} = body_ast(ElseContents, Context, TreeWalker1),
-                                                       ifchanged_contents_ast(IfContents, IfAstInfo, ElseAstInfo, Context, TreeWalker2);
-                                       ({'ifchangedelse', Values, IfContents, ElseContents}, TreeWalkerAcc) ->
-                                                       {IfAstInfo, TreeWalker1} = body_ast(IfContents, Context, TreeWalkerAcc),
-                                                       {ElseAstInfo, TreeWalker2} = body_ast(ElseContents, Context, TreeWalker1),
-                                                       ifchanged_values_ast(Values, IfAstInfo, ElseAstInfo, Context, TreeWalker2);
-                                       ({'ifelse', Expression, IfContents, ElseContents}, TreeWalkerAcc) ->
-                                                       {IfAstInfo, TreeWalker1} = body_ast(IfContents, Context, TreeWalkerAcc),
-                                                       {ElseAstInfo, TreeWalker2} = body_ast(ElseContents, Context, TreeWalker1),
-                                                       ifelse_ast(Expression, IfAstInfo, ElseAstInfo, Context, TreeWalker2);
-                                       ({'ifequal', [Arg1, Arg2], Contents}, TreeWalkerAcc) ->
-                                                       {IfAstInfo, TreeWalker1} = body_ast(Contents, Context, TreeWalkerAcc),
-                                                       {ElseAstInfo, TreeWalker2} = empty_ast(TreeWalker1),
-                                                       ifelse_ast({'expr', "eq", Arg1, Arg2}, IfAstInfo, ElseAstInfo, Context, TreeWalker2);
-                                       ({'ifequalelse', [Arg1, Arg2], IfContents, ElseContents}, TreeWalkerAcc) ->
-                                                       {IfAstInfo, TreeWalker1} = body_ast(IfContents, Context, TreeWalkerAcc),
-                                                       {ElseAstInfo, TreeWalker2} = body_ast(ElseContents, Context,TreeWalker1),
-                                                       ifelse_ast({'expr', "eq", Arg1, Arg2}, IfAstInfo, ElseAstInfo, Context, TreeWalker2);
-                                       ({'ifnotequal', [Arg1, Arg2], Contents}, TreeWalkerAcc) ->
-                                                       {IfAstInfo, TreeWalker1} = body_ast(Contents, Context, TreeWalkerAcc),
-                                                       {ElseAstInfo, TreeWalker2} = empty_ast(TreeWalker1),
-                                                       ifelse_ast({'expr', "ne", Arg1, Arg2}, IfAstInfo, ElseAstInfo, Context, TreeWalker2);
-                                       ({'ifnotequalelse', [Arg1, Arg2], IfContents, ElseContents}, TreeWalkerAcc) ->
-                                                       {IfAstInfo, TreeWalker1} = body_ast(IfContents, Context, TreeWalkerAcc),
-                                                       {ElseAstInfo, TreeWalker2} = body_ast(ElseContents, Context, TreeWalker1),
-                                                       ifelse_ast({'expr', "ne", Arg1, Arg2}, IfAstInfo, ElseAstInfo, Context, TreeWalker2);
-                                       ({'include', {string_literal, _, File}, Args}, TreeWalkerAcc) ->
-                                                       include_ast(unescape_string_literal(File), Args, Context#dtl_context.local_scopes, Context, TreeWalkerAcc);
-                                       ({'include_only', {string_literal, _, File}, Args}, TreeWalkerAcc) ->
-                                                       include_ast(unescape_string_literal(File), Args, [], Context, TreeWalkerAcc);
-                                       ({'regroup', {ListVariable, Grouper, {identifier, _, NewVariable}}, Contents}, TreeWalkerAcc) ->
-                                                       regroup_ast(ListVariable, Grouper, NewVariable, Contents, Context, TreeWalkerAcc);
-                                       ({'spaceless', Contents}, TreeWalkerAcc) ->
-                                                       spaceless_ast(Contents, Context, TreeWalkerAcc);
-                                       ({'ssi', Arg}, TreeWalkerAcc) ->
-                                                       ssi_ast(Arg, Context, TreeWalkerAcc);
-                                       ({'ssi_parsed', {string_literal, _, FileName}}, TreeWalkerAcc) ->
-                                                       include_ast(unescape_string_literal(FileName), [], Context#dtl_context.local_scopes, Context, TreeWalkerAcc);
-                                       ({'string', _Pos, String}, TreeWalkerAcc) ->
-                                                       string_ast(String, Context, TreeWalkerAcc);
-                                       ({'tag', {identifier, _, Name}, Args}, TreeWalkerAcc) ->
-                                                       tag_ast(Name, Args, Context, TreeWalkerAcc);
-                                       ({'templatetag', {_, _, TagName}}, TreeWalkerAcc) ->
-                                                       templatetag_ast(TagName, Context, TreeWalkerAcc);
-                                       ({'trans', Value}, TreeWalkerAcc) ->
-                                                       translated_ast(Value, Context, TreeWalkerAcc);
-                                       ({'widthratio', Numerator, Denominator, Scale}, TreeWalkerAcc) ->
-                                                       widthratio_ast(Numerator, Denominator, Scale, Context, TreeWalkerAcc);
-                                       ({'with', Args, Contents}, TreeWalkerAcc) ->
-                                                       with_ast(Args, Contents, Context, TreeWalkerAcc);
-                                       ({'extension', Tag}, TreeWalkerAcc) ->
-                                                       extension_ast(Tag, Context, TreeWalkerAcc);
-                                       ({'extends', _}, _TreeWalkerAcc) ->
-                                                       throw(unexpected_extends_tag);
-                                       (ValueToken, TreeWalkerAcc) ->
-                                                       {{ValueAst,ValueInfo},ValueTreeWalker} = value_ast(ValueToken, true, true, Context, TreeWalkerAcc),
-                                                       {{format(ValueAst, Context, ValueTreeWalker),ValueInfo},ValueTreeWalker}
-                                               end, TreeWalker, DjangoParseTree),
-    {AstList, {Info, TreeWalker3}} = lists:mapfoldl(
-                                       fun({Ast, Info}, {InfoAcc, TreeWalkerAcc}) ->
-                                               PresetVars = lists:foldl(fun
-                                                                            (X, Acc) ->
-                                                                               case proplists:lookup(X, Context#dtl_context.vars) of
-                                                                                   none -> Acc;
-                                                                                   Val -> [Val|Acc]
-                                                                               end
-                                                                       end, [], Info#ast_info.var_names),
-                                               case PresetVars of
-                                                   [] ->
-                                                       {Ast, {merge_info(Info, InfoAcc), TreeWalkerAcc}};
-                                                   _ ->
-                                                       Counter = TreeWalkerAcc#treewalker.counter,
-                                                       Name = list_to_atom(lists:concat([pre_render, Counter])),
-                                                       Ast1 = ?Q("'@Name@'(_@PresetVars@, RenderOptions)"),
-                                                       PreRenderAst = ?Q("'@Name@'(_Variables, RenderOptions) -> _@match, _@Ast.",
-                                                                         [{match, options_match_ast(Context, TreeWalkerAcc)}]),
-                                                       PreRenderAsts = Info#ast_info.pre_render_asts,
-                                                       Info1 = Info#ast_info{pre_render_asts = [PreRenderAst | PreRenderAsts]},
-                                                       {Ast1, {merge_info(Info1, InfoAcc), TreeWalkerAcc#treewalker{counter = Counter + 1}}}
-                                               end
-                                       end, {#ast_info{}, TreeWalker2}, AstInfoList),
+    {AstInfoList, TreeWalker2} =
+        lists:mapfoldl(
+          fun ({'autoescape', {identifier, _, OnOrOff}, Contents}, TreeWalkerAcc) ->
+                  body_ast(Contents, Context#dtl_context{auto_escape = OnOrOff},
+                           TreeWalkerAcc);
+              ({'block', {identifier, _, Name}, Contents}, TreeWalkerAcc) ->
+                  Block = case dict:find(Name, Context#dtl_context.block_dict) of
+                              {ok, ChildBlock} -> ChildBlock;
+                              _ -> Contents
+                          end,
+                  body_ast(Block, Context, TreeWalkerAcc);
+              ({'blocktrans', Args, Contents}, TreeWalkerAcc) ->
+                  blocktrans_ast(Args, Contents, Context, TreeWalkerAcc);
+              ({'call', {identifier, _, Name}}, TreeWalkerAcc) ->
+                  call_ast(Name, TreeWalkerAcc);
+              ({'call', {identifier, _, Name}, With}, TreeWalkerAcc) ->
+                  call_with_ast(Name, With, Context, TreeWalkerAcc);
+              ({'comment', _Contents}, TreeWalkerAcc) ->
+                  empty_ast(TreeWalkerAcc);
+              ({'cycle', Names}, TreeWalkerAcc) ->
+                  cycle_ast(Names, Context, TreeWalkerAcc);
+              ({'cycle_compat', Names}, TreeWalkerAcc) ->
+                  cycle_compat_ast(Names, Context, TreeWalkerAcc);
+              ({'date', 'now', {string_literal, _Pos, FormatString}}, TreeWalkerAcc) ->
+                  now_ast(FormatString, Context, TreeWalkerAcc);
+              ({'filter', FilterList, Contents}, TreeWalkerAcc) ->
+                  filter_tag_ast(FilterList, Contents, Context, TreeWalkerAcc);
+              ({'firstof', Vars}, TreeWalkerAcc) ->
+                  firstof_ast(Vars, Context, TreeWalkerAcc);
+              ({'for', {'in', IteratorList, Variable, Reversed}, Contents}, TreeWalkerAcc) ->
+                  {EmptyAstInfo, TreeWalker1} = empty_ast(TreeWalkerAcc),
+                  for_loop_ast(IteratorList, Variable, Reversed, Contents, EmptyAstInfo, Context, TreeWalker1);
+              ({'for', {'in', IteratorList, Variable, Reversed}, Contents, EmptyPartContents}, TreeWalkerAcc) ->
+                  {EmptyAstInfo, TreeWalker1} = body_ast(EmptyPartContents, Context, TreeWalkerAcc),
+                  for_loop_ast(IteratorList, Variable, Reversed, Contents, EmptyAstInfo, Context, TreeWalker1);
+              ({'if', Expression, Contents, Elif}, TreeWalkerAcc) ->
+                  {IfAstInfo, TreeWalker1} = body_ast(Contents, Context, TreeWalkerAcc),
+                  {ElifAstInfo, TreeWalker2} = body_ast(Elif, Context, TreeWalker1),
+                  ifelse_ast(Expression, IfAstInfo, ElifAstInfo, Context, TreeWalker2);
+              ({'if', Expression, Contents}, TreeWalkerAcc) ->
+                  {IfAstInfo, TreeWalker1} = body_ast(Contents, Context, TreeWalkerAcc),
+                  {ElseAstInfo, TreeWalker2} = empty_ast(TreeWalker1),
+                  ifelse_ast(Expression, IfAstInfo, ElseAstInfo, Context, TreeWalker2);
+              ({'ifchanged', '$undefined', Contents}, TreeWalkerAcc) ->
+                  {IfAstInfo, TreeWalker1} = body_ast(Contents, Context, TreeWalkerAcc),
+                  {ElseAstInfo, TreeWalker2} = empty_ast(TreeWalker1),
+                  ifchanged_contents_ast(Contents, IfAstInfo, ElseAstInfo, Context, TreeWalker2);
+              ({'ifchanged', Values, Contents}, TreeWalkerAcc) ->
+                  {IfAstInfo, TreeWalker1} = body_ast(Contents, Context, TreeWalkerAcc),
+                  {ElseAstInfo, TreeWalker2} = empty_ast(TreeWalker1),
+                  ifchanged_values_ast(Values, IfAstInfo, ElseAstInfo, Context, TreeWalker2);
+              ({'ifchangedelse', '$undefined', IfContents, ElseContents}, TreeWalkerAcc) ->
+                  {IfAstInfo, TreeWalker1} = body_ast(IfContents, Context, TreeWalkerAcc),
+                  {ElseAstInfo, TreeWalker2} = body_ast(ElseContents, Context, TreeWalker1),
+                  ifchanged_contents_ast(IfContents, IfAstInfo, ElseAstInfo, Context, TreeWalker2);
+              ({'ifchangedelse', Values, IfContents, ElseContents}, TreeWalkerAcc) ->
+                  {IfAstInfo, TreeWalker1} = body_ast(IfContents, Context, TreeWalkerAcc),
+                  {ElseAstInfo, TreeWalker2} = body_ast(ElseContents, Context, TreeWalker1),
+                  ifchanged_values_ast(Values, IfAstInfo, ElseAstInfo, Context, TreeWalker2);
+              ({'ifelse', Expression, IfContents, ElseContents}, TreeWalkerAcc) ->
+                  {IfAstInfo, TreeWalker1} = body_ast(IfContents, Context, TreeWalkerAcc),
+                  {ElseAstInfo, TreeWalker2} = body_ast(ElseContents, Context, TreeWalker1),
+                  ifelse_ast(Expression, IfAstInfo, ElseAstInfo, Context, TreeWalker2);
+              ({'ifequal', [Arg1, Arg2], Contents}, TreeWalkerAcc) ->
+                  {IfAstInfo, TreeWalker1} = body_ast(Contents, Context, TreeWalkerAcc),
+                  {ElseAstInfo, TreeWalker2} = empty_ast(TreeWalker1),
+                  ifelse_ast({'expr', "eq", Arg1, Arg2}, IfAstInfo, ElseAstInfo, Context, TreeWalker2);
+              ({'ifequalelse', [Arg1, Arg2], IfContents, ElseContents}, TreeWalkerAcc) ->
+                  {IfAstInfo, TreeWalker1} = body_ast(IfContents, Context, TreeWalkerAcc),
+                  {ElseAstInfo, TreeWalker2} = body_ast(ElseContents, Context,TreeWalker1),
+                  ifelse_ast({'expr', "eq", Arg1, Arg2}, IfAstInfo, ElseAstInfo, Context, TreeWalker2);
+              ({'ifnotequal', [Arg1, Arg2], Contents}, TreeWalkerAcc) ->
+                  {IfAstInfo, TreeWalker1} = body_ast(Contents, Context, TreeWalkerAcc),
+                  {ElseAstInfo, TreeWalker2} = empty_ast(TreeWalker1),
+                  ifelse_ast({'expr', "ne", Arg1, Arg2}, IfAstInfo, ElseAstInfo, Context, TreeWalker2);
+              ({'ifnotequalelse', [Arg1, Arg2], IfContents, ElseContents}, TreeWalkerAcc) ->
+                  {IfAstInfo, TreeWalker1} = body_ast(IfContents, Context, TreeWalkerAcc),
+                  {ElseAstInfo, TreeWalker2} = body_ast(ElseContents, Context, TreeWalker1),
+                  ifelse_ast({'expr', "ne", Arg1, Arg2}, IfAstInfo, ElseAstInfo, Context, TreeWalker2);
+              ({'include', {string_literal, _, File}, Args}, TreeWalkerAcc) ->
+                  include_ast(unescape_string_literal(File), Args, Context#dtl_context.local_scopes, Context, TreeWalkerAcc);
+              ({'include_only', {string_literal, _, File}, Args}, TreeWalkerAcc) ->
+                  include_ast(unescape_string_literal(File), Args, [], Context, TreeWalkerAcc);
+              ({'regroup', {ListVariable, Grouper, {identifier, _, NewVariable}}, Contents}, TreeWalkerAcc) ->
+                  regroup_ast(ListVariable, Grouper, NewVariable, Contents, Context, TreeWalkerAcc);
+              ({'spaceless', Contents}, TreeWalkerAcc) ->
+                  spaceless_ast(Contents, Context, TreeWalkerAcc);
+              ({'ssi', Arg}, TreeWalkerAcc) ->
+                  ssi_ast(Arg, Context, TreeWalkerAcc);
+              ({'ssi_parsed', {string_literal, _, FileName}}, TreeWalkerAcc) ->
+                  include_ast(unescape_string_literal(FileName), [], Context#dtl_context.local_scopes, Context, TreeWalkerAcc);
+              ({'string', _Pos, String}, TreeWalkerAcc) ->
+                  string_ast(String, Context, TreeWalkerAcc);
+              ({'tag', {identifier, _, Name}, Args}, TreeWalkerAcc) ->
+                  tag_ast(Name, Args, Context, TreeWalkerAcc);
+              ({'templatetag', {_, _, TagName}}, TreeWalkerAcc) ->
+                  templatetag_ast(TagName, Context, TreeWalkerAcc);
+              ({'trans', Value}, TreeWalkerAcc) ->
+                  translated_ast(Value, Context, TreeWalkerAcc);
+              ({'widthratio', Numerator, Denominator, Scale}, TreeWalkerAcc) ->
+                  widthratio_ast(Numerator, Denominator, Scale, Context, TreeWalkerAcc);
+              ({'with', Args, Contents}, TreeWalkerAcc) ->
+                  with_ast(Args, Contents, Context, TreeWalkerAcc);
+              ({'extension', Tag}, TreeWalkerAcc) ->
+                  extension_ast(Tag, Context, TreeWalkerAcc);
+              ({'extends', _}, _TreeWalkerAcc) ->
+                  throw(unexpected_extends_tag);
+              (ValueToken, TreeWalkerAcc) ->
+                  {{ValueAst,ValueInfo},ValueTreeWalker} = value_ast(ValueToken, true, true, Context, TreeWalkerAcc),
+                  {{format(ValueAst, Context, ValueTreeWalker),ValueInfo},ValueTreeWalker}
+          end, TreeWalker, DjangoParseTree),
+
+    {AstList, {Info, TreeWalker3}} =
+        lists:mapfoldl(
+          fun ({Ast, Info}, {InfoAcc, TreeWalkerAcc}) ->
+                  PresetVars = lists:foldl(fun
+                                               (X, Acc) ->
+                                                  case proplists:lookup(X, Context#dtl_context.vars) of
+                                                      none -> Acc;
+                                                      Val -> [Val|Acc]
+                                                  end
+                                          end, [], Info#ast_info.var_names),
+                  case PresetVars of
+                      [] ->
+                          {Ast, {merge_info(Info, InfoAcc), TreeWalkerAcc}};
+                      _ ->
+                          Counter = TreeWalkerAcc#treewalker.counter,
+                          Name = list_to_atom(lists:concat([pre_render, Counter])),
+                          Ast1 = ?Q("'@Name@'(_@PresetVars@, RenderOptions)"),
+                          PreRenderAst = ?Q("'@Name@'(_Variables, RenderOptions) -> _@match, _@Ast.",
+                                            [{match, options_match_ast(Context, TreeWalkerAcc)}]),
+                          PreRenderAsts = Info#ast_info.pre_render_asts,
+                          Info1 = Info#ast_info{pre_render_asts = [PreRenderAst | PreRenderAsts]},
+                          {Ast1, {merge_info(Info1, InfoAcc), TreeWalkerAcc#treewalker{counter = Counter + 1}}}
+                  end
+          end,
+          {#ast_info{}, TreeWalker2},
+          AstInfoList),
+
     {{erl_syntax:list(AstList), Info}, TreeWalker3}.
 
 
