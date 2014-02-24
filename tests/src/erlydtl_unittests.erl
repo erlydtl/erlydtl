@@ -284,7 +284,7 @@ tests() ->
                <<"{% for outer in list %}{% for inner in outer %}({{ forloop.parentloop.counter0 }}, {{ forloop.counter0 }})\n{% endfor %}{% endfor %}">>,
                [{'list', [["One", "two"], ["One", "two"]]}], [], [], <<"(0, 0)\n(0, 1)\n(1, 0)\n(1, 1)\n">>,
                %% the warnings we get from the erlang compiler still needs some care..
-               [error_info("erlydtl_running_test", [{0, erl_lint, {unused_var, 'Var_inner/1_1:31'}}, no_out_dir])]},
+               [error_info([{0, erl_lint, {unused_var, 'Var_inner/1_1:31'}}, no_out_dir])]},
               {"If changed",
                <<"{% for x in list %}{% ifchanged %}{{ x }}\n{% endifchanged %}{% endfor %}">>,
                [{'list', ["one", "two", "two", "three", "three", "three"]}], <<"one\ntwo\nthree\n">>},
@@ -1499,21 +1499,24 @@ generate_test_date() ->
 
 
 default_warnings() ->
-    [error_info([no_out_dir])].
+    [error_info([no_out_dir], erlydtl_beam_compiler)].
 
-error_info(File, Ws) ->
-    {File, [error_info(W) || W <- Ws]}.
+error_info(File, Ws, Mod) ->
+    {File, [error_info(W, Mod) || W <- Ws]}.
 
-error_info({Line, ErrorDesc})
+error_info({Line, ErrorDesc}, Mod)
   when is_integer(Line) ->
-  {Line, erlydtl_compiler, ErrorDesc};
-error_info({Line, Module, _}=ErrorDesc)
+  {Line, Mod, ErrorDesc};
+error_info({Line, Module, _}=ErrorDesc, _Mod)
   when is_integer(Line), is_atom(Module) ->
     ErrorDesc;
-error_info({{Line, Col}, Module, _}=ErrorDesc)
+error_info({{Line, Col}, Module, _}=ErrorDesc, _Mod)
   when is_integer(Line), is_integer(Col), is_atom(Module) ->
     ErrorDesc;
-error_info(Ws) when is_list(Ws) ->
-    error_info("erlydtl_running_test", Ws);
-error_info(ErrorDesc) ->
-    {none, erlydtl_compiler, ErrorDesc}.
+error_info(Ws, Mod) when is_list(Ws) ->
+    error_info("erlydtl_running_test", Ws, Mod);
+error_info(ErrorDesc, Mod) ->
+    {none, Mod, ErrorDesc}.
+
+error_info(Ei) ->
+    error_info(Ei, erlydtl_beam_compiler).

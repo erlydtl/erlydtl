@@ -7,6 +7,8 @@
 %% Include files
 %%
 
+-include("include/erlydtl_ext.hrl").
+
 -define(bail(Fmt, Args),
         throw(lists:flatten(io_lib:format(Fmt, Args)))).
 
@@ -41,8 +43,8 @@ parse_file(Path) ->
     end.
 
 process_content(Path,Content)->
-    case erlydtl_compiler:parse(Content) of
-        {ok, Data, _} ->
+    case erlydtl_compiler:do_parse_template(Content, #dtl_context{}) of
+        {ok, Data} ->
             {ok, Result} = process_ast(Path, Data),
             Result;
         Error ->

@@ -23,9 +23,9 @@ parse(State) ->
 
 %% {{ varA or varB }} is equivalent to {% if varA %}{{ varA }}{% else %}{{ varB }}{% endif %}
 compile_ast({value_or, {Value1, Value2}}, Context, TreeWalker) ->
-    {{V1_Ast, V1_Info}, TW1} = erlydtl_compiler:value_ast(Value1, false, false, Context, TreeWalker),
-    {{V2_Ast, V2_Info}, TW2} = erlydtl_compiler:value_ast(Value2, false, false, Context, TW1),
+    {{V1_Ast, V1_Info}, TW1} = erlydtl_beam_compiler:value_ast(Value1, false, false, Context, TreeWalker),
+    {{V2_Ast, V2_Info}, TW2} = erlydtl_beam_compiler:value_ast(Value2, false, false, Context, TW1),
     {{erl_syntax:case_expr(V1_Ast,
                            [erl_syntax:clause([erl_syntax:atom(undefined)], none, [V2_Ast]),
                             erl_syntax:clause([erl_syntax:underscore()], none, [V1_Ast])
-                           ]), erlydtl_compiler:merge_info(V1_Info, V2_Info)}, TW2}.
+                           ]), erlydtl_compiler_utils:merge_info(V1_Info, V2_Info)}, TW2}.

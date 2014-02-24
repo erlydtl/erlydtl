@@ -48,7 +48,7 @@ test_list() ->
      "custom_tag2", "custom_tag3", "custom_tag4", "custom_call",
      "include_template", "include_path", "ssi", "extends_path",
      "extends_path2", "trans", "extends2", "extends3",
-     "recursive_block", "extend_recursive_block"
+     "recursive_block", "extend_recursive_block", "missing"
     ].
 
 setup_compile("for_list_preset") ->
@@ -77,12 +77,16 @@ setup_compile("var_preset") ->
     {ok, CompileVars};
 setup_compile("extends2") ->
     File = templates_dir("input/extends2"),
-    Error = {none, erlydtl_compiler, unexpected_extends_tag},
+    Error = {none, erlydtl_beam_compiler, unexpected_extends_tag},
     {{error, [{File, [Error]}], []}, []};
 setup_compile("extends3") ->
     File = templates_dir("input/extends3"),
     Include = templates_dir("input/imaginary"),
-    Error = {none, erlydtl_compiler, {read_file, Include, enoent}},
+    Error = {none, erlydtl_beam_compiler, {read_file, Include, enoent}},
+    {{error, [{File, [Error]}], []}, []};
+setup_compile("missing") ->
+    File = templates_dir("input/missing"),
+    Error = {none, erlydtl_compiler, {read_file, File, enoent}},
     {{error, [{File, [Error]}], []}, []};
 setup_compile(_) ->
     {ok, []}.
@@ -260,7 +264,7 @@ test_compile_render(Name) ->
                        {custom_tags_modules, [erlydtl_custom_tags]}],
             io:format("compiling ... "),
             case erlydtl:compile(File, Module, Options) of
-                {ok, Mod, [{File, [{none,erlydtl_compiler,no_out_dir}]}]} ->
+                {ok, Mod, [{File, [{none,erlydtl_beam_compiler,no_out_dir}]}]} ->
                     if CompileStatus =:= ok -> test_render(Name, Mod);
                        true ->
                             io:format("missing error"),

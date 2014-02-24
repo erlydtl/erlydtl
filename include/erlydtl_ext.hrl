@@ -54,3 +54,7 @@
           pos={1,1},
           state=in_text
         }).
+
+
+-define(ERR(Err, Ctx), erlydtl_compiler_utils:add_error(?MODULE, Err, Ctx)).
+-define(WARN(Warn, Ctx), erlydtl_compiler_utils:add_warning(?MODULE, Warn, Ctx)).

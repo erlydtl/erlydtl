@@ -2,7 +2,9 @@
 %%% File:      erlydtl.erl
 %%% @author    Roberto Saccon <rsaccon@gmail.com> [http://rsaccon.com]
 %%% @author    Evan Miller <emmiller@gmail.com>
+%%% @author    Andreas Stenius <kaos@astekk.se>
 %%% @copyright 2008 Roberto Saccon, Evan Miller
+%%% @copyright 2014 Andreas Stenius
 %%% @doc
 %%% Public interface for ErlyDTL
 %%% @end
@@ -10,6 +12,7 @@
 %%% The MIT License
 %%%
 %%% Copyright (c) 2008 Roberto Saccon, Evan Miller
+%%% Copyright (c) 2014 Andreas Stenius
 %%%
 %%% Permission is hereby granted, free of charge, to any person obtaining a copy
 %%% of this software and associated documentation files (the "Software"), to deal
@@ -30,12 +33,18 @@
 %%% THE SOFTWARE.
 %%%
 %%% @since 2007-11-11 by Roberto Saccon, Evan Miller
+%%% @since 2014 by Andreas Stenius
 %%%-------------------------------------------------------------------
 -module(erlydtl).
 -author('rsaccon@gmail.com').
 -author('emmiller@gmail.com').
+-author('Andreas Stenius <kaos@astekk.se>').
 
+
+%% --------------------------------------------------------------------
 %% API
+%% --------------------------------------------------------------------
+
 -export([compile_file/2, compile_file/3]).
 -export([compile_template/2, compile_template/3]).
 -export([compile/2, compile/3]).
@@ -50,6 +59,11 @@
 -type ok_ret() :: {ok, Module::atom()} | {ok, Module::atom(), warnings()}.
 -type err_ret() :: error | {error, errors(), warnings()}.
 
+
+%% --------------------------------------------------------------------
+%% Compile file
+%% --------------------------------------------------------------------
+
 -spec compile_file( list() | binary(), atom() ) -> {ok, Module::atom()} | error.
 compile_file(File, Module) ->
     erlydtl_compiler:compile_file(File, Module, erlydtl_compiler:default_options()).
@@ -57,6 +71,11 @@ compile_file(File, Module) ->
 -spec compile_file( list() | binary(), atom(), list() ) -> ok_ret() | err_ret().
 compile_file(File, Module, Options) ->
     erlydtl_compiler:compile_file(File, Module, Options).
+
+
+%% --------------------------------------------------------------------
+%% Compile template
+%% --------------------------------------------------------------------
 
 -spec compile_template( list() | binary(), atom() ) -> {ok, Module::atom()} | error.
 compile_template(Template, Module) ->
@@ -66,6 +85,11 @@ compile_template(Template, Module) ->
 compile_template(Template, Module, Options) ->
     erlydtl_compiler:compile_template(Template, Module, Options).
 
+
+%% --------------------------------------------------------------------
+%% Compile directory
+%% --------------------------------------------------------------------
+
 -spec compile_dir(list() | binary(), atom()) -> {ok, Module::atom()} | error.
 compile_dir(DirectoryPath, Module) ->
     erlydtl_compiler:compile_dir(DirectoryPath, Module, erlydtl_compiler:default_options()).
@@ -74,6 +98,10 @@ compile_dir(DirectoryPath, Module) ->
 compile_dir(DirectoryPath, Module, Options) ->
     erlydtl_compiler:compile_dir(DirectoryPath, Module, Options).
 
+
+%% --------------------------------------------------------------------
+%% Legacy API
+%% --------------------------------------------------------------------
 
 %% keep for backwards compatibility, with a tuple-twist to ease migration / offer alternative path..
 -spec compile(FileOrBinary, atom() ) -> {ok, Module::atom()} | error

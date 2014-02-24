@@ -2,12 +2,14 @@
 
 -export([extract/1]).
 
+-include("include/erlydtl_ext.hrl").
+
 extract(Path) when is_list(Path) ->
     {ok, Contents} = file:read_file(Path),
     extract(Contents);
 
 extract(Contents) when is_binary(Contents) ->
-    case erlydtl_compiler:parse(Contents) of
+    case erlydtl_compiler:do_parse_template(Contents, #dtl_context{}) of
         {ok, ParseTree} ->
             Blocks = process_tree(ParseTree),
             {ok, Blocks};
