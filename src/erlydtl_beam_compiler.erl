@@ -146,13 +146,13 @@ compile_multiple_to_binary(Dir, ParserResults, Context0) ->
                                                                {FilePath, CheckSum},
                                                                body_ast(DjangoParseTree, Ctx, TreeWalker)),
                         FunctionName = filename:rootname(filename:basename(File)),
-                        Function1 = ?Q("_@FunctionName@(Variables) -> _@FunctionName@(Variables, [])"),
-                        Function2 = ?Q(["_@FunctionName@(Variables, RenderOptions) ->",
+                        Function1 = ?Q("'@FunctionName@'(Variables) -> _@FunctionName@(Variables, [])."),
+                        Function2 = ?Q(["'@FunctionName@'(Variables, RenderOptions) ->",
                                         "  try _@MatchAst, _@body of",
                                         "    Val -> {ok, Val}",
                                         "  catch",
                                         "    Err -> {error, Err}",
-                                        "end"],
+                                        "  end."],
                                        [{body, stringify(BodyAst, Ctx)}]),
                         {{FunctionName, Function1, Function2}, {merge_info(AstInfo, BodyInfo), TreeWalker1, Ctx}}
                     catch
