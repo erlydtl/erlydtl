@@ -4,20 +4,18 @@ REBAR=./rebar $(REBAR_ARGS)
 
 all: compile
 
-compile: check-slex deps/merl
+compile: check-slex get-deps
 	@$(REBAR) compile
 
 check-slex: src/erlydtl_scanner.erl
 src/erlydtl_scanner.erl: src/erlydtl_scanner.slex
 	@echo Notice: $@ is outdated by $<, consider running "'make slex'".
 
-deps/merl:
+get-deps:
 	@$(REBAR) get-deps
-	@echo "Make merl..." ; $(MAKE) -C deps/merl
 
-update:
+update-deps:
 	@$(REBAR) update-deps
-	@echo "Make merl..." ; $(MAKE) -C deps/merl
 
 compile_test:
 	-mkdir -p ebintest
