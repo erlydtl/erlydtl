@@ -1180,7 +1180,12 @@ tests() ->
                    [{name, [{first,"Bill"},{last,"Buffalo"}]}],
                    [{name, [{first,"Margaret"},{last,"Costanza"}]}],
                    [{name, [{first,"Condi"},{last,"Buffalo"}]}]]}],
-        <<"Buffalo\nBill\nCondi\nCostanza\nGeorge\nMargaret\n">>}
+        <<"Buffalo\nBill\nCondi\nCostanza\nGeorge\nMargaret\n">>},
+       {"With surrounding context",
+        <<"People: {% regroup people by gender as gender_list %}{% for gender in gender_list %}{{ gender.grouper }}\n{% for item in gender.list %}{{ item.first_name }}\n{% endfor %}{% endfor %}Done.">>,
+        [{people, [[{first_name, "George"}, {gender, "Male"}], [{first_name, "Bill"}, {gender, "Male"}],
+                   [{first_name, "Margaret"}, {gender, "Female"}], [{first_name, "Condi"}, {gender, "Female"}]]}],
+        <<"People: Male\nGeorge\nBill\nFemale\nMargaret\nCondi\nDone.">>}
       ]},
      {"spaceless", [
                     {"Beginning", <<"{% spaceless %}    <b>foo</b>{% endspaceless %}">>, [], <<"<b>foo</b>">>},
