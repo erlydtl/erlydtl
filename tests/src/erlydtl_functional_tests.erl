@@ -239,6 +239,7 @@ fold_tests() ->
                         Res = case catch test_compile_render(Name) of
                                   ok -> {AccCount + 1, AccErrs};
                                   {'EXIT', Reason} ->
+                                      io:format("crash"),
                                       {AccCount + 1, [{Name, crash,
                                                        io_lib:format("~p", [Reason])}
                                                       | AccErrs]};

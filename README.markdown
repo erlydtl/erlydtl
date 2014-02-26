@@ -243,8 +243,9 @@ Differences from standard Django Template Language
   tag is not implemented. This should be
   [addressed](https://github.com/erlydtl/erlydtl/issues/115) in a
   future release.
-* `regroup` requires a closing `endregroup` tag. See
-  [Issue #101](https://github.com/erlydtl/erlydtl/issues/101).
+* For an up-to-date list, see all
+  [issues](https://github.com/erlydtl/erlydtl/issues) marked
+  `dtl_compat`.
 
 
 Tests
@@ -254,7 +255,7 @@ From a Unix shell, run:
 
     make test
 
-Note that the tests will create some output in tests/output.
+Note that the tests will create some output in tests/output in case of regressions.
 
 
 [![Bitdeli Badge](https://d2weczhvl823v0.cloudfront.net/erlydtl/erlydtl/trend.png)](https://bitdeli.com/free "Bitdeli Badge")

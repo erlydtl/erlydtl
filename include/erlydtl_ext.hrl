@@ -45,7 +45,8 @@
 -record(treewalker, {
           counter = 0,
           safe = false,
-          extension = undefined
+          extension = undefined,
+          context
          }).    
 
 -record(scanner_state, {

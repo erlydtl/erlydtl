@@ -284,7 +284,7 @@ tests() ->
                <<"{% for outer in list %}{% for inner in outer %}({{ forloop.parentloop.counter0 }}, {{ forloop.counter0 }})\n{% endfor %}{% endfor %}">>,
                [{'list', [["One", "two"], ["One", "two"]]}], [], [], <<"(0, 0)\n(0, 1)\n(1, 0)\n(1, 1)\n">>,
                %% the warnings we get from the erlang compiler still needs some care..
-               [error_info([{0, erl_lint, {unused_var, 'Var_inner/1_1:31'}}, no_out_dir])]},
+               [error_info([{0, erl_lint, {unused_var, 'Var_inner/3_1:31'}}, no_out_dir])]},
               {"If changed",
                <<"{% for x in list %}{% ifchanged %}{{ x }}\n{% endifchanged %}{% endfor %}">>,
                [{'list', ["one", "two", "two", "three", "three", "three"]}], <<"one\ntwo\nthree\n">>},
@@ -1389,10 +1389,10 @@ run_tests() ->
         0 ->
             io:format("~nAll unit tests PASS~nTotal~s (msec)~n~n", [format_times(Times)]);
         Length ->
-            io:format("~n### FAILED groups: ~b ####~n", [Length]),
+            io:format("~n~n### FAILED groups: ~b ####~n", [Length]),
             [begin
-                 io:format("  Group: ~s (~b failures)~n", [Group, length(Failed)]),
-                 [io:format("    Test: ~s~n~s~n", [Name, Error])
+                 io:format("~n  Group: ~s (~b failures)~n", [Group, length(Failed)]),
+                 [io:format("~n  Test: ~s~n    ~s~n", [Name, Error])
                   || {Name, Error} <- lists:reverse(Failed)]
              end || {Group, Failed} <- lists:reverse(Failures)],
             throw(failed)
@@ -1419,7 +1419,7 @@ format_times(Ts, Count) ->
 
 format_error(Name, Class, Error) ->
     io:format("!"),
-    {Name, io_lib:format("~s:~p~n  ~p", [Class, Error, erlang:get_stacktrace()])}.
+    {Name, io_lib:format("~s:~p~n    ~p", [Class, Error, erlang:get_stacktrace()])}.
 
 compile_test(DTL, Opts) ->
     Options = [force_recompile,

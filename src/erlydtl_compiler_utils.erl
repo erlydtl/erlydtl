@@ -55,7 +55,15 @@
          merge_info/2,
          print/3,
          to_string/2,
-         unescape_string_literal/1
+         unescape_string_literal/1,
+         reset_parse_trail/2,
+         resolve_variable/2,
+         resolve_variable/3,
+         push_scope/2,
+         restore_scope/2,
+         begin_scope/1,
+         begin_scope/3,
+         end_scope/4
         ]).
 
 -include("erlydtl_ext.hrl").
@@ -66,7 +74,7 @@
 %% --------------------------------------------------------------------
 
 init_treewalker(Context) ->
-    TreeWalker = #treewalker{},
+    TreeWalker = #treewalker{ context=Context },
     case call_extension(Context, init_treewalker, [TreeWalker]) of
         {ok, TW} when is_record(TW, treewalker) -> TW;
         undefined -> TreeWalker
@@ -89,6 +97,8 @@ full_path(File, DocRoot) ->
 print(Fmt, Args, #dtl_context{ verbose = true }) -> io:format(Fmt, Args);
 print(_Fmt, _Args, _Context) -> ok.
 
+get_current_file(#treewalker{ context=Context }) ->
+    get_current_file(Context);
 get_current_file(#dtl_context{ parse_trail=[File|_] }) -> File;
 get_current_file(#dtl_context{ doc_root=Root }) -> Root.
 
@@ -126,6 +136,8 @@ add_warnings(Warnings, Context) ->
       fun (W, C) -> add_warning(?MODULE, W, C) end,
       Context, Warnings).
 
+call_extension(#treewalker{ context=Context }, Fun, Args) ->
+    call_extension(Context, Fun, Args);
 call_extension(#dtl_context{ extension_module=undefined }, _Fun, _Args) ->
     undefined;
 call_extension(#dtl_context{ extension_module=Mod }, Fun, Args)
@@ -178,7 +190,39 @@ merge_info(Info1, Info2) ->
              Info1#ast_info.pre_render_asts,
              Info2#ast_info.pre_render_asts)}.
 
-    
+resolve_variable(VarName, TreeWalker) ->
+    resolve_variable(VarName, undefined, TreeWalker).
+
+resolve_variable(VarName, Default, #treewalker{ context=Context }) ->
+    resolve_variable1(Context#dtl_context.local_scopes, VarName, Default).
+
+push_scope(Scope, #treewalker{ context=Context }=TreeWalker) ->
+    TreeWalker#treewalker{ context=push_scope(Scope, Context) };
+push_scope(Scope, #dtl_context{ local_scopes=Scopes }=Context) ->
+    Context#dtl_context{ local_scopes=[Scope|Scopes] }.
+
+restore_scope(Target, #treewalker{ context=Context }=TreeWalker) ->
+    TreeWalker#treewalker{ context=restore_scope(Target, Context) };
+restore_scope(#treewalker{ context=Target }, Context) ->
+    restore_scope(Target, Context);
+restore_scope(#dtl_context{ local_scopes=Scopes }, Context) ->
+    Context#dtl_context{ local_scopes=Scopes }.
+
+begin_scope(TreeWalker) -> begin_scope([], [], TreeWalker).
+
+begin_scope(Scope, Values, TreeWalker) ->
+    Id = make_ref(),
+    {Id, push_scope({Id, Scope, Values}, TreeWalker)}.
+
+end_scope(Fun, Id, AstList, TreeWalker) ->
+    close_scope(Fun, Id, AstList, TreeWalker).
+
+reset_parse_trail(ParseTrail, #treewalker{ context=Context }=TreeWalker) ->
+    TreeWalker#treewalker{ context=reset_parse_trail(ParseTrail, Context) };
+reset_parse_trail(ParseTrail, Context) ->
+    Context#dtl_context{ parse_trail=ParseTrail }.
+
+
 format_error(Other) ->
     io_lib:format("## Error description for ~p not implemented.", [Other]).
 
@@ -252,3 +296,54 @@ pos_info(Line) when is_integer(Line) ->
     io_lib:format("~b: ", [Line]);
 pos_info({Line, Col}) when is_integer(Line), is_integer(Col) ->
     io_lib:format("~b:~b ", [Line, Col]).
+
+resolve_variable1([], _VarName, Default) -> Default;
+resolve_variable1([Scope|Scopes], VarName, Default) ->
+    case proplists:get_value(VarName, get_scope(Scope), Default) of
+        Default ->
+            resolve_variable1(Scopes, VarName, Default);
+        Value -> Value
+    end.
+
+get_scope({_Id, Scope, _Values}) -> Scope;
+get_scope(Scope) -> Scope.
+
+close_scope(Fun, Id, AstList, TreeWalker) ->
+    case merge_scopes(Id, TreeWalker) of
+        {[], TreeWalker1} -> {AstList, TreeWalker1};
+        {Values, TreeWalker1} ->
+            {lists:foldl(
+               fun ({ScopeId, ScopeValues}, AstAcc) ->
+                       {Pre, Target, Post} = split_ast(ScopeId, AstAcc),
+                       Pre ++ Fun(ScopeValues ++ Target) ++ Post
+               end,
+               AstList, Values),
+             TreeWalker1}
+    end.
+
+merge_scopes(Id, #treewalker{ context=Context }=TreeWalker) ->
+    {Values, Scopes} = merge_scopes(Id, Context#dtl_context.local_scopes, []),
+    {Values, TreeWalker#treewalker{ context=Context#dtl_context{ local_scopes = Scopes } }}.
+
+merge_scopes(Id, [{Id, _Scope, []}|Scopes], Acc) -> {Acc, Scopes};
+merge_scopes(Id, [{_ScopeId, _Scope, []}|Scopes], Acc) ->
+    merge_scopes(Id, Scopes, Acc);
+merge_scopes(Id, [{ScopeId, _Scope, Values}|Scopes], Acc) ->
+    merge_scopes(Id, Scopes, [{ScopeId, Values}|Acc]);
+merge_scopes(Id, [_PlainScope|Scopes], Acc) ->
+    merge_scopes(Id, Scopes, Acc).
+
+
+split_ast(Id, AstList) ->
+    split_ast(Id, AstList, []).
+
+split_ast(_Split, [], {Pre, Acc}) ->
+    {Pre, lists:reverse(Acc), []};
+split_ast(Split, [Split|Rest], {Pre, Acc}) ->
+    {Pre, lists:reverse(Acc), Rest};
+split_ast(Split, [Split|Rest], Acc) ->
+    split_ast(end_scope, Rest, {lists:reverse(Acc), []});
+split_ast(Split, [Ast|Rest], {Pre, Acc}) ->
+    split_ast(Split, Rest, {Pre, [Ast|Acc]});
+split_ast(Split, [Ast|Rest], Acc) ->
+    split_ast(Split, Rest, [Ast|Acc]).
