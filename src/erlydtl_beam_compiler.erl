@@ -631,6 +631,8 @@ body_ast(DjangoParseTree, TreeWalker) ->
                   widthratio_ast(Numerator, Denominator, Scale, TW);
               ({'with', Args, Contents}, TW) ->
                   with_ast(Args, Contents, TW);
+              ({'scope_as', {identifier, _, Name}, Contents}, TW) ->
+                  scope_as(Name, Contents, TW);
               ({'extension', Tag}, TW) ->
                   extension_ast(Tag, TW);
               ({'extends', _}, _TW) ->
@@ -1137,6 +1139,15 @@ with_ast(ArgList, Contents, TreeWalker) ->
          [{args, element(2, lists:unzip(NewScope))}]),
       merge_info(ArgInfo, InnerInfo)},
      restore_scope(TreeWalker1, TreeWalker2)}.
+
+scope_as(VarName, Contents, TreeWalker) ->
+    {{ContentsAst, ContentsInfo}, TreeWalker1} = body_ast(Contents, TreeWalker),
+    VarAst = merl:var(lists:concat(["Var_", VarName])),
+    {Id, TreeWalker2} = begin_scope(
+                          [{VarName, VarAst}],
+                          [?Q("_@VarAst = _@ContentsAst")],
+                          TreeWalker1),
+    {{Id, ContentsInfo}, TreeWalker2}.
 
 regroup_ast(ListVariable, GrouperVariable, LocalVarName, TreeWalker) ->
     {{ListAst, ListInfo}, TreeWalker1} = value_ast(ListVariable, false, true, TreeWalker),

@@ -114,6 +114,7 @@ Nonterminals
     BlockTransBlock
     BlockTransContent
     TransTag    
+    TransText
 
     TemplatetagTag
     Templatetag
@@ -385,10 +386,12 @@ Templatetag -> closebrace_keyword : '$1'.
 Templatetag -> opencomment_keyword : '$1'.
 Templatetag -> closecomment_keyword : '$1'.
 
-TransTag -> open_tag trans_keyword string_literal close_tag : {trans, '$3'}.
-TransTag -> open_tag trans_keyword Variable close_tag : {trans, '$3'}.
-TransTag -> open_tag trans_keyword string_literal noop_keyword close_tag : '$3'.
-TransTag -> open_tag trans_keyword Variable noop_keyword close_tag : '$3'.
+TransTag -> open_tag trans_keyword TransText close_tag : {trans, '$3'}.
+TransTag -> open_tag trans_keyword TransText as_keyword identifier close_tag : {scope_as, '$5', [{trans, '$3'}]}.
+TransTag -> open_tag trans_keyword TransText noop_keyword close_tag : '$3'.
+
+TransText -> string_literal : '$1'.
+TransText -> Variable : '$1'.
 
 WidthRatioTag -> open_tag widthratio_keyword Value Value number_literal close_tag : {widthratio, '$3', '$4', '$5'}.
 

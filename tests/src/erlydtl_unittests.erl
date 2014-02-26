@@ -1219,7 +1219,10 @@ tests() ->
         <<"Hello Hi">>},
        {"trans variable at run-time: No-op",
         <<"Hello {% trans var1 noop %}">>, [{var1, <<"Hi">>}], [{translation_fun, fun(<<"Hi">>) -> <<"Konichiwa">> end}], [],
-        <<"Hello Hi">>}
+        <<"Hello Hi">>},
+       {"trans as",
+        <<"{% trans 'Hans' as name %}Hello {{ name }}">>, [], <<"Hello Hans">>
+       }
       ]},
      {"blocktrans",
       [
