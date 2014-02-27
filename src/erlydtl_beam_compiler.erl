@@ -1072,19 +1072,20 @@ resolve_variable_ast1({attribute, {{_, Pos, Attr}, Variable}}, {Runtime, Finder}
      TreeWalker1};
 
 resolve_variable_ast1({variable, {identifier, Pos, VarName}}, {Runtime, Finder}, TreeWalker) ->
-    VarValue = case resolve_variable(VarName, TreeWalker) of
-                   undefined ->
-                       FileName = get_current_file(TreeWalker),
-                       ?Q(["'@Runtime@':'@Finder@'(",
-                           "  _@VarName@, _Variables,",
-                           "  [{filename, _@FileName@},",
-                           "   {pos, _@Pos@},",
-                           "   {record_info, _RecordInfo},",
-                           "   {render_options, RenderOptions}])"]);
-                   Val ->
-                       Val
-               end,
-    {{VarValue, #ast_info{ var_names=[VarName] }}, TreeWalker}.
+    Ast = case resolve_variable(VarName, TreeWalker) of
+              undefined ->
+                  FileName = get_current_file(TreeWalker),
+                  {?Q(["'@Runtime@':'@Finder@'(",
+                       "  _@VarName@, _Variables,",
+                       "  [{filename, _@FileName@},",
+                       "   {pos, _@Pos@},",
+                       "   {record_info, _RecordInfo},",
+                       "   {render_options, RenderOptions}])"]),
+                   #ast_info{ var_names=[VarName] }};
+              Val ->
+                  {Val, #ast_info{}}
+          end,
+    {Ast, TreeWalker}.
 
 format(Ast, TreeWalker) ->
     auto_escape(format_number_ast(Ast), TreeWalker).
