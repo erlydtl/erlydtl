@@ -1,0 +1,3 @@
+{% extends "base" %}
+{% block title %}extending title: "{{ block.super }}"{% endblock %}
+{% block content %}replacing the base content - variable: {{ test_var }} after variable. Was: {{ block.super }}{% endblock %}

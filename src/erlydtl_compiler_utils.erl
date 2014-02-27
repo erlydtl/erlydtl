@@ -62,8 +62,9 @@
          push_scope/2,
          restore_scope/2,
          begin_scope/1,
-         begin_scope/3,
-         end_scope/4
+         begin_scope/2,
+         end_scope/4,
+         empty_scope/0
         ]).
 
 -include("erlydtl_ext.hrl").
@@ -208,14 +209,16 @@ restore_scope(#treewalker{ context=Target }, Context) ->
 restore_scope(#dtl_context{ local_scopes=Scopes }, Context) ->
     Context#dtl_context{ local_scopes=Scopes }.
 
-begin_scope(TreeWalker) -> begin_scope([], [], TreeWalker).
+begin_scope(TreeWalker) -> begin_scope(empty_scope(), TreeWalker).
 
-begin_scope(Scope, Values, TreeWalker) ->
+begin_scope({Scope, Values}, TreeWalker) ->
     Id = make_ref(),
     {Id, push_scope({Id, Scope, Values}, TreeWalker)}.
 
 end_scope(Fun, Id, AstList, TreeWalker) ->
     close_scope(Fun, Id, AstList, TreeWalker).
+
+empty_scope() -> {[], []}.
 
 reset_parse_trail(ParseTrail, #treewalker{ context=Context }=TreeWalker) ->
     TreeWalker#treewalker{ context=reset_parse_trail(ParseTrail, Context) };
@@ -323,9 +326,14 @@ close_scope(Fun, Id, AstList, TreeWalker) ->
 
 merge_scopes(Id, #treewalker{ context=Context }=TreeWalker) ->
     {Values, Scopes} = merge_scopes(Id, Context#dtl_context.local_scopes, []),
-    {Values, TreeWalker#treewalker{ context=Context#dtl_context{ local_scopes = Scopes } }}.
+    {lists:reverse(Values),
+     TreeWalker#treewalker{
+       context=Context#dtl_context{
+                 local_scopes = Scopes
+                } }}.
 
 merge_scopes(Id, [{Id, _Scope, []}|Scopes], Acc) -> {Acc, Scopes};
+merge_scopes(Id, [{Id, _Scope, Values}|Scopes], Acc) -> {[{Id, Values}|Acc], Scopes};
 merge_scopes(Id, [{_ScopeId, _Scope, []}|Scopes], Acc) ->
     merge_scopes(Id, Scopes, Acc);
 merge_scopes(Id, [{ScopeId, _Scope, Values}|Scopes], Acc) ->
@@ -339,6 +347,8 @@ split_ast(Id, AstList) ->
 
 split_ast(_Split, [], {Pre, Acc}) ->
     {Pre, lists:reverse(Acc), []};
+split_ast(_Split, [], Acc) ->
+    {[], lists:reverse(Acc), []};
 split_ast(Split, [Split|Rest], {Pre, Acc}) ->
     {Pre, lists:reverse(Acc), Rest};
 split_ast(Split, [Split|Rest], Acc) ->

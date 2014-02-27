@@ -1,0 +1,11 @@
+base-barstring
+
+base template
+
+extending title: "base title"
+
+more of base template
+
+replacing the base content - variable: test-barstring after variable. Was: base content
+
+end of base template

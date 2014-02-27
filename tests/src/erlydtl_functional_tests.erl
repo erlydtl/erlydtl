@@ -48,7 +48,8 @@ test_list() ->
      "custom_tag2", "custom_tag3", "custom_tag4", "custom_call",
      "include_template", "include_path", "ssi", "extends_path",
      "extends_path2", "trans", "extends2", "extends3",
-     "recursive_block", "extend_recursive_block", "missing"
+     "recursive_block", "extend_recursive_block", "missing",
+     "block_super"
     ].
 
 setup_compile("for_list_preset") ->
@@ -102,6 +103,11 @@ setup("autoescape") ->
 setup("extends") ->
     RenderVars = [{base_var, "base-barstring"}, {test_var, "test-barstring"}],
     {ok, RenderVars};
+setup("include_template") -> setup("extends");
+setup("include_path") -> setup("extends");
+setup("extends_path") -> setup("extends");
+setup("extends_path2") -> setup("extends");
+setup("block_super") -> setup("extends");
 setup("filters") ->
     RenderVars = [
                   {date_var1, {1975,7,24}},
@@ -157,18 +163,6 @@ setup("cycle") ->
     RenderVars = [{test, [integer_to_list(X) || X <- lists:seq(1, 20)]},
                   {a, "Apple"}, {b, "Banana"}, {c, "Cherry"}],
     {ok, RenderVars};
-setup("include_template") ->
-    RenderVars = [{base_var, "base-barstring"}, {test_var, "test-barstring"}],
-    {ok, RenderVars};
-setup("include_path") ->
-    RenderVars = [{base_var, "base-barstring"}, {test_var, "test-barstring"}],
-    {ok, RenderVars};
-setup("extends_path") ->
-    RenderVars = [{base_var, "base-barstring"}, {test_var, "test-barstring"}],
-    {ok, RenderVars};
-setup("extends_path2") ->
-    RenderVars = [{base_var, "base-barstring"}, {test_var, "test-barstring"}],
-    {ok, RenderVars};
 setup("trans") ->
     RenderVars = [{locale, "reverse"}],
     {ok, RenderVars};
@@ -185,8 +179,6 @@ setup("custom_tag4") ->
 setup("ssi") ->
     RenderVars = [{path, filename:absname(filename:join(["tests", "input", "ssi_include.html"]))}],
     {ok, RenderVars};
-
-
 %%--------------------------------------------------------------------
 %% Custom tags
 %%--------------------------------------------------------------------
@@ -311,7 +303,11 @@ test_render(Name, Module) ->
                               fun(F) -> file:write_file(F, Data) end),
                             {error, io_lib:format(
                                       "Expected output does not match rendered output~n"
-                                      "==Expected==~n~p~n--Actual--~n~p~n==End==~n",
+                                      "  ==Expected==~n"
+                                      "~s~n"
+                                      "  --Actual--~n"
+                                      "~s~n"
+                                      "  ==End==~n",
                                       [RenderResult, Data])}
                     end;
                true ->

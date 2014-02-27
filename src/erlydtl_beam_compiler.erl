@@ -59,10 +59,10 @@
 
 -import(erlydtl_compiler_utils,
         [unescape_string_literal/1, full_path/2, push_scope/2,
-         restore_scope/2, begin_scope/1, begin_scope/3, end_scope/4,
-         print/3, get_current_file/1, add_errors/2, add_warnings/2,
-         merge_info/2, call_extension/3, init_treewalker/1,
-         resolve_variable/2, resolve_variable/3,
+         restore_scope/2, begin_scope/1, begin_scope/2, end_scope/4,
+         empty_scope/0, print/3, get_current_file/1, add_errors/2,
+         add_warnings/2, merge_info/2, call_extension/3,
+         init_treewalker/1, resolve_variable/2, resolve_variable/3,
          reset_parse_trail/2]).
 
 -include_lib("merl/include/merl.hrl").
@@ -502,9 +502,10 @@ body_ast([{'extends', {string_literal, _Pos, String}} | ThisParseTree], #treewal
                     BlockDict = lists:foldl(
                                   fun ({block, {identifier, _, Name}, Contents}, Dict) ->
                                           dict:store(Name, Contents, Dict);
-                                      (_, Dict) ->
-                                          Dict
-                                  end, dict:new(), ThisParseTree),
+                                      (_, Dict) -> Dict
+                                  end,
+                                  dict:new(),
+                                  ThisParseTree),
                     {Info, TreeWalker1} = with_dependency(
                                             {File, CheckSum},
                                             body_ast(
@@ -525,17 +526,28 @@ body_ast([{'extends', {string_literal, _Pos, String}} | ThisParseTree], #treewal
 
 
 body_ast(DjangoParseTree, TreeWalker) ->
-    {ScopeId, TreeWalkerScope} = begin_scope(TreeWalker),
+    body_ast(DjangoParseTree, empty_scope(), TreeWalker).
+
+body_ast(DjangoParseTree, BodyScope, TreeWalker) ->
+    {ScopeId, TreeWalkerScope} = begin_scope(BodyScope, TreeWalker),
     {AstInfoList, TreeWalker1} =
         lists:mapfoldl(
           fun ({'autoescape', {identifier, _, OnOrOff}, Contents}, #treewalker{ context=Context }=TW) ->
                   body_ast(Contents, TW#treewalker{ context=Context#dtl_context{auto_escape = OnOrOff} });
-              ({'block', {identifier, _, Name}, Contents}, #treewalker{ context=Context }=TW) ->
-                  Block = case dict:find(Name, Context#dtl_context.block_dict) of
-                              {ok, ChildBlock} -> ChildBlock;
-                              _ -> Contents
-                          end,
-                  body_ast(Block, TW);
+              ({'block', {identifier, Pos, Name}, Contents}, #treewalker{ context=Context }=TW) ->
+                  {Block, BlockScope} =
+                      case dict:find(Name, Context#dtl_context.block_dict) of
+                          {ok, ChildBlock} ->
+                              {{ContentsAst, _ContentsInfo}, _ContentsTW} = body_ast(Contents, TW),
+                              {ChildBlock,
+                               create_scope(
+                                 [{block, ?Q("[{super, _@ContentsAst}]")}],
+                                 Pos, TW)
+                              };
+                          _ ->
+                              {Contents, empty_scope()}
+                      end,
+                  body_ast(Block, BlockScope, TW);
               ({'blocktrans', Args, Contents}, TW) ->
                   blocktrans_ast(Args, Contents, TW);
               ({'call', {identifier, _, Name}}, TW) ->
@@ -1144,8 +1156,8 @@ scope_as(VarName, Contents, TreeWalker) ->
     {{ContentsAst, ContentsInfo}, TreeWalker1} = body_ast(Contents, TreeWalker),
     VarAst = merl:var(lists:concat(["Var_", VarName])),
     {Id, TreeWalker2} = begin_scope(
-                          [{VarName, VarAst}],
-                          [?Q("_@VarAst = _@ContentsAst")],
+                          {[{VarName, VarAst}],
+                           [?Q("_@VarAst = _@ContentsAst")]},
                           TreeWalker1),
     {{Id, ContentsInfo}, TreeWalker2}.
 
@@ -1154,10 +1166,10 @@ regroup_ast(ListVariable, GrouperVariable, LocalVarName, TreeWalker) ->
     LocalVarAst = merl:var(lists:concat(["Var_", LocalVarName])),
 
     {Id, TreeWalker2} = begin_scope(
-                          [{LocalVarName, LocalVarAst}],
-                          [?Q("_@LocalVarAst = erlydtl_runtime:regroup(_@ListAst, _@regroup)",
-                              [{regroup, regroup_filter(GrouperVariable, [])}])
-                          ],
+                          {[{LocalVarName, LocalVarAst}],
+                           [?Q("_@LocalVarAst = erlydtl_runtime:regroup(_@ListAst, _@regroup)",
+                               [{regroup, regroup_filter(GrouperVariable, [])}])
+                           ]},
                           TreeWalker1),
 
     {{Id, ListInfo}, TreeWalker2}.
@@ -1371,3 +1383,20 @@ call_ast(Module, Variable, AstInfo, TreeWalker) ->
               "  {error, Reason} -> io_lib:format(\"error: ~p\", [Reason])",
               "end"]),
     with_dependencies(Module:dependencies(), {{Ast, AstInfo}, TreeWalker}).
+
+create_scope(Vars, VarScope) ->
+    {Scope, Values} =
+        lists:foldl(
+          fun ({Name, Value}, {VarAcc, ValueAcc}) ->
+                  NameAst = merl:var(lists:concat(["_Var_", Name, VarScope])),
+                  {[{Name, NameAst}|VarAcc],
+                   [?Q("_@NameAst = _@Value")|ValueAcc]
+                  }
+          end,
+          empty_scope(),
+          Vars),
+    {Scope, [Values]}.
+
+create_scope(Vars, {Row, Col}, #treewalker{ context=Context }) ->
+    Level = length(Context#dtl_context.local_scopes),
+    create_scope(Vars, lists:concat(["/", Level, "_", Row, ":", Col])).
