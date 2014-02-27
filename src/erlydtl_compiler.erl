@@ -86,8 +86,9 @@ format_error({read_file, File, Error}) ->
     io_lib:format(
       "Failed to include file ~s: ~s",
       [File, file:format_error(Error)]);
-format_error(Other) ->
-    io_lib:format("## Error description for ~p not implemented.", [Other]).
+format_error(Error) ->
+    erlydtl_compiler_utils:format_error(Error).
+
 
 
 %%====================================================================

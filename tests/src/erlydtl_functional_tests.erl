@@ -267,7 +267,10 @@ test_compile_render(Name) ->
                     io:format("ok");
                 Err ->
                     io:format("failed"),
-                    {compile_error, io_lib:format("Actual: ~p, Expected: ~p", [Err, CompileStatus])}
+                    {compile_error, io_lib:format(
+                                      "~n    Expected: ~p"
+                                      "~n    Actual: ~p~n",
+                                      [CompileStatus, Err])}
             end;
         skip -> io:format("skipped")
     end.

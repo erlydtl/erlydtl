@@ -54,6 +54,8 @@
          get_current_file/1,
          init_treewalker/1,
          load_library/2,
+         load_library/3,
+         load_library/4,
          merge_info/2,
          print/3,
          to_string/2,
@@ -105,6 +107,8 @@ get_current_file(#treewalker{ context=Context }) ->
 get_current_file(#dtl_context{ parse_trail=[File|_] }) -> File;
 get_current_file(#dtl_context{ doc_root=Root }) -> Root.
 
+add_error(Module, Error, #treewalker{ context=Context }=TreeWalker) ->
+    TreeWalker#treewalker{ context=add_error(Module, Error, Context) };
 add_error(Module, Error, #dtl_context{
                     errors=#error_info{ report=Report, list=Es }=Ei
                    }=Context) ->
@@ -116,11 +120,15 @@ add_error(Module, Error, #dtl_context{
       errors=Ei#error_info{ list=[Item|Es] }
      }.
 
+add_errors(Errors, #treewalker{ context=Context }=TreeWalker) ->
+    TreeWalker#treewalker{ context=add_errors(Errors, Context) };
 add_errors(Errors, Context) ->
     lists:foldl(
       fun (E, C) -> add_error(?MODULE, E, C) end,
       Context, Errors).
 
+add_warning(Module, Warning, #treewalker{ context=Context }=TreeWalker) ->
+    TreeWalker#treewalker{ context=add_warning(Module, Warning, Context) };
 add_warning(Module, Warning, #dtl_context{ warnings=warnings_as_errors }=Context) ->
     add_error(Module, Warning, Context);
 add_warning(Module, Warning, #dtl_context{
@@ -134,6 +142,8 @@ add_warning(Module, Warning, #dtl_context{
       warnings=Wi#error_info{ list=[Item|Ws] }
      }.
 
+add_warnings(Warnings, #treewalker{ context=Context }=TreeWalker) ->
+    TreeWalker#treewalker{ context=add_warnings(Warnings, Context) };
 add_warnings(Warnings, Context) ->
     lists:foldl(
       fun (W, C) -> add_warning(?MODULE, W, C) end,
@@ -227,17 +237,28 @@ reset_parse_trail(ParseTrail, #treewalker{ context=Context }=TreeWalker) ->
 reset_parse_trail(ParseTrail, Context) ->
     Context#dtl_context{ parse_trail=ParseTrail }.
 
-load_library(Lib, #treewalker{ context=Context }=TreeWalker) ->
-    TreeWalker#treewalker{ context=load_library(Lib, Context) };
-load_library(Lib, Context) ->
-    Mod = lib_module(Lib, Context),
-    add_filters(
-      [{Name, lib_function(Mod, Filter)}
-       || {Name, Filter} <- Mod:inventory(filters)],
-      add_tags(
-        [{Name, lib_function(Mod, Tag)}
-         || {Name, Tag} <- Mod:inventory(tags)],
-        Context)).
+load_library(Lib, Context) -> load_library(none, Lib, [], Context).
+load_library(Pos, Lib, Context) -> load_library(Pos, Lib, [], Context).
+
+load_library(Pos, Lib, Accept, #treewalker{ context=Context }=TreeWalker) ->
+    TreeWalker#treewalker{ context=load_library(Pos, Lib, Accept, Context) };
+load_library(Pos, Lib, Accept, Context) ->
+    case lib_module(Lib, Context) of
+        {ok, Mod} ->
+            add_filters(
+              [{Name, lib_function(Mod, Filter)}
+               || {Name, Filter} <- Mod:inventory(filters),
+                  Accept =:= [] orelse lists:member(Name, Accept)
+              ],
+              add_tags(
+                [{Name, lib_function(Mod, Tag)}
+                 || {Name, Tag} <- Mod:inventory(tags),
+                    Accept =:= [] orelse lists:member(Name, Accept)
+                ],
+                Context));
+        Error ->
+            ?WARN({Pos, Error}, Context)
+    end.
 
 add_filters(Load, #dtl_context{ filters=Filters }=Context) ->
     Context#dtl_context{ filters=Load ++ Filters }.
@@ -245,6 +266,10 @@ add_filters(Load, #dtl_context{ filters=Filters }=Context) ->
 add_tags(Load, #dtl_context{ tags=Tags }=Context) ->
     Context#dtl_context{ tags=Load ++ Tags }.
 
+format_error({load_library, Name, Mod, Reason}) ->
+    io_lib:format("Failed to load library '~s' from '~s' (~s)", [Name, Mod, Reason]);
+format_error({unknown_extension, Tag}) ->
+    io_lib:format("Unhandled extension: ~p", [Tag]);
 format_error(Other) ->
     io_lib:format("## Error description for ~p not implemented.", [Other]).
 
@@ -290,6 +315,9 @@ get_error_item(Report, Prefix, File, Error, DefaultModule) ->
             ErrorItem
     end.
 
+compose_error_desc({{Line, Col}=Pos, ErrorDesc}, Module)
+  when is_integer(Line), is_integer(Col), is_atom(Module) ->
+    {Pos, Module, ErrorDesc};
 compose_error_desc({Line, ErrorDesc}, Module)
   when is_integer(Line) ->
     {Line, Module, ErrorDesc};
@@ -378,7 +406,20 @@ split_ast(Split, [Ast|Rest], Acc) ->
     split_ast(Split, Rest, [Ast|Acc]).
 
 lib_module(Name, #dtl_context{ libraries=Libs }) ->
-    proplists:get_value(Name, Libs, Name).
+    Mod = proplists:get_value(Name, Libs, Name),
+    case code:ensure_loaded(Mod) of
+        {module, Mod} ->
+            IsLib = case proplists:get_value(behaviour, Mod:module_info(attributes)) of
+                        Behaviours when is_list(Behaviours) ->
+                            lists:member(erlydtl_library, Behaviours);
+                        _ -> false
+                    end,
+            if IsLib -> {ok, Mod};
+               true -> {load_library, Name, Mod, "not a library"}
+            end;
+        {error, Reason} ->
+            {load_library, Name, Mod, Reason}
+    end.
 
 lib_function(_, {Mod, Fun}) ->
     lib_function(Mod, Fun);

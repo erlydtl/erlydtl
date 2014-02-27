@@ -63,7 +63,7 @@
          empty_scope/0, print/3, get_current_file/1, add_errors/2,
          add_warnings/2, merge_info/2, call_extension/3,
          init_treewalker/1, resolve_variable/2, resolve_variable/3,
-         reset_parse_trail/2]).
+         reset_parse_trail/2, load_library/3, load_library/4]).
 
 -include_lib("merl/include/merl.hrl").
 -include("erlydtl_ext.hrl").
@@ -90,9 +90,18 @@ format_error({write_file, Error}) ->
       "Failed to write file: ~s",
       [file:format_error(Error)]);
 format_error(compile_beam) ->
-    "Failed to compile template to .beam file";
+    "Failed to compile template to BEAM code";
+format_error({unknown_filter, Name, Arity}) ->
+    io_lib:format("Unknown filter '~s' (arity ~p)", [Name, Arity]);
+format_error({filter_args, Name, {Mod, Fun}, Arity}) ->
+    io_lib:format("Wrong number of arguments to filter '~s' (~p:~p): ~p", [Name, Mod, Fun, Arity]);
+format_error({missing_tag, Name, {Mod, Fun}}) ->
+    io_lib:format("Custom tag '~s' not exported (~p:~p)", [Name, Mod, Fun]);
+format_error({bad_tag, Name, {Mod, Fun}, Arity}) ->
+    io_lib:format("Invalid tag '~s' (~p:~p/~p)", [Name, Mod, Fun, Arity]);
+format_error({load_code, Error}) ->
+    io_lib:format("Failed to load BEAM code: ~p", [Error]);
 format_error(Error) ->
-    %% may be an error thrown from erlydtl_compiler...
     erlydtl_compiler:format_error(Error).
 
 
@@ -179,13 +188,20 @@ compile_to_binary(DjangoParseTree, CheckSum, Context) ->
     try body_ast(DjangoParseTree, init_treewalker(Context)) of
         {{BodyAst, BodyInfo}, BodyTreeWalker} ->
             try custom_tags_ast(BodyInfo#ast_info.custom_tags, BodyTreeWalker) of
-                {{CustomTagsAst, CustomTagsInfo}, CustomTagsTreeWalker} ->
+                {{CustomTagsAst, CustomTagsInfo},
+                 #treewalker{
+                    context=#dtl_context{
+                               errors=#error_info{ list=Errors }
+                              } }=CustomTagsTreeWalker}
+                  when length(Errors) == 0 ->
                     Forms = forms(
                               {BodyAst, BodyInfo},
                               {CustomTagsAst, CustomTagsInfo},
                               CheckSum,
                               CustomTagsTreeWalker),
-                    compile_forms(Forms, CustomTagsTreeWalker#treewalker.context)
+                    compile_forms(Forms, CustomTagsTreeWalker#treewalker.context);
+                {_, #treewalker{ context=Context1 }} ->
+                    Context1
             catch
                 throw:Error -> ?ERR(Error, BodyTreeWalker#treewalker.context)
             end
@@ -243,7 +259,7 @@ load_code(Module, Bin, Context) ->
     code:purge(Module),
     case code:load_binary(Module, atom_to_list(Module) ++ ".erl", Bin) of
         {module, Module} -> Context;
-        Error -> ?WARN({load, Error}, Context)
+        Error -> ?WARN({load_code, Error}, Context)
     end.
 
 maybe_debug_template(Forms, Context) ->
@@ -357,7 +373,7 @@ custom_tags_clauses_ast1([Tag|CustomTags], ExcludeTags, ClauseAcc, InfoAcc, Tree
                               CustomTags, [Tag|ExcludeTags], [Clause|ClauseAcc],
                               merge_info(BodyAstInfo, InfoAcc), TreeWalker1);
                         {error, Reason} ->
-                            throw(Reason)
+                            empty_ast(?ERR(Reason, TreeWalker))
                     end;
                 false ->
                     case call_extension(TreeWalker, custom_tag_ast, [Tag, TreeWalker]) of
@@ -495,7 +511,7 @@ body_ast([{'extends', {string_literal, _Pos, String}} | ThisParseTree], #treewal
     File = full_path(unescape_string_literal(String), Context#dtl_context.doc_root),
     case lists:member(File, Context#dtl_context.parse_trail) of
         true ->
-            throw(circular_include);
+            empty_ast(?ERR(circular_include, TreeWalker));
         _ ->
             case parse_file(File, Context) of
                 {ok, ParentParseTree, CheckSum} ->
@@ -520,7 +536,7 @@ body_ast([{'extends', {string_literal, _Pos, String}} | ThisParseTree], #treewal
                                                })),
                     {Info, reset_parse_trail(Context#dtl_context.parse_trail, TreeWalker1)};
                 {error, Reason} ->
-                    throw(Reason)
+                    empty_ast(?ERR(Reason, TreeWalker))
             end
     end;
 
@@ -621,6 +637,10 @@ body_ast(DjangoParseTree, BodyScope, TreeWalker) ->
               ({'include_only', {string_literal, _, File}, Args}, TW) ->
                   {Info, IncTW} = include_ast(unescape_string_literal(File), Args, [], TW),
                   {Info, restore_scope(TW, IncTW)};
+              ({'load_libs', Libs}, TW) ->
+                  load_libs_ast(Libs, TW);
+              ({'load_from_lib', What, Lib}, TW) ->
+                  load_from_lib_ast(What, Lib, TW);
               ({'regroup', {ListVariable, Grouper, {identifier, _, NewVariable}}}, TW) ->
                   regroup_ast(ListVariable, Grouper, NewVariable, TW);
               ('end_regroup', TW) ->
@@ -633,7 +653,7 @@ body_ast(DjangoParseTree, BodyScope, TreeWalker) ->
                   include_ast(unescape_string_literal(FileName), [], Context#dtl_context.local_scopes, TW);
               ({'string', _Pos, String}, TW) ->
                   string_ast(String, TW);
-              ({'tag', {identifier, _, Name}, Args}, TW) ->
+              ({'tag', Name, Args}, TW) ->
                   tag_ast(Name, Args, TW);
               ({'templatetag', {_, _, TagName}}, TW) ->
                   templatetag_ast(TagName, TW);
@@ -647,8 +667,8 @@ body_ast(DjangoParseTree, BodyScope, TreeWalker) ->
                   scope_as(Name, Contents, TW);
               ({'extension', Tag}, TW) ->
                   extension_ast(Tag, TW);
-              ({'extends', _}, _TW) ->
-                  throw(unexpected_extends_tag);
+              ({'extends', _}, TW) ->
+                  empty_ast(?ERR(unexpected_extends_tag, TW));
               (ValueToken, TW) ->
                   {{ValueAst,ValueInfo},ValueTW} = value_ast(ValueToken, true, true, TW),
                   {{format(ValueAst, ValueTW),ValueInfo},ValueTW}
@@ -724,7 +744,7 @@ value_ast(ValueToken, AsString, EmptyIfUndefined, TreeWalker) ->
 extension_ast(Tag, TreeWalker) ->
     case call_extension(TreeWalker, compile_ast, [Tag, TreeWalker]) of
         undefined ->
-            throw({unknown_extension, Tag});
+            empty_ast(?WARN({unknown_extension, Tag}, TreeWalker));
         Result ->
             Result
     end.
@@ -911,7 +931,8 @@ include_ast(File, ArgList, Scopes, #treewalker{ context=Context }=TreeWalker) ->
 
             {{BodyAst, merge_info(BodyInfo, ArgInfo)},
              reset_parse_trail(C#dtl_context.parse_trail, TreeWalker2)};
-        {error, Reason} -> throw(Reason)
+        {error, Reason} ->
+            empty_ast(?ERR(Reason, TreeWalker))
     end.
 
 %% include at run-time
@@ -1000,8 +1021,8 @@ filter_ast_noescape(Variable, Filter, TreeWalker) ->
     {{VarValue, Info2}, TreeWalker3} = filter_ast1(Filter, ValueAst, TreeWalker2),
     {{VarValue, merge_info(Info1, Info2)}, TreeWalker3}.
 
-filter_ast1({{identifier, _, Name}, Args}, ValueAst, TreeWalker) ->
-    {{ArgsAst, ArgsInfo}, TreeWalker2} =
+filter_ast1({{identifier, Pos, Name}, Args}, ValueAst, TreeWalker) ->
+    {{ArgsAst, ArgsInfo}, TreeWalker1} =
         lists:foldr(
           fun (Arg, {{AccAst, AccInfo}, AccTreeWalker}) ->
                   {{ArgAst, ArgInfo}, ArgTreeWalker} = value_ast(Arg, false, false, AccTreeWalker),
@@ -1009,20 +1030,23 @@ filter_ast1({{identifier, _, Name}, Args}, ValueAst, TreeWalker) ->
           end,
           {{[], #ast_info{}}, TreeWalker},
           Args),
-    FilterAst = filter_ast2(Name, [ValueAst|ArgsAst], TreeWalker2#treewalker.context),
-    {{FilterAst, ArgsInfo}, TreeWalker2}.
+    case filter_ast2(Name, [ValueAst|ArgsAst], TreeWalker1#treewalker.context) of
+        {ok, FilterAst} ->
+            {{FilterAst, ArgsInfo}, TreeWalker1};
+        Error ->
+            empty_ast(?WARN({Pos, Error}, TreeWalker1))
+    end.
 
 filter_ast2(Name, Args, #dtl_context{ filters = Filters }) ->
     case proplists:get_value(Name, Filters) of
         {Mod, Fun}=Filter ->
             case erlang:function_exported(Mod, Fun, length(Args)) of
-                true -> ?Q("'@Mod@':'@Fun@'(_@Args)");
+                true -> {ok, ?Q("'@Mod@':'@Fun@'(_@Args)")};
                 false ->
-                    throw({filter_args, Name, Filter, Args})
+                    {filter_args, Name, Filter, length(Args)}
             end;
         undefined ->
-            %% TODO: when we don't throw errors, this could be a warning..
-            throw({unknown_filter, Name, length(Args)})
+            {unknown_filter, Name, length(Args)}
     end.
 
 search_for_escape_filter(Variable, Filter, #dtl_context{auto_escape = on}) ->
@@ -1319,6 +1343,20 @@ spaceless_ast(Contents, TreeWalker) ->
     {{Ast, Info}, TreeWalker1} = body_ast(Contents, TreeWalker),
     {{?Q("erlydtl_runtime:spaceless(_@Ast)"), Info}, TreeWalker1}.
 
+load_libs_ast(Libs, TreeWalker) ->
+    TreeWalker1 = lists:foldl(
+                    fun ({identifier, Pos, Lib}, TW) ->
+                            load_library(Pos, Lib, TW)
+                    end,
+                    TreeWalker, Libs),
+    empty_ast(TreeWalker1).
+
+load_from_lib_ast(What, {identifier, Pos, Lib}, TreeWalker) ->
+    Names = lists:foldl(
+              fun ({identifier, _, Name}, Acc) -> [Name|Acc] end,
+              [], What),
+    empty_ast(load_library(Pos, Lib, Names, TreeWalker)).
+
 
 %%-------------------------------------------------------------------
 %% Custom tags
@@ -1341,33 +1379,38 @@ interpret_args(Args, TreeWalker) ->
 
 tag_ast(Name, Args, TreeWalker) ->
     {{InterpretedArgs, AstInfo1}, TreeWalker1} = interpret_args(Args, TreeWalker),
-    {RenderAst, RenderInfo} = custom_tags_modules_ast(Name, InterpretedArgs, TreeWalker#treewalker.context),
-    {{RenderAst, merge_info(AstInfo1, RenderInfo)}, TreeWalker1}.
+    {{RenderAst, RenderInfo}, TreeWalker2} = custom_tags_modules_ast(Name, InterpretedArgs, TreeWalker1),
+    {{RenderAst, merge_info(AstInfo1, RenderInfo)}, TreeWalker2}.
 
-custom_tags_modules_ast(Name, InterpretedArgs,
-                        #dtl_context{
-                           tags = Tags,
-                           module = Module,
-                           is_compiling_dir=IsCompilingDir }) ->
+custom_tags_modules_ast({identifier, Pos, Name}, InterpretedArgs,
+                        #treewalker{
+                           context=#dtl_context{
+                                      tags = Tags,
+                                      module = Module,
+                                      is_compiling_dir=IsCompilingDir
+                                     }
+                          }=TreeWalker) ->
     case proplists:get_value(Name, Tags) of
         {Mod, Fun}=Tag ->
-            case lists:max([0] ++ [I || {N,I} <- Mod:module_info(exports), N =:= Fun]) of
+            case lists:max([-1] ++ [I || {N,I} <- Mod:module_info(exports), N =:= Fun]) of
                 2 ->
-                    {?Q("'@Mod@':'@Fun@'([_@InterpretedArgs], RenderOptions)"), #ast_info{}};
+                    {{?Q("'@Mod@':'@Fun@'([_@InterpretedArgs], RenderOptions)"),
+                      #ast_info{}}, TreeWalker};
                 1 ->
-                    {?Q("'@Mod@':'@Fun@'([_@InterpretedArgs])"), #ast_info{}};
-                0 ->
-                    throw({custom_tag_not_exported, Name, Tag});
+                    {{?Q("'@Mod@':'@Fun@'([_@InterpretedArgs])"),
+                      #ast_info{}}, TreeWalker};
+                -1 ->
+                    empty_ast(?WARN({Pos, {missing_tag, Name, Tag}}, TreeWalker));
                 I ->
-                    throw({unsupported_custom_tag_fun, {Module, Name, I}})
+                    empty_ast(?WARN({Pos, {bad_tag, Name, Tag, I}}, TreeWalker))
             end;
         undefined ->
             if IsCompilingDir ->
-                    {?Q("'@Module@':'@Name@'([_@InterpretedArgs], RenderOptions)"),
-                     #ast_info{ custom_tags = [Name] }};
+                    {{?Q("'@Module@':'@Name@'([_@InterpretedArgs], RenderOptions)"),
+                     #ast_info{ custom_tags = [Name] }}, TreeWalker};
             true ->
-                    {?Q("render_tag(_@Name@, [_@InterpretedArgs], RenderOptions)"),
-                     #ast_info{ custom_tags = [Name] }}
+                    {{?Q("render_tag(_@Name@, [_@InterpretedArgs], RenderOptions)"),
+                     #ast_info{ custom_tags = [Name] }}, TreeWalker}
             end
     end.
 
