@@ -58,6 +58,7 @@
          load_library/4,
          merge_info/2,
          print/3,
+         print/4,
          to_string/2,
          unescape_string_literal/1,
          reset_parse_trail/2,
@@ -99,8 +100,16 @@ full_path(File, DocRoot) ->
         _ -> filename:join([DocRoot, File])
     end.
 
-print(Fmt, Args, #dtl_context{ verbose = true }) -> io:format(Fmt, Args);
-print(_Fmt, _Args, _Context) -> ok.
+print(Fmt, Args, Context) ->
+    print(?V_INFO, Fmt, Args, Context).
+
+print(Verbosity, Fmt, Args, #treewalker{ context=Context }) ->
+    print(Verbosity, Fmt, Args, Context);
+print(Verbosity, Fmt, Args, #dtl_context{ verbose = Verbose })
+  when Verbosity =< Verbose ->
+    io:format(Fmt, Args);
+print(_Verbosity, _Fmt, _Args, _Context) ->
+    ok.
 
 get_current_file(#treewalker{ context=Context }) ->
     get_current_file(Context);

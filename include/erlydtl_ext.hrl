@@ -24,7 +24,7 @@
           compiler_options = [],
           binary_strings = true,
           force_recompile = false,
-          verbose = false,
+          verbose = 0,
           is_compiling_dir = false,
           extension_module = undefined,
           scanner_module = erlydtl_scanner,
@@ -60,3 +60,11 @@
 
 -define(ERR(Err, Ctx), erlydtl_compiler_utils:add_error(?MODULE, Err, Ctx)).
 -define(WARN(Warn, Ctx), erlydtl_compiler_utils:add_warning(?MODULE, Warn, Ctx)).
+
+-define(V_INFO,1).
+-define(V_DEBUG,2).
+-define(V_TRACE,3).
+
+-define(LOG_INFO(Fmt, Args, Ctx), erlydtl_compiler_utils:print(?V_INFO, Fmt, Args, Ctx)).
+-define(LOG_DEBUG(Fmt, Args, Ctx), erlydtl_compiler_utils:print(?V_DEBUG, Fmt, Args, Ctx)).
+-define(LOG_TRACE(Fmt, Args, Ctx), erlydtl_compiler_utils:print(?V_TRACE, Fmt, Args, Ctx)).

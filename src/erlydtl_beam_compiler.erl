@@ -60,7 +60,7 @@
 -import(erlydtl_compiler_utils,
         [unescape_string_literal/1, full_path/2, push_scope/2,
          restore_scope/2, begin_scope/1, begin_scope/2, end_scope/4,
-         empty_scope/0, print/3, get_current_file/1, add_errors/2,
+         empty_scope/0, get_current_file/1, add_errors/2,
          add_warnings/2, merge_info/2, call_extension/3,
          init_treewalker/1, resolve_variable/2, resolve_variable/3,
          reset_parse_trail/2, load_library/3, load_library/4]).
@@ -241,7 +241,7 @@ maybe_write(Module, Bin, Context) ->
             ?WARN(no_out_dir, Context);
         OutDir ->
             BeamFile = filename:join([OutDir, [Module, ".beam"]]),
-            print("Template module: ~w -> ~s\n", [Module, BeamFile], Context),
+            ?LOG_INFO("Template module: ~w -> ~s\n", [Module, BeamFile], Context),
             case file:write_file(BeamFile, Bin) of
                 ok -> Context;
                 {error, Reason} ->
@@ -268,7 +268,7 @@ maybe_debug_template(Forms, Context) ->
         false -> nop;
         true ->
             Options = Context#dtl_context.compiler_options,
-            print("Compiler options: ~p~n", [Options], Context),
+            ?LOG_DEBUG("Compiler options: ~p~n", [Options], Context),
             try
                 Source = erl_prettypr:format(erl_syntax:form_list(Forms)),
                 File = lists:concat([proplists:get_value(source, Options), ".erl"]),

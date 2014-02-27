@@ -51,7 +51,7 @@
 -export([parse_file/2, parse_template/2, do_parse_template/2]).
 
 -import(erlydtl_compiler_utils,
-         [add_filters/2, add_tags/2, print/3, call_extension/3,
+         [add_filters/2, add_tags/2, call_extension/3,
          load_library/2]).
 
 -include("erlydtl_ext.hrl").
@@ -69,12 +69,12 @@ compile_template(Template, Module, Options) ->
 
 compile_file(File, Module, Options) ->
     Context = process_opts(File, Module, Options),
-    print("Compile template: ~s~n", [File], Context),
+    ?LOG_INFO("Compile template: ~s~n", [File], Context),
     compile(Context).
 
 compile_dir(Dir, Module, Options) ->
     Context = process_opts({dir, Dir}, Module, Options),
-    print("Compile directory: ~s~n", [Dir], Context),
+    ?LOG_INFO("Compile directory: ~s~n", [Dir], Context),
     compile(Context).
 
 
@@ -253,7 +253,7 @@ init_context(ParseTrail, DefDir, Module, Options) ->
            compiler_options = proplists:append_values(compiler_options, Options),
            binary_strings = proplists:get_value(binary_strings, Options, Ctx#dtl_context.binary_strings),
            force_recompile = proplists:get_bool(force_recompile, Options),
-           verbose = proplists:get_value(verbose, Options, Ctx#dtl_context.verbose),
+           verbose = length(proplists:get_all_values(verbose, Options)),
            is_compiling_dir = ParseTrail == [],
            extension_module = proplists:get_value(extension_module, Options, Ctx#dtl_context.extension_module),
            scanner_module = proplists:get_value(scanner_module, Options, Ctx#dtl_context.scanner_module),
