@@ -1012,15 +1012,18 @@ filter_ast1({{identifier, _, Name}, Args}, ValueAst, TreeWalker) ->
     FilterAst = filter_ast2(Name, [ValueAst|ArgsAst], TreeWalker2#treewalker.context),
     {{FilterAst, ArgsInfo}, TreeWalker2}.
 
-filter_ast2(Name, Args, #dtl_context{ filter_modules = [Module|Rest] } = Context) ->
-    case lists:member({Name, length(Args)}, Module:module_info(exports)) of
-        true -> ?Q("'@Module@':'@Name@'(_@Args)");
-        false ->
-            filter_ast2(Name, Args, Context#dtl_context{ filter_modules = Rest })
-    end;
-filter_ast2(Name, Args, _) ->
-    %% TODO: when we don't throw errors, this could be a warning..
-    throw({unknown_filter, Name, length(Args)}).
+filter_ast2(Name, Args, #dtl_context{ filters = Filters }) ->
+    case proplists:get_value(Name, Filters) of
+        {Mod, Fun}=Filter ->
+            case erlang:function_exported(Mod, Fun, length(Args)) of
+                true -> ?Q("'@Mod@':'@Fun@'(_@Args)");
+                false ->
+                    throw({filter_args, Name, Filter, Args})
+            end;
+        undefined ->
+            %% TODO: when we don't throw errors, this could be a warning..
+            throw({unknown_filter, Name, length(Args)})
+    end.
 
 search_for_escape_filter(Variable, Filter, #dtl_context{auto_escape = on}) ->
     search_for_safe_filter(Variable, Filter);
@@ -1343,32 +1346,29 @@ tag_ast(Name, Args, TreeWalker) ->
 
 custom_tags_modules_ast(Name, InterpretedArgs,
                         #dtl_context{
-                           custom_tags_modules = [],
-                           is_compiling_dir = false }) ->
-    {?Q("render_tag(_@Name@, [_@InterpretedArgs], RenderOptions)"),
-     #ast_info{custom_tags = [Name]}};
-custom_tags_modules_ast(Name, InterpretedArgs,
-                        #dtl_context{
-                           custom_tags_modules = [],
-                           is_compiling_dir = true,
-                           module = Module }) ->
-    {?Q("'@Module@':'@Name@'([_@InterpretedArgs], RenderOptions)"),
-     #ast_info{ custom_tags = [Name] }};
-custom_tags_modules_ast(Name, InterpretedArgs,
-                        #dtl_context{
-                           custom_tags_modules = [Module|Rest]
-                          } = Context) ->
-    try lists:max([I || {N,I} <- Module:module_info(exports), N =:= Name]) of
-        2 ->
-            {?Q("'@Module@':'@Name@'([_@InterpretedArgs], RenderOptions)"), #ast_info{}};
-        1 ->
-            {?Q("'@Module@':'@Name@'([_@InterpretedArgs])"), #ast_info{}};
-        I ->
-            throw({unsupported_custom_tag_fun, {Module, Name, I}})
-    catch _:function_clause ->
-            custom_tags_modules_ast(
-              Name, InterpretedArgs,
-              Context#dtl_context{ custom_tags_modules = Rest })
+                           tags = Tags,
+                           module = Module,
+                           is_compiling_dir=IsCompilingDir }) ->
+    case proplists:get_value(Name, Tags) of
+        {Mod, Fun}=Tag ->
+            case lists:max([0] ++ [I || {N,I} <- Mod:module_info(exports), N =:= Fun]) of
+                2 ->
+                    {?Q("'@Mod@':'@Fun@'([_@InterpretedArgs], RenderOptions)"), #ast_info{}};
+                1 ->
+                    {?Q("'@Mod@':'@Fun@'([_@InterpretedArgs])"), #ast_info{}};
+                0 ->
+                    throw({custom_tag_not_exported, Name, Tag});
+                I ->
+                    throw({unsupported_custom_tag_fun, {Module, Name, I}})
+            end;
+        undefined ->
+            if IsCompilingDir ->
+                    {?Q("'@Module@':'@Name@'([_@InterpretedArgs], RenderOptions)"),
+                     #ast_info{ custom_tags = [Name] }};
+            true ->
+                    {?Q("render_tag(_@Name@, [_@InterpretedArgs], RenderOptions)"),
+                     #ast_info{ custom_tags = [Name] }}
+            end
     end.
 
 call_ast(Module, TreeWalker) ->

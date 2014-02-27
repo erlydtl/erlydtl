@@ -46,12 +46,14 @@
 
 -export([
          add_error/3, add_errors/2,
+         add_filters/2, add_tags/2,
          add_warning/3, add_warnings/2,
          call_extension/3,
          format_error/1,
          full_path/2,
          get_current_file/1,
          init_treewalker/1,
+         load_library/2,
          merge_info/2,
          print/3,
          to_string/2,
@@ -225,6 +227,23 @@ reset_parse_trail(ParseTrail, #treewalker{ context=Context }=TreeWalker) ->
 reset_parse_trail(ParseTrail, Context) ->
     Context#dtl_context{ parse_trail=ParseTrail }.
 
+load_library(Lib, #treewalker{ context=Context }=TreeWalker) ->
+    TreeWalker#treewalker{ context=load_library(Lib, Context) };
+load_library(Lib, Context) ->
+    Mod = lib_module(Lib, Context),
+    add_filters(
+      [{Name, lib_function(Mod, Filter)}
+       || {Name, Filter} <- Mod:inventory(filters)],
+      add_tags(
+        [{Name, lib_function(Mod, Tag)}
+         || {Name, Tag} <- Mod:inventory(tags)],
+        Context)).
+
+add_filters(Load, #dtl_context{ filters=Filters }=Context) ->
+    Context#dtl_context{ filters=Load ++ Filters }.
+
+add_tags(Load, #dtl_context{ tags=Tags }=Context) ->
+    Context#dtl_context{ tags=Load ++ Tags }.
 
 format_error(Other) ->
     io_lib:format("## Error description for ~p not implemented.", [Other]).
@@ -357,3 +376,12 @@ split_ast(Split, [Ast|Rest], {Pre, Acc}) ->
     split_ast(Split, Rest, {Pre, [Ast|Acc]});
 split_ast(Split, [Ast|Rest], Acc) ->
     split_ast(Split, Rest, [Ast|Acc]).
+
+lib_module(Name, #dtl_context{ libraries=Libs }) ->
+    proplists:get_value(Name, Libs, Name).
+
+lib_function(_, {Mod, Fun}) ->
+    lib_function(Mod, Fun);
+lib_function(Mod, Fun) ->
+    %% TODO: we can check for lib function availability here.. (sanity check)
+    {Mod, Fun}.

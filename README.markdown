@@ -58,14 +58,24 @@ Options is a proplist possibly containing:
 * `doc_root` - Included template paths will be relative to this
   directory; defaults to the compiled template's directory.
 
-* `custom_tags_dir` - Directory of DTL files (no extension) includable
-  as tags.  E.g. if $custom_tags_dir/foo contains `<b>{{ bar }}</b>`,
-  then `{% foo bar=100 %}` will evaluate to `<b>100</b>`. Get it?
+* `libraries` - A list of `{Name, Module}` libraries implementing
+  custom tags and filters. `Module` should implement the
+  `erlydtl_library` behaviour.
 
-* `custom_tags_modules` - A list of modules to be used for handling
-  custom tags. The modules will be searched in order and take
-  precedence over `custom_tags_dir`. Each custom tag should correspond
-  to an exported function with one of the following signatures:
+* `default_libraries` - A list of libraries that should be loaded by
+  default when compiling a template. Libraries can be specified either
+  by name (when there is a name to module mapping also provided in the
+  `libraries` option) or by module.
+
+* `custom_tags_dir` - Directory of DTL files (no extension) includable
+  as tags.  E.g. if `$custom_tags_dir/foo` contains `<b>{{ bar }}</b>`,
+  then `{% foo bar=100 %}` will evaluate to `<b>100</b>`.
+
+* `custom_tags_modules` **deprecated** - A list of modules to be used
+  for handling custom tags. The modules will be searched in order and
+  take precedence over `custom_tags_dir`. Each custom tag should
+  correspond to an exported function with one of the following
+  signatures:
 
       some_tag(TagVars)          -> iolist()
       some_tag(TagVars, Options) -> iolist()
@@ -76,15 +86,15 @@ Options is a proplist possibly containing:
   argument to the `render/2` call at render-time. (These may include
   any options, not just `locale` and `translation_fun`.)
 
-* `custom_filters_modules` - A list of modules to be used for handling
-  custom filters. The modules will be searched in order and take
-  precedence over the built-in filters. Each custom filter should
-  correspond to an exported filter, e.g.
+* `custom_filters_modules` **deprecated** - A list of modules to be
+  used for handling custom filters. The modules will be searched in
+  order and take precedence over the built-in filters. Each custom
+  filter should correspond to an exported filter, e.g.
 
       some_filter(Value) -> iolist()
 
-  If the filter takes an argument (e.g. "foo:2"), the argument will be
-  also be passed in:
+  If the filter takes any arguments (e.g. "foo:2"), those will be
+  added to the call:
 
       some_filter(Value, Arg) -> iolist()
 

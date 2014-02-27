@@ -51,8 +51,8 @@
 -export([parse_file/2, parse_template/2, do_parse_template/2]).
 
 -import(erlydtl_compiler_utils,
-         [print/3, call_extension/3
-         ]).
+         [add_filters/2, add_tags/2, print/3, call_extension/3,
+         load_library/2]).
 
 -include("erlydtl_ext.hrl").
 
@@ -231,38 +231,37 @@ init_context(ParseTrail, DefDir, Module, Options) ->
                        {Val, undefined} -> [Val];
                        _ -> lists:usort([Locale | BlocktransLocales])
                    end,
-    Context = #dtl_context{
-                 all_options = Options,
-                 auto_escape = case proplists:get_value(auto_escape, Options, true) of
-                                   true -> on;
-                                   _ -> off
-                               end,
-                 parse_trail = ParseTrail,
-                 module = Module,
-                 doc_root = proplists:get_value(doc_root, Options, DefDir),
-                 filter_modules = proplists:get_value(
-                                    custom_filters_modules, Options,
-                                    Ctx#dtl_context.filter_modules) ++ [erlydtl_filters],
-                 custom_tags_dir = proplists:get_value(
-                                     custom_tags_dir, Options,
-                                     filename:join([erlydtl_deps:get_base_dir(), "priv", "custom_tags"])),
-                 custom_tags_modules = proplists:get_value(custom_tags_modules, Options, Ctx#dtl_context.custom_tags_modules),
-                 trans_fun = proplists:get_value(blocktrans_fun, Options, Ctx#dtl_context.trans_fun),
-                 trans_locales = TransLocales,
-                 vars = proplists:get_value(vars, Options, Ctx#dtl_context.vars),
-                 reader = proplists:get_value(reader, Options, Ctx#dtl_context.reader),
-                 compiler_options = proplists:append_values(compiler_options, Options),
-                 binary_strings = proplists:get_value(binary_strings, Options, Ctx#dtl_context.binary_strings),
-                 force_recompile = proplists:get_bool(force_recompile, Options),
-                 verbose = proplists:get_value(verbose, Options, Ctx#dtl_context.verbose),
-                 is_compiling_dir = ParseTrail == [],
-                 extension_module = proplists:get_value(extension_module, Options, Ctx#dtl_context.extension_module),
-                 scanner_module = proplists:get_value(scanner_module, Options, Ctx#dtl_context.scanner_module),
-                 record_info = [{R, lists:zip(I, lists:seq(2, length(I) + 1))}
-                                || {R, I} <- proplists:get_value(record_info, Options, Ctx#dtl_context.record_info)],
-                 errors = init_error_info(errors, Ctx#dtl_context.errors, Options),
-                 warnings = init_error_info(warnings, Ctx#dtl_context.warnings, Options)
-                },
+    Context0 =
+        #dtl_context{
+           all_options = Options,
+           auto_escape = case proplists:get_value(auto_escape, Options, true) of
+                             true -> on;
+                             _ -> off
+                         end,
+           parse_trail = ParseTrail,
+           module = Module,
+           doc_root = proplists:get_value(doc_root, Options, DefDir),
+           libraries = proplists:get_value(libraries, Options, Ctx#dtl_context.libraries),
+           custom_tags_dir = proplists:get_value(
+                               custom_tags_dir, Options,
+                               filename:join([erlydtl_deps:get_base_dir(), "priv", "custom_tags"])),
+           trans_fun = proplists:get_value(blocktrans_fun, Options, Ctx#dtl_context.trans_fun),
+           trans_locales = TransLocales,
+           vars = proplists:get_value(vars, Options, Ctx#dtl_context.vars),
+           reader = proplists:get_value(reader, Options, Ctx#dtl_context.reader),
+           compiler_options = proplists:append_values(compiler_options, Options),
+           binary_strings = proplists:get_value(binary_strings, Options, Ctx#dtl_context.binary_strings),
+           force_recompile = proplists:get_bool(force_recompile, Options),
+           verbose = proplists:get_value(verbose, Options, Ctx#dtl_context.verbose),
+           is_compiling_dir = ParseTrail == [],
+           extension_module = proplists:get_value(extension_module, Options, Ctx#dtl_context.extension_module),
+           scanner_module = proplists:get_value(scanner_module, Options, Ctx#dtl_context.scanner_module),
+           record_info = [{R, lists:zip(I, lists:seq(2, length(I) + 1))}
+                          || {R, I} <- proplists:get_value(record_info, Options, Ctx#dtl_context.record_info)],
+           errors = init_error_info(errors, Ctx#dtl_context.errors, Options),
+           warnings = init_error_info(warnings, Ctx#dtl_context.warnings, Options)
+          },
+    Context = load_libraries(proplists:get_value(default_libraries, Options, []), Context0),
     case call_extension(Context, init_context, [Context]) of
         {ok, C} when is_record(C, dtl_context) -> C;
         undefined -> Context
@@ -298,6 +297,28 @@ get_error_info_opts(Class, Options) ->
                         end,
          {Value, proplists:get_bool(Key, Options)}
      end || Flag <- Flags].
+
+load_libraries([], #dtl_context{ all_options=Options }=Context) ->
+    %% Load filters and tags passed using the old options
+    Filters = proplists:get_value(custom_filters_modules, Options, []) ++ [erlydtl_filters],
+    Tags = proplists:get_value(custom_tags_modules, Options, []),
+    load_legacy_filters(Filters, load_legacy_tags(Tags, Context));
+load_libraries([Lib|Libs], Context) ->
+    load_libraries(Libs, load_library(Lib, Context)).
+
+load_legacy_filters([], Context) -> Context;
+load_legacy_filters([Mod|Filters], Context) ->
+    load_legacy_filters(Filters, add_filters(read_legacy_library(Mod), Context)).
+
+load_legacy_tags([], Context) -> Context;
+load_legacy_tags([Mod|Tags], Context) ->
+    load_legacy_tags(Tags, add_tags(read_legacy_library(Mod), Context)).
+
+read_legacy_library(Mod) ->
+    [{Name, {Mod, Name}}
+     || {Name, _} <- lists:ukeysort(1, Mod:module_info(exports)),
+        Name =/= module_info
+    ].
 
 is_up_to_date(_, #dtl_context{force_recompile = true}) ->
     false;
