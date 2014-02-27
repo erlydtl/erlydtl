@@ -105,7 +105,6 @@ Nonterminals
     Args
 
     RegroupTag
-    EndRegroupTag
 
     SpacelessBlock
 
@@ -127,7 +126,10 @@ Nonterminals
 
     CallTag
     CallWithTag
-    
+
+    LoadTag
+    LoadArgs
+
     Unot.
 
 Terminals
@@ -162,6 +164,7 @@ Terminals
     filter_keyword
     firstof_keyword
     for_keyword
+    from_keyword
     identifier
     if_keyword
     ifchanged_keyword
@@ -169,6 +172,7 @@ Terminals
     ifnotequal_keyword
     in_keyword
     include_keyword
+    load_keyword
     noop_keyword
     not_keyword
     now_keyword
@@ -231,9 +235,9 @@ Elements -> Elements IfEqualBlock : '$1' ++ ['$2'].
 Elements -> Elements IfNotEqualBlock : '$1' ++ ['$2'].
 Elements -> Elements IfChangedBlock : '$1' ++ ['$2'].
 Elements -> Elements IncludeTag : '$1' ++ ['$2'].
+Elements -> Elements LoadTag : '$1' ++ ['$2'].
 Elements -> Elements NowTag : '$1' ++ ['$2'].
 Elements -> Elements RegroupTag : '$1' ++ ['$2'].
-Elements -> Elements EndRegroupTag : '$1' ++ ['$2'].
 Elements -> Elements SpacelessBlock : '$1' ++ ['$2'].
 Elements -> Elements SSITag : '$1' ++ ['$2'].
 Elements -> Elements TemplatetagTag : '$1' ++ ['$2'].
@@ -279,6 +283,12 @@ IncludeTag -> open_tag include_keyword string_literal close_tag : {include, '$3'
 IncludeTag -> open_tag include_keyword string_literal with_keyword Args close_tag : {include, '$3', '$5'}.
 IncludeTag -> open_tag include_keyword string_literal only_keyword close_tag : {include_only, '$3', []}.
 IncludeTag -> open_tag include_keyword string_literal with_keyword Args only_keyword close_tag : {include_only, '$3', '$5'}.
+
+LoadTag -> open_tag load_keyword LoadArgs close_tag : {load_libs, '$3'}.
+LoadTag -> open_tag load_keyword LoadArgs from_keyword identifier close_tag : {load_from_lib, '$3', '$5'}.
+
+LoadArgs -> '$empty' : [].
+LoadArgs -> identifier LoadArgs : ['$1'|'$2'].
 
 NowTag -> open_tag now_keyword string_literal close_tag : {date, now, '$3'}.
 
@@ -361,7 +371,7 @@ IfNotEqualExpression -> Value : '$1'.
 EndIfNotEqualBraced -> open_tag endifnotequal_keyword close_tag.
 
 RegroupTag -> open_tag regroup_keyword Value by_keyword Value as_keyword identifier close_tag : {regroup, {'$3', '$5', '$7'}}.
-EndRegroupTag -> open_tag endregroup_keyword close_tag : end_regroup.
+RegroupTag -> open_tag endregroup_keyword close_tag : end_regroup.
 
 SpacelessBlock -> open_tag spaceless_keyword close_tag Elements open_tag endspaceless_keyword close_tag : {spaceless, '$4'}.
 

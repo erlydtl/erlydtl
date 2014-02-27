@@ -19,8 +19,9 @@ update-deps:
 
 compile_test:
 	-mkdir -p ebintest
-	$(ERLC) -o tests/src -I include/erlydtl_preparser.hrl tests/src/erlydtl_extension_testparser.yrl
-	$(ERL) -make
+	$(ERLC) -o tests/src -I include/erlydtl_preparser.hrl \
+		tests/src/erlydtl_extension_testparser.yrl
+	$(ERL) -pa ebin -make
 
 test: compile compile_test
 	$(ERL) -noshell -pa ebin -pa ebintest -pa deps/merl/ebin \

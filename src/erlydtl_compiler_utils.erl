@@ -44,6 +44,8 @@
 %% Definitions
 %% --------------------------------------------------------------------
 
+-define(LIB_VERSION, 1).
+
 -export([
          add_error/3, add_errors/2,
          add_filters/2, add_tags/2,
@@ -254,29 +256,30 @@ load_library(Pos, Lib, Accept, #treewalker{ context=Context }=TreeWalker) ->
 load_library(Pos, Lib, Accept, Context) ->
     case lib_module(Lib, Context) of
         {ok, Mod} ->
+            ?LOG_DEBUG(
+               "~s: Load library '~s' from ~s ~p~n",
+               [get_current_file(Context), Lib, Mod, Accept], Context),
             add_filters(
-              [{Name, lib_function(Mod, Filter)}
-               || {Name, Filter} <- Mod:inventory(filters),
-                  Accept =:= [] orelse lists:member(Name, Accept)
-              ],
+              read_library(Mod, filters, Accept),
               add_tags(
-                [{Name, lib_function(Mod, Tag)}
-                 || {Name, Tag} <- Mod:inventory(tags),
-                    Accept =:= [] orelse lists:member(Name, Accept)
-                ],
+                read_library(Mod, tags, Accept),
                 Context));
         Error ->
             ?WARN({Pos, Error}, Context)
     end.
 
 add_filters(Load, #dtl_context{ filters=Filters }=Context) ->
+    ?LOG_TRACE("Load filters: ~p~n", [Load], Context),
     Context#dtl_context{ filters=Load ++ Filters }.
 
 add_tags(Load, #dtl_context{ tags=Tags }=Context) ->
+    ?LOG_TRACE("Load tags: ~p~n", [Load], Context),
     Context#dtl_context{ tags=Load ++ Tags }.
 
 format_error({load_library, Name, Mod, Reason}) ->
     io_lib:format("Failed to load library '~s' from '~s' (~s)", [Name, Mod, Reason]);
+format_error({library_version, Name, Mod, Version}) ->
+    io_lib:format("Unknown library version for '~s' from '~s': ~p", [Name, Mod, Version]);
 format_error({unknown_extension, Tag}) ->
     io_lib:format("Unhandled extension: ~p", [Tag]);
 format_error(Other) ->
@@ -423,15 +426,31 @@ lib_module(Name, #dtl_context{ libraries=Libs }) ->
                             lists:member(erlydtl_library, Behaviours);
                         _ -> false
                     end,
-            if IsLib -> {ok, Mod};
+            if IsLib ->
+                    case Mod:version() of
+                        ?LIB_VERSION -> {ok, Mod};
+                        V -> {library_version, Name, Mod, V}
+                    end;
                true -> {load_library, Name, Mod, "not a library"}
             end;
         {error, Reason} ->
             {load_library, Name, Mod, Reason}
     end.
 
+read_library(Mod, Section, Accept) ->
+    [{Name, lib_function(Mod, Fun)}
+     || {Name, Fun} <- read_inventory(Mod, Section),
+        Accept =:= [] orelse lists:member(Name, Accept)
+    ].
+
 lib_function(_, {Mod, Fun}) ->
     lib_function(Mod, Fun);
 lib_function(Mod, Fun) ->
     %% TODO: we can check for lib function availability here.. (sanity check)
     {Mod, Fun}.
+
+read_inventory(Mod, Section) ->
+    [case Item of
+         {_Name, _Fun} -> Item;
+         Fun -> {Fun, Fun}
+     end || Item <- Mod:inventory(Section)].

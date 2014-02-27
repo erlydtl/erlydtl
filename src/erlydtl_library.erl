@@ -40,6 +40,7 @@
 -type exported_fun() :: Name::atom().
 -type external_fun() :: {Module::atom(), exported_fun()}.
 -type library_function() :: exported_fun() | external_fun().
--type inventory() :: [{Name::atom(), library_function()}].
+-type inventory_item() :: exported_fun() | {Name::atom(), library_function()}.
 
--callback inventory(filters|tags) -> inventory().
+-callback inventory(filters|tags) -> list(inventory_item()).
+-callback version() -> 1.

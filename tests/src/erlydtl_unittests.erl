@@ -1352,6 +1352,12 @@ tests() ->
          []
         }
        }
+      ]},
+     {"load",
+      [{"filter",
+        <<"{% load test1 %}{{ \"w00t\"|reverse }}">>, [], [],
+        [{libraries, [{test1, erlydtl_lib_test1}]}],
+        <<"t00w">>}
       ]}
     ].
 
