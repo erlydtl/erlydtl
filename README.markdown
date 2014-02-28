@@ -42,8 +42,6 @@ erlydtl:compile_template("<html>{{ foo }}</html>", my_module_name, Options)
 Result:
 
 ```erlang
-ok %% existing compiled template is up to date.
-
 {ok, Module}
 {ok, Module, Warnings}
 {ok, Module, Binary}
@@ -217,6 +215,8 @@ Usage (of a compiled template)
 ------------------------------
 
 
+### render/1
+
 ```erlang
 my_compiled_template:render(Variables) -> {ok, IOList} | {error, Err}
 ```
@@ -227,6 +227,8 @@ can be atoms, strings, binaries, or (nested) variables.
 
 IOList is the rendered template.
 
+
+### render/2
 
 ```erlang
 my_compiled_template:render(Variables, Options) -> {ok, IOList} | {error, Err}
@@ -244,12 +246,16 @@ Same as `render/1`, but with the following options:
   `blocktrans_fun` compile-time option.
 
 
+### translatable_strings/0
+
 ```erlang
 my_compiled_template:translatable_strings() -> [String]
 ```
 
 List of strings appearing in `{% trans %}` and `_(..)` tags.
 
+
+### translated_blocks/0
 
 ```erlang
 my_compiled_template:translated_blocks() -> [String]
@@ -262,12 +268,16 @@ translatable blocks before compile-time, use the provided
 `blocktrans_extractor` module.
 
 
+### source/0
+
 ```erlang
 my_compiled_template:source() -> {FileName, CheckSum}
 ```
 
 Name and checksum of the original template file.
 
+
+### dependencies/0
 
 ```erlang
 my_compiled_template:dependencies() -> [{FileName, CheckSum}]
@@ -278,13 +288,15 @@ file. Useful for frameworks that recompile a template only when the
 template's dependencies change.
 
 
+### variables/0
+
 ```erlang
 my_compiled_template:variables() -> [Variable::atom()]
 ```
 
 Sorted list of unique variables used in the template's body. The list
 can be used for determining which variable bindings need to be passed
-to the render/3 function.
+to the `render/3` function.
 
 
 Differences from standard Django Template Language
