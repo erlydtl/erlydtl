@@ -251,19 +251,26 @@ reset_parse_trail(ParseTrail, Context) ->
 load_library(Lib, Context) -> load_library(none, Lib, [], Context).
 load_library(Pos, Lib, Context) -> load_library(Pos, Lib, [], Context).
 
-load_library(Pos, Lib, Accept, #treewalker{ context=Context }=TreeWalker) ->
-    TreeWalker#treewalker{ context=load_library(Pos, Lib, Accept, Context) };
-load_library(Pos, Lib, Accept, Context) ->
+load_library(Pos, Lib, Which, #treewalker{ context=Context }=TreeWalker) ->
+    TreeWalker#treewalker{ context=load_library(Pos, Lib, Which, Context) };
+load_library(Pos, Lib, Which, Context) ->
     case lib_module(Lib, Context) of
         {ok, Mod} ->
             ?LOG_DEBUG(
                "~s: Load library '~s' from ~s ~p~n",
-               [get_current_file(Context), Lib, Mod, Accept], Context),
-            add_filters(
-              read_library(Mod, filters, Accept),
-              add_tags(
-                read_library(Mod, tags, Accept),
-                Context));
+               [get_current_file(Context), Lib, Mod, Which], Context),
+            Filters = read_library(Mod, filters, Which),
+            Tags = read_library(Mod, tags, Which),
+            Found = Filters ++ Tags,
+            Missing = lists:filter(
+                        fun (W) -> lists:keyfind(W, 1, Found) == false end,
+                        Which),
+            add_tags(
+              Tags,
+              add_filters(
+                Filters,
+                warn_missing(
+                  Missing, {Pos, Lib, Mod}, Context)));
         Error ->
             ?WARN({Pos, Error}, Context)
     end.
@@ -277,13 +284,14 @@ add_tags(Load, #dtl_context{ tags=Tags }=Context) ->
     Context#dtl_context{ tags=Load ++ Tags }.
 
 format_error({load_library, Name, Mod, Reason}) ->
-    io_lib:format("Failed to load library '~s' from '~s' (~s)", [Name, Mod, Reason]);
-format_error({library_version, Name, Mod, Version}) ->
-    io_lib:format("Unknown library version for '~s' from '~s': ~p", [Name, Mod, Version]);
+    io_lib:format("Failed to load library '~p' (~p): ~p", [Name, Mod, Reason]);
+format_error({load_from, Name, Mod, Tag}) ->
+    io_lib:format("'~p' not in library '~p' (~p)", [Tag, Name, Mod]);
 format_error({unknown_extension, Tag}) ->
     io_lib:format("Unhandled extension: ~p", [Tag]);
 format_error(Other) ->
-    io_lib:format("## Error description for ~p not implemented.", [Other]).
+    io_lib:format("## Sorry, error description for ~p not yet implemented.~n"
+                  "## Please report this so we can fix it.", [Other]).
 
 
 %%====================================================================
@@ -331,13 +339,16 @@ compose_error_desc({{Line, Col}=Pos, ErrorDesc}, Module)
   when is_integer(Line), is_integer(Col), is_atom(Module) ->
     {Pos, Module, ErrorDesc};
 compose_error_desc({Line, ErrorDesc}, Module)
-  when is_integer(Line) ->
+  when is_integer(Line); Line =:= none ->
     {Line, Module, ErrorDesc};
 compose_error_desc({{Line, Col}, Module, _}=ErrorDesc, _)
   when is_integer(Line), is_integer(Col), is_atom(Module) ->
     ErrorDesc;
 compose_error_desc({Line, Module, _}=ErrorDesc, _)
   when is_integer(Line), is_atom(Module) ->
+    ErrorDesc;
+compose_error_desc({none, Module, _}=ErrorDesc, _)
+  when is_atom(Module) ->
     ErrorDesc;
 compose_error_desc({_, InfoList}=ErrorDesc, _)
   when is_list(InfoList) -> ErrorDesc;
@@ -429,24 +440,27 @@ lib_module(Name, #dtl_context{ libraries=Libs }) ->
             if IsLib ->
                     case Mod:version() of
                         ?LIB_VERSION -> {ok, Mod};
-                        V -> {library_version, Name, Mod, V}
+                        V -> {load_library, Name, Mod, {version, V}}
                     end;
-               true -> {load_library, Name, Mod, "not a library"}
+               true -> {load_library, Name, Mod, behaviour}
             end;
         {error, Reason} ->
             {load_library, Name, Mod, Reason}
     end.
 
-read_library(Mod, Section, Accept) ->
+read_library(Mod, Section, Which) ->
     [{Name, lib_function(Mod, Fun)}
      || {Name, Fun} <- read_inventory(Mod, Section),
-        Accept =:= [] orelse lists:member(Name, Accept)
-    ].
+        Which =:= [] orelse lists:member(Name, Which)].
+
+warn_missing([], _, Context) -> Context;
+warn_missing([X|Xs], {Pos, Lib, Mod}=Info, Context) ->
+    warn_missing(Xs, Info, ?WARN({Pos, {load_from, Lib, Mod, X}}, Context)).
 
 lib_function(_, {Mod, Fun}) ->
     lib_function(Mod, Fun);
 lib_function(Mod, Fun) ->
-    %% TODO: we can check for lib function availability here.. (sanity check)
+    %% we could check for lib function availability here.. (sanity check)
     {Mod, Fun}.
 
 read_inventory(Mod, Section) ->

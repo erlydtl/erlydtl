@@ -1306,15 +1306,13 @@ tests() ->
       [{"no out dir warning",
         <<"foo bar">>,
         [], [], %% Vars, RenderOpts
-        %%[report], %% CompilerOpts
-        ?GRP_ERROR_REPORTING_COMPILER_OPTS,
+        ?GRP_ERROR_REPORTING_COMPILER_OPTS, %% CompilerOpts
         <<"foo bar">>, %% Output
         [error_info([no_out_dir])] %% Warnings
        },
        {"warnings as errors",
         <<"foo bar">>,
         [], [],
-        %%[report, warnings_as_errors],
         [warnings_as_errors|?GRP_ERROR_REPORTING_COMPILER_OPTS],
         {error, %% Output...
          [error_info([no_out_dir])], %% Errors
@@ -1324,13 +1322,11 @@ tests() ->
        {"illegal character",
         <<"{{{">>,
         [], [],
-        %%[report],
         ?GRP_ERROR_REPORTING_COMPILER_OPTS,
         {error,
          [error_info(
             [{{1,3},erlydtl_scanner,{illegal_char, ${}}] )],
-         []
-        }
+         []}
        },
        {"unexpected end of file - in code",
         <<"{{">>,
@@ -1339,8 +1335,7 @@ tests() ->
         {error,
          [error_info(
             [{{1,3},erlydtl_scanner,{eof, in_code}}] )],
-         []
-        }
+         []}
        },
        {"unexpected end of file - in comment",
         <<"{#">>,
@@ -1349,15 +1344,74 @@ tests() ->
         {error,
          [error_info(
             [{{1,3},erlydtl_scanner,{eof, in_comment}}] )],
-         []
-        }
+         []}
+       },
+       {"unknown library",
+        <<"{% load foo %}">>, [], [],
+        ?GRP_ERROR_REPORTING_COMPILER_OPTS,
+        <<>>,
+        [error_info(
+           [no_out_dir,
+            {{1,9},erlydtl_compiler_utils,{load_library,foo,foo,nofile}}
+           ])]
+       },
+       {"not a library",
+        <<"{% load foo %}">>, [], [],
+        [{libraries, [{foo, ?MODULE}]}|?GRP_ERROR_REPORTING_COMPILER_OPTS],
+        <<>>,
+        [error_info(
+           [no_out_dir,
+            {{1,9},erlydtl_compiler_utils,{load_library,foo,?MODULE,behaviour}}
+           ])]
+       },
+       {"library version",
+        <<"{% load foo %}">>, [], [],
+        [{libraries, [{foo, erlydtl_lib_testversion}]}|?GRP_ERROR_REPORTING_COMPILER_OPTS],
+        <<>>,
+        [error_info(
+           [no_out_dir,
+            {{1,9},erlydtl_compiler_utils,{load_library,foo,erlydtl_lib_testversion,{version,invalid}}}
+           ])]
+       },
+       {"not in library",
+        <<"{% load foo bar from test1 %}\n{{ \"w00t\"|reverse }}">>, [], [],
+        [{libraries, [{test1, erlydtl_lib_test1}]}|?GRP_ERROR_REPORTING_COMPILER_OPTS],
+        <<"\n">>,
+        [error_info(
+           [no_out_dir,
+            {{2,11},erlydtl_beam_compiler,{unknown_filter,reverse,1}},
+            {{1,22},erlydtl_compiler_utils,{load_from,test1,erlydtl_lib_test1,foo}},
+            {{1,22},erlydtl_compiler_utils,{load_from,test1,erlydtl_lib_test1,bar}}
+           ])]
+       },
+       {"pre load unknown library",
+        <<"{{ '123'|reverse }}">>, [], [],
+        [{default_libraries, [test1]}],
+        <<"">>,
+        [error_info(
+           [no_out_dir,
+            {{1,10},erlydtl_beam_compiler,{unknown_filter,reverse,1}},
+            {none,erlydtl_compiler_utils,{load_library,test1,test1,nofile}}
+           ])]
        }
       ]},
      {"load",
       [{"filter",
-        <<"{% load test1 %}{{ \"w00t\"|reverse }}">>, [], [],
+        <<"{% load test1 %}{{ \"1234\"|reverse }}">>, [], [],
         [{libraries, [{test1, erlydtl_lib_test1}]}],
-        <<"t00w">>}
+        <<"4321">>
+       },
+       {"named",
+        <<"{% load reverse from test1 %}{{ \"abcd\"|reverse }}">>, [], [],
+        [{libraries, [{test1, erlydtl_lib_test1}]}],
+        <<"dcba">>
+       },
+       {"pre loaded",
+        <<"{{ QWER|reverse }}">>, [{'QWER', "Qwerty"}], [],
+        [{default_libraries, [test1]},
+         {libraries, [{test1, erlydtl_lib_test1}]}],
+        <<"ytrewQ">>
+       }
       ]}
     ].
 
@@ -1474,24 +1528,24 @@ process_unit_test({Name, DTL, Vars, RenderOpts, CompilerOpts, Output, Warnings})
                                 {Output, Unexpected} ->
                                     test_fail(
                                       Name,
-                                      "Unexpected result with binary variables: ~n"
-                                      "Expected: ~p~n"
-                                      "Actual: ~p",
+                                      "Unexpected result with binary variables:~n"
+                                      "    Expected: ~p~n"
+                                      "    Actual  : ~p",
                                       [Output, Unexpected], TrB);
                                 {Unexpected, Output} ->
                                     test_fail(
                                       Name,
-                                      "Unexpected result with list variables: ~n"
-                                      "Expected: ~p~n"
-                                      "Actual: ~p",
+                                      "Unexpected result with list variables:~n"
+                                      "    Expected: ~p~n"
+                                      "    Actual  : ~p",
                                       [Output, Unexpected], TrB);
                                 {Unexpected1, Unexpected2} ->
                                     test_fail(
                                       Name,
-                                      "Unexpected result: ~n"
-                                      "Expected: ~p~n"
-                                      "Actual (list): ~p~n"
-                                      "Actual (binary): ~p",
+                                      "Unexpected result:~n"
+                                      "    Expected       : ~p~n"
+                                      "    Actual (list)  : ~p~n"
+                                      "    Actual (binary): ~p",
                                       [Output, Unexpected1, Unexpected2], TrB)
                             end;
                         {TrenderB, Output} ->
@@ -1509,13 +1563,17 @@ process_unit_test({Name, DTL, Vars, RenderOpts, CompilerOpts, Output, Warnings})
         {Tcompile, {ok, _, ActualWarnings}} ->
             test_fail(
               Name,
-              "Unexpected warnings: ~p~n"
-              "Expected: ~p",
-              [ActualWarnings, Warnings], [{compile, Tcompile}]);
+              "Unexpected warnings:~n"
+              "    Expected: ~p~n"
+              "    Actual  : ~p",
+              [Warnings, ActualWarnings], [{compile, Tcompile}]);
         {Tcompile, Output} -> test_pass([{compile, Tcompile}]);
         {Tcompile, Err} ->
-            test_fail(Name, "Compile error: ~p~nExpected: ~p",
-                      [Err, Output], [{compile, Tcompile}])
+            test_fail(Name,
+                      "Compile error:~n"
+                      "    Expected: ~p~n"
+                      "    Actual  : ~p",
+                      [Output, Err], [{compile, Tcompile}])
     end.
 
 
@@ -1560,10 +1618,13 @@ error_info(File, Ws, Mod) ->
     {File, [error_info(W, Mod) || W <- Ws]}.
 
 error_info({Line, ErrorDesc}, Mod)
-  when is_integer(Line) ->
+  when is_integer(Line); Line =:= none ->
   {Line, Mod, ErrorDesc};
 error_info({Line, Module, _}=ErrorDesc, _Mod)
   when is_integer(Line), is_atom(Module) ->
+    ErrorDesc;
+error_info({none, Module, _}=ErrorDesc, _Mod)
+  when is_atom(Module) ->
     ErrorDesc;
 error_info({{Line, Col}, Module, _}=ErrorDesc, _Mod)
   when is_integer(Line), is_integer(Col), is_atom(Module) ->

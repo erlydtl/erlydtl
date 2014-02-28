@@ -92,13 +92,13 @@ format_error({write_file, Error}) ->
 format_error(compile_beam) ->
     "Failed to compile template to BEAM code";
 format_error({unknown_filter, Name, Arity}) ->
-    io_lib:format("Unknown filter '~s' (arity ~p)", [Name, Arity]);
+    io_lib:format("Unknown filter '~p' (arity ~p)", [Name, Arity]);
 format_error({filter_args, Name, {Mod, Fun}, Arity}) ->
-    io_lib:format("Wrong number of arguments to filter '~s' (~p:~p): ~p", [Name, Mod, Fun, Arity]);
+    io_lib:format("Wrong number of arguments to filter '~p' (~p:~p): ~p", [Name, Mod, Fun, Arity]);
 format_error({missing_tag, Name, {Mod, Fun}}) ->
-    io_lib:format("Custom tag '~s' not exported (~p:~p)", [Name, Mod, Fun]);
+    io_lib:format("Custom tag '~p' not exported (~p:~p)", [Name, Mod, Fun]);
 format_error({bad_tag, Name, {Mod, Fun}, Arity}) ->
-    io_lib:format("Invalid tag '~s' (~p:~p/~p)", [Name, Mod, Fun, Arity]);
+    io_lib:format("Invalid tag '~p' (~p:~p/~p)", [Name, Mod, Fun, Arity]);
 format_error({load_code, Error}) ->
     io_lib:format("Failed to load BEAM code: ~p", [Error]);
 format_error(Error) ->
