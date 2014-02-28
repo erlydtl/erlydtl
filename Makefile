@@ -33,6 +33,7 @@ test: compile compile_test
 			sources_parser_unittests:run_tests(), \
 			halt(0) \
 		catch throw:failed -> halt(1) end"
+	@$(REBAR) eunit
 
 check: test dialyze
 
