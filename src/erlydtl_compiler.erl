@@ -65,7 +65,7 @@ default_options() -> [verbose, report].
 
 compile_template(Template, Module, Options) ->
     Context = process_opts(undefined, Module, Options),
-    compile(Context#dtl_context{ bin = Template }).
+    compile(Context#dtl_context{ bin = iolist_to_binary(Template) }).
 
 compile_file(File, Module, Options) ->
     Context = process_opts(File, Module, Options),

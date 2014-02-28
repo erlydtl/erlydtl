@@ -50,8 +50,10 @@
 -export([compile/2, compile/3]).
 -export([compile_dir/2, compile_dir/3]).
 
+-type position() :: non_neg_integer().
+-type location() :: none | position() | {Line::position(), Column::position()}.
 -type error_info() :: {File::list(),
-                       [{Line::integer() | none,
+                       [{location(),
                          Module::atom(),
                          ErrorDesc::term()}]}.
 -type errors() :: list(error_info()).
@@ -59,16 +61,45 @@
 -type ok_ret() :: {ok, Module::atom()} | {ok, Module::atom(), warnings()}.
 -type err_ret() :: error | {error, errors(), warnings()}.
 
+-type filename() :: file:name_all().
+
+-type compiler_options() :: compiler_option() | compile:option().
+-type compiler_option() :: return | return_warnings | return_errors
+                        | report | report_warnings | report_errors
+                        | warnings_as_errors | debug_info | verbose.
+
+-type compile_options() :: [compile_option() | {atom(), term()}].
+-type compile_option() :: compiler_option()
+                        | auto_escape | binary | binary_strings
+                        | force_recompile | no_env | no_load
+                        | {blocktrans_fun, Trans::fun((Block::iodata(), Locale::string()) ->
+                                                             iodata() | default)}
+                        | {blocktrans_locales, [string()]}
+                        | {compiler_options, [compiler_options()]}
+                        | {custom_filters_modules, [Module::atom]}
+                        | {custom_tags_dirs, [filename()]}
+                        | {custom_tags_modules, [Module::atom]}
+                        | {default_libraries, [Name::atom()]}
+                        | {doc_root, filename()}
+                        | {extension_module, Module::atom()}
+                        | {libraries, [{Name::atom(), Module::atom()}]}
+                        | {locale, string()}
+                        | {out_dir, false | filename()}
+                        | {reader, {Module::atom(), Function::atom}}
+                        | {record_info, [{Name::atom(), [Field::atom()]}]}
+                        | {scanner_module, Module::atom()}
+                        | {vars, [{atom(), iodata()}]}.
+
 
 %% --------------------------------------------------------------------
 %% Compile file
 %% --------------------------------------------------------------------
 
--spec compile_file( list() | binary(), atom() ) -> {ok, Module::atom()} | error.
+-spec compile_file(filename(), atom()) -> {ok, Module::atom()} | error.
 compile_file(File, Module) ->
     erlydtl_compiler:compile_file(File, Module, erlydtl_compiler:default_options()).
 
--spec compile_file( list() | binary(), atom(), list() ) -> ok_ret() | err_ret().
+-spec compile_file(filename(), atom(), compile_options()) -> ok_ret() | err_ret().
 compile_file(File, Module, Options) ->
     erlydtl_compiler:compile_file(File, Module, Options).
 
@@ -77,11 +108,11 @@ compile_file(File, Module, Options) ->
 %% Compile template
 %% --------------------------------------------------------------------
 
--spec compile_template( list() | binary(), atom() ) -> {ok, Module::atom()} | error.
+-spec compile_template(iodata(), atom()) -> {ok, Module::atom()} | error.
 compile_template(Template, Module) ->
     erlydtl_compiler:compile_template(Template, Module, erlydtl_compiler:default_options()).
 
--spec compile_template( list() | binary(), atom(), list() ) -> ok_ret() | err_ret().
+-spec compile_template(iodata(), atom(), compile_options()) -> ok_ret() | err_ret().
 compile_template(Template, Module, Options) ->
     erlydtl_compiler:compile_template(Template, Module, Options).
 
@@ -90,11 +121,11 @@ compile_template(Template, Module, Options) ->
 %% Compile directory
 %% --------------------------------------------------------------------
 
--spec compile_dir(list() | binary(), atom()) -> {ok, Module::atom()} | error.
+-spec compile_dir(filename(), atom()) -> {ok, Module::atom()} | error.
 compile_dir(DirectoryPath, Module) ->
     erlydtl_compiler:compile_dir(DirectoryPath, Module, erlydtl_compiler:default_options()).
 
--spec compile_dir(list() | binary(), atom(), list()) -> ok_ret() | err_ret().
+-spec compile_dir(filename(), atom(), compile_options()) -> ok_ret() | err_ret().
 compile_dir(DirectoryPath, Module, Options) ->
     erlydtl_compiler:compile_dir(DirectoryPath, Module, Options).
 
@@ -104,10 +135,10 @@ compile_dir(DirectoryPath, Module, Options) ->
 %% --------------------------------------------------------------------
 
 %% keep for backwards compatibility, with a tuple-twist to ease migration / offer alternative path..
--spec compile(FileOrBinary, atom() ) -> {ok, Module::atom()} | error
-                                            when FileOrBinary :: list() | binary() 
-                                                               | {file, list() | binary()}
-                                                               | {template, list() | binary()}.
+-spec compile(FileOrBinary, atom()) -> {ok, Module::atom()} | error
+                                           when FileOrBinary :: string() | binary()
+                                                              | {file, filename()}
+                                                              | {template, iodata()}.
 compile({file, File}, Module) ->
     compile_file(File, Module);
 compile({template, Template}, Module) ->
@@ -117,10 +148,10 @@ compile(FileOrBinary, Module) when is_binary(FileOrBinary) ->
 compile(FileOrBinary, Module) ->
     compile_file(FileOrBinary, Module).
 
--spec compile( FileOrBinary, atom(), list() ) -> ok_ret() | err_ret()
-                                                     when FileOrBinary :: list() | binary() 
-                                                                        | {file, list() | binary()}
-                                                                        | {template, list() | binary()}.
+-spec compile(FileOrBinary, atom(), compile_options() ) -> ok_ret() | err_ret()
+                                                               when FileOrBinary :: string() | binary()
+                                                                                  | {file, filename()}
+                                                                                  | {template, iodata()}.
 compile({file, File}, Module, Options) ->
     compile_file(File, Module, Options);
 compile({template, Template}, Module, Options) ->
