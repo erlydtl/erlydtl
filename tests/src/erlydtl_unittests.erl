@@ -1393,6 +1393,15 @@ tests() ->
             {{1,10},erlydtl_beam_compiler,{unknown_filter,reverse,1}},
             {none,erlydtl_compiler_utils,{load_library,test1,test1,nofile}}
            ])]
+       },
+       {"pre load unknown legacy library",
+        <<"{% foo %}">>, [], [],
+        [{custom_tags_modules, [foo]}],
+        <<"">>,
+        [error_info(
+          [no_out_dir,
+           {none,erlydtl_compiler,{load_library,'(custom-legacy)',foo,nofile}}
+          ])]
        }
       ]},
      {"load",

@@ -308,18 +308,25 @@ load_libraries([Lib|Libs], Context) ->
     load_libraries(Libs, load_library(Lib, Context)).
 
 load_legacy_filters([], Context) -> Context;
-load_legacy_filters([Mod|Filters], Context) ->
-    load_legacy_filters(Filters, add_filters(read_legacy_library(Mod), Context)).
+load_legacy_filters([Mod|Mods], Context) ->
+    {Filters, Context1} = read_legacy_library(Mod, Context),
+    load_legacy_filters(Mods, add_filters(Filters, Context1)).
 
 load_legacy_tags([], Context) -> Context;
-load_legacy_tags([Mod|Tags], Context) ->
-    load_legacy_tags(Tags, add_tags(read_legacy_library(Mod), Context)).
+load_legacy_tags([Mod|Mods], Context) ->
+    {Tags, Context1} = read_legacy_library(Mod, Context),
+    load_legacy_tags(Mods, add_tags(Tags, Context1)).
 
-read_legacy_library(Mod) ->
-    [{Name, {Mod, Name}}
-     || {Name, _} <- lists:ukeysort(1, Mod:module_info(exports)),
-        Name =/= module_info
-    ].
+read_legacy_library(Mod, Context) ->
+    case code:ensure_loaded(Mod) of
+        {module, Mod} ->
+            {[{Name, {Mod, Name}}
+              || {Name, _} <- lists:ukeysort(1, Mod:module_info(exports)),
+                 Name =/= module_info
+             ], Context};
+        {error, Reason} ->
+            {[], ?WARN({load_library, '(custom-legacy)', Mod, Reason}, Context)}
+    end.
 
 is_up_to_date(_, #dtl_context{force_recompile = true}) ->
     false;
