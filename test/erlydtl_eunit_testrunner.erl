@@ -63,7 +63,15 @@ run_compile(T) ->
 run_render(T) ->    
     case (T#test.module):render(T#test.render_vars, T#test.render_opts) of
         {ok, O} ->
-            ?assertEqual(T#test.output, iolist_to_binary(O));
+            B = iolist_to_binary(O),
+            case T#test.output of
+                O -> ok;
+                B -> ok;
+                F when is_function(F) ->
+                    F(B);
+                _ ->
+                    ?assertEqual(T#test.output, B)
+            end;
         RenderOutput ->
             ?assertEqual(T#test.output, RenderOutput),
             error_ok

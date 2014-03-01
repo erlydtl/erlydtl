@@ -1402,6 +1402,15 @@ tests() ->
           [no_out_dir,
            {none,erlydtl_compiler,{load_library,'(custom-legacy)',foo,nofile}}
           ])]
+       },
+       {"unknown filter",
+        <<"{{ '123'|foo }}">>, [], [], [],
+        <<"">>,
+        [error_info([no_out_dir, {{1,10},erlydtl_beam_compiler,{unknown_filter,foo,1}}])]
+       },
+       {"ssi file not found",
+        <<"{% ssi 'foo' %}">>, [],
+        {error, {read_file, <<"./foo">>, enoent}}
        }
       ]},
      {"load",

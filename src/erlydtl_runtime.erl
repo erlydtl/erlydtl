@@ -359,5 +359,8 @@ read_file(Module, Function, DocRoot, FileName) ->
                   FileName -> FileName;
                   _ -> filename:join([DocRoot, FileName])
               end,
-    {ok, Binary} = Module:Function(AbsName),
-    binary_to_list(Binary).
+    case Module:Function(AbsName) of
+        {ok, Data} -> Data;
+        {error, Reason} ->
+            throw({read_file, AbsName, Reason})
+    end.

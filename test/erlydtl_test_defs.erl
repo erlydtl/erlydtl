@@ -1,6 +1,6 @@
 -module(erlydtl_test_defs).
 
--export([tests/0, def_to_record/2]).
+-export([tests/0]).
 -include("testrunner.hrl").
 -record(testrec, {foo, bar, baz}).
 
@@ -10,6 +10,9 @@
 %% {Name, DTL, Vars, RenderOpts, CompilerOpts, Output, Warnings}
 
 tests() ->
+    [def_to_test(G, D) || {G, Ds} <- all_test_defs(), D <- Ds].
+
+all_test_defs() ->
     [{"vars",
       [{"string",
         <<"String value is: {{ var1 }}">>,
@@ -1369,6 +1372,21 @@ tests() ->
            [{{1,10},erlydtl_beam_compiler,{unknown_filter,reverse,1}},
             {none,erlydtl_compiler_utils,{load_library,test1,test1,nofile}}
            ])]
+       },
+       {"pre load unknown legacy library",
+        <<"{% foo %}">>, [], [],
+        [{custom_tags_modules, [foo]}],
+        <<"">>,
+        [error_info([{none,erlydtl_compiler,{load_library,'(custom-legacy)',foo,nofile}}])]
+       },
+       {"unknown filter",
+        <<"{{ '123'|foo }}">>, [], [], [],
+        <<"">>,
+        [error_info([{{1,10},erlydtl_beam_compiler,{unknown_filter,foo,1}}])]
+       },
+       {"ssi file not found",
+        <<"{% ssi 'foo' %}">>, [],
+        {error, {read_file, <<"./foo">>, enoent}}
        }
       ]},
      {"load",
@@ -1388,6 +1406,20 @@ tests() ->
          {libraries, [{test1, erlydtl_lib_test1}]}],
         <<"ytrewQ">>
        }
+      ]},
+     {"functional",
+      [functional_test(F)
+       %% order is important.
+       || F <- ["autoescape", "comment", "extends", "filters", "for", "for_list",
+                "for_tuple", "for_list_preset", "for_preset", "for_records",
+                "for_records_preset", "include", "if", "if_preset", "ifequal",
+                "ifequal_preset", "ifnotequal", "ifnotequal_preset", "now",
+                "var", "var_preset", "cycle", "custom_tag", "custom_tag1",
+                "custom_tag2", "custom_tag3", "custom_tag4", "custom_call",
+                "include_template", "include_path", "ssi", "extends_path",
+                "extends_path2", "trans", "extends2", "extends3",
+                "recursive_block", "extend_recursive_block", "missing",
+                "block_super"]
       ]}
     ].
 
@@ -1396,36 +1428,25 @@ tests() ->
 %% {Name, DTL, Vars, RenderOpts, CompilerOpts, Output}
 %% {Name, DTL, Vars, RenderOpts, CompilerOpts, Output, Warnings}
 
-def_to_record(Group, #test{ title=Name }=T) ->
+def_to_test(Group, #test{ title=Name }=T) ->
     T#test{ title = lists:concat([Group, ": ", Name]) };
-def_to_record(Group, {Name, DTL, Vars, Output}) ->
-    def_to_record(Group, {Name, DTL, Vars, [], [], Output, default_warnings()});
-def_to_record(Group, {Name, DTL, Vars, RenderOpts, Output}) ->
-    def_to_record(Group, {Name, DTL, Vars, RenderOpts, [], Output, default_warnings()});
-def_to_record(Group, {Name, DTL, Vars, RenderOpts, CompilerOpts, Output}) ->
-    def_to_record(Group, {Name, DTL, Vars, RenderOpts, CompilerOpts, Output, default_warnings()});
-def_to_record(Group, {Name, DTL, Vars, RenderOpts, CompilerOpts, Output, Warnings}) ->
+def_to_test(Group, {Name, DTL, Vars, Output}) ->
+    def_to_test(Group, {Name, DTL, Vars, [], [], Output, default_warnings()});
+def_to_test(Group, {Name, DTL, Vars, RenderOpts, Output}) ->
+    def_to_test(Group, {Name, DTL, Vars, RenderOpts, [], Output, default_warnings()});
+def_to_test(Group, {Name, DTL, Vars, RenderOpts, CompilerOpts, Output}) ->
+    def_to_test(Group, {Name, DTL, Vars, RenderOpts, CompilerOpts, Output, default_warnings()});
+def_to_test(Group, {Name, DTL, Vars, RenderOpts, CompilerOpts, Output, Warnings}) ->
     #test{
-       title=lists:concat([Group, ": ", Name]),
-       source=DTL,
-       render_vars=Vars,
-       render_opts=RenderOpts,
-       compile_opts=CompilerOpts ++ (#test{})#test.compile_opts,
-       output=Output,
-       warnings=Warnings
+       title = lists:concat([Group, ": ", Name]),
+       source = {template, DTL},
+       render_vars = Vars,
+       render_opts = RenderOpts,
+       compile_opts = CompilerOpts ++ (#test{})#test.compile_opts,
+       output = Output,
+       warnings = Warnings
       }.
 
-%% vars_to_binary(Vars) when is_list(Vars) ->
-%%     lists:map(fun
-%%                   ({Key, [H|_] = Value}) when is_tuple(H) ->
-%%                      {Key, vars_to_binary(Value)};
-%%                   ({Key, [H|_] = Value}) when is_integer(H) ->
-%%                      {Key, list_to_binary(Value)};
-%%                   ({Key, Value}) ->
-%%                      {Key, Value}
-%%              end, Vars);
-%% vars_to_binary(Vars) ->
-%%     Vars.
 
 generate_test_date() ->
     {{Y,M,D}, _} = erlang:localtime(),
@@ -1473,3 +1494,186 @@ error_info(ErrorDesc, Mod) ->
 
 error_info(Ei) ->
     error_info(Ei, erlydtl_beam_compiler).
+
+
+template_file(Dir, Name) -> filename:join(["../test/files", Dir, Name]).
+
+functional_test(F) ->
+    setup_compile(#test{
+                     title = F,
+                     module = list_to_atom("functional_test_" ++ F),
+                     source = {file, template_file(input, F)}
+                    }).
+
+setup_compile(#test{ title=F, compile_opts=Opts }=T) ->
+    CompileOpts = [{doc_root, "../test/files/input"}|Opts],
+    case setup_compile(F) of
+        {ok, [CV|CO]} ->
+            setup(T#test{
+                    compile_vars = CV,
+                    compile_opts = CO ++ CompileOpts
+                   });
+        {error, Es, Ws} ->
+            T#test{
+              errors = Es,
+              warnings = Ws,
+              compile_opts = CompileOpts
+             }
+    end;
+setup_compile("for_list_preset") ->
+    CompileVars = [{fruit_list, [["apple", "apples"], ["banana", "bananas"], ["coconut", "coconuts"]]}],
+    {ok, [CompileVars]};
+setup_compile("for_preset") ->
+    CompileVars = [{fruit_list, ["preset-apple", "preset-banana", "preset-coconut"]}],
+    {ok, [CompileVars]};
+setup_compile("for_records_preset") ->
+    Link1a = [{name, "Amazon (preset)"}, {url, "http://amazon.com"}],
+    Link2a = [{name, "Google (preset)"}, {url, "http://google.com"}],
+    Link3a = [{name, "Microsoft (preset)"}, {url, "http://microsoft.com"}],
+    CompileVars = [{software_links, [Link1a, Link2a, Link3a]}],
+    {ok, [CompileVars]};
+setup_compile("if_preset") ->
+    CompileVars = [{var1, "something"}],
+    {ok, [CompileVars]};
+setup_compile("ifequal_preset") ->
+    CompileVars = [{var1, "foo"}, {var2, "foo"}],
+    {ok, [CompileVars]};
+setup_compile("ifnotequal_preset") ->
+    CompileVars = [{var1, "foo"}, {var2, "foo"}],
+    {ok, [CompileVars]};
+setup_compile("var_preset") ->
+    CompileVars = [{preset_var1, "preset-var1"}, {preset_var2, "preset-var2"}],
+    {ok, [CompileVars]};
+setup_compile("extends2") ->
+    File = template_file(input, "extends2"),
+    Error = {none, erlydtl_beam_compiler, unexpected_extends_tag},
+    {error, [{File, [Error]}], []};
+setup_compile("extends3") ->
+    File = template_file(input, "extends3"),
+    Include = template_file(input, "imaginary"),
+    Error = {none, erlydtl_beam_compiler, {read_file, Include, enoent}},
+    {error, [{File, [Error]}], []};
+setup_compile("missing") ->
+    File = template_file(input, "missing"),
+    Error = {none, erlydtl_compiler, {read_file, File, enoent}},
+    {error, [{File, [Error]}], []};
+setup_compile("custom_tag") ->
+    {ok, [[]|[{custom_tags_modules, [erlydtl_custom_tags]}]]};
+setup_compile("custom_tag1") -> setup_compile("custom_tag");
+setup_compile("custom_tag2") -> setup_compile("custom_tag");
+setup_compile("custom_tag3") -> setup_compile("custom_tag");
+setup_compile("custom_tag4") -> setup_compile("custom_tag");
+setup_compile(_) ->
+    {ok, [[]]}.
+
+
+expected(File) ->
+    case file:read_file(template_file(expect, File)) of
+        {ok, Data} -> Data;
+        _ -> fun (Data) -> file:write_file(template_file(expect, File), Data) end
+    end.
+
+setup(#test{ title = F }=T) ->
+    {Vars, Opts, Result} =
+        case setup(F) of
+            {ok, V} -> {V, [], expected(F)};
+            {ok, V, O} -> {V, O, expected(F)};
+            {ok, V, O, skip_check} -> {V, O, fun (_) -> ok end};
+            {ok, V, O, R} -> {V, O, R}
+        end,
+    T#test{
+      render_vars = Vars,
+      render_opts = Opts,
+      output = Result
+     };
+setup("autoescape") ->
+    RenderVars = [{var1, "<b>bold</b>"}],
+    {ok, RenderVars};
+setup("extends") ->
+    RenderVars = [{base_var, "base-barstring"}, {test_var, "test-barstring"}],
+    {ok, RenderVars};
+setup("include_template") -> setup("extends");
+setup("include_path") -> setup("extends");
+setup("extends_path") -> setup("extends");
+setup("extends_path2") -> setup("extends");
+setup("block_super") -> setup("extends");
+setup("filters") ->
+    RenderVars = [
+                  {date_var1, {1975,7,24}},
+                  {datetime_var1, {{1975,7,24}, {7,13,1}}},
+                  {'list', ["eins", "zwei", "drei"]}
+                 ],
+    {ok, RenderVars};
+setup("for") ->
+    RenderVars = [{fruit_list, ["apple", "banana", "coconut"]}],
+    {ok, RenderVars};
+setup("for_list") ->
+    RenderVars = [{fruit_list, [["apple", "apples", "$1"], ["banana", "bananas", "$2"], ["coconut", "coconuts", "$500"]]}],
+    {ok, RenderVars};
+setup("for_tuple") ->
+    RenderVars = [{fruit_list, [{"apple", "apples"}, {"banana", "bananas"}, {"coconut", "coconuts"}]}],
+    {ok, RenderVars};
+setup("for_records") ->
+    Link1 = [{name, "Amazon"}, {url, "http://amazon.com"}],
+    Link2 = [{name, "Google"}, {url, "http://google.com"}],
+    Link3 = [{name, "Microsoft"}, {url, "http://microsoft.com"}],
+    RenderVars = [{link_list, [Link1, Link2, Link3]}],
+    {ok, RenderVars};
+setup("for_records_preset") ->
+    Link1b = [{name, "Canon"}, {url, "http://canon.com"}],
+    Link2b = [{name, "Leica"}, {url, "http://leica.com"}],
+    Link3b = [{name, "Nikon"}, {url, "http://nikon.com"}],
+    RenderVars = [{photo_links, [Link1b, Link2b, Link3b]}],
+    {ok, RenderVars};
+setup("include") ->
+    RenderVars = [{var1, "foostring1"}, {var2, "foostring2"}],
+    {ok, RenderVars};
+setup("if") ->
+    RenderVars = [{var1, "something"}],
+    {ok, RenderVars};
+setup("ifequal") ->
+    RenderVars = [{var1, "foo"}, {var2, "foo"}, {var3, "bar"}],
+    {ok, RenderVars};
+setup("ifequal_preset") ->
+    RenderVars = [{var3, "bar"}],
+    {ok, RenderVars};
+setup("ifnotequal") ->
+    RenderVars = [{var1, "foo"}, {var2, "foo"}, {var3, "bar"}],
+    {ok, RenderVars};
+setup("now") ->
+    {ok, [], [], skip_check};
+setup("var") ->
+    RenderVars = [{var1, "foostring1"}, {var2, "foostring2"}, {var_not_used, "foostring3"}],
+    {ok, RenderVars};
+setup("var_preset") ->
+    RenderVars = [{var1, "foostring1"}, {var2, "foostring2"}],
+    {ok, RenderVars};
+setup("cycle") ->
+    RenderVars = [{test, [integer_to_list(X) || X <- lists:seq(1, 20)]},
+                  {a, "Apple"}, {b, "Banana"}, {c, "Cherry"}],
+    {ok, RenderVars};
+setup("trans") ->
+    RenderVars = [{locale, "reverse"}],
+    {ok, RenderVars};
+setup("locale") ->
+    {ok, _RenderVars = [{locale, "ru"}]};
+setup("custom_tag1") ->
+    {ok, [{a, <<"a1">>}], [{locale, ru}], <<"b1\n">>};
+setup("custom_tag2") ->
+    {ok, [{a, <<"a1">>}], [{locale, ru}, {foo, bar}], <<"b2\n">>};
+setup("custom_tag3") ->
+    {ok, [{a, <<"a1">>}], [{locale, ru}], <<"b3\n">>};
+setup("custom_tag4") ->
+    {ok, [], [], <<"a\n">>};
+setup("ssi") ->
+    RenderVars = [{path, "ssi_include.html"}],
+    {ok, RenderVars};
+%%--------------------------------------------------------------------
+%% Custom tags
+%%--------------------------------------------------------------------
+setup("custom_call") ->
+    RenderVars = [{var1, "something"}],
+    {ok, RenderVars};
+
+setup(_) ->
+    {ok, []}.

@@ -36,25 +36,8 @@
 -include_lib("eunit/include/eunit.hrl").
 -include("testrunner.hrl").
 
-var_test() ->
-    {ok, test} = erlydtl:compile_template("String value is: {{ var1 }}", test, [warnings_as_errors, report, {out_dir, false}]),
-    {ok, Output} = test:render([{var1, "foo"}]),
-    ?assertMatch(<<"String value is: foo">>, iolist_to_binary(Output)).
-
-runner_test() ->
-    run_test(
-      #test{
-         source = {template, "String value is: {{ var1 }}"},
-         output = <<"String value is: foo">>,
-         render_vars = [{var1, "foo"}]
-        }).
-
 all_defs_test_() ->
     [{T#test.title,
       fun () -> run_test(T) end}
-     || T <- [erlydtl_test_defs:def_to_record(G, D)
-              || {G, Ds} <- erlydtl_test_defs:tests(),
-                 D <- Ds
-                 %% G == "vars"
-             ]
+     || T <- erlydtl_test_defs:tests()
     ].
