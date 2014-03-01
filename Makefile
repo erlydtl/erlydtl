@@ -17,25 +17,11 @@ get-deps:
 update-deps:
 	@$(REBAR) update-deps
 
-compile_test:
-	-mkdir -p ebintest
-	$(ERLC) -o tests/src -I include/erlydtl_preparser.hrl \
-		tests/src/erlydtl_extension_testparser.yrl
-	$(ERL) -pa ebin -make
-
-test: compile compile_test
-	$(ERL) -noshell -pa ebin -pa ebintest -pa deps/merl/ebin \
-		-eval \
-		"try \
-			erlydtl_functional_tests:run_tests(), \
-			erlydtl_dateformat_tests:run_tests(), \
-			erlydtl_unittests:run_tests(), \
-			sources_parser_unittests:run_tests(), \
-			halt(0) \
-		catch throw:failed -> halt(1) end"
+.PHONY: tests
+tests:
 	@$(REBAR) eunit
 
-check: test dialyze
+check: tests dialyze
 
 DIALYZER_OPTS ?= -Werror_handling -Wrace_conditions -Wunmatched_returns
 dialyze:

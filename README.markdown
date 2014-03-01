@@ -320,7 +320,7 @@ Tests
 
 From a Unix shell, run:
 
-    make test
+    make tests
 
 Note that the tests will create some output in tests/output in case of regressions.
 
