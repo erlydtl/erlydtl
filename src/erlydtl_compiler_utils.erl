@@ -94,7 +94,7 @@ to_string(Arg, #dtl_context{ binary_strings = false }) ->
     to_list_string(Arg).
 
 unescape_string_literal(String) ->
-    unescape_string_literal(string:strip(String, both, 34), [], noslash).
+    unescape_string_literal(remove_quotes(String), [], noslash).
 
 full_path(File, DocRoot) ->
     case filename:absname(File) of
@@ -468,3 +468,15 @@ read_inventory(Mod, Section) ->
          {_Name, _Fun} -> Item;
          Fun -> {Fun, Fun}
      end || Item <- Mod:inventory(Section)].
+
+remove_quotes(String) ->
+    remove_last_quote(remove_first_quote(String)).
+
+remove_first_quote([34 | Rest]) ->
+    Rest;
+remove_first_quote(String) ->
+    String.
+
+remove_last_quote(String) ->
+    lists:reverse(remove_first_quote(lists:reverse(String))).
+  

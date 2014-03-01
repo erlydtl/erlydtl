@@ -161,9 +161,9 @@
 add(LHS, RHS) when is_number(LHS), is_number(RHS) ->
     LHS + RHS;
 add(LHS, RHS) when is_binary(LHS) ->
-    add(binary_to_list(LHS), RHS);
+    add(unicode:characters_to_list(LHS), RHS);
 add(LHS, RHS) when is_binary(RHS) ->
-    add(LHS, binary_to_list(RHS));
+    add(LHS, unicode:characters_to_list(RHS));
 add(LHS, RHS) when is_list(LHS), is_list(RHS) ->
     case {to_numeric(LHS), to_numeric(RHS)} of
 	{{number, LHSNum}, {number, RHSNum}} ->
@@ -206,7 +206,7 @@ to_numeric(List) ->
  
 %% @doc Adds slashes before quotes.
 addslashes(Input) when is_binary(Input) ->
-    addslashes(binary_to_list(Input));
+    addslashes(unicode:characters_to_list(Input));
 addslashes(Input) when is_list(Input) ->
     addslashes(Input, []).
  
@@ -216,21 +216,21 @@ capfirst([H|T]) when H >= $a andalso H =< $z ->
 capfirst(Other) when is_list(Other) ->
     Other;
 capfirst(<<Byte:8/integer, Binary/binary>>) when Byte >= $a andalso Byte =< $z ->
-    [(Byte + $A - $a)|binary_to_list(Binary)];
+    [(Byte + $A - $a)|unicode:characters_to_list(Binary)];
 capfirst(Other) when is_binary(Other) ->
     Other.
  
 %% @doc Centers the value in a field of a given width.
 center(Input, Number) when is_binary(Input) ->
-    list_to_binary(center(binary_to_list(Input), Number));
+    unicode:characters_to_binary(center(unicode:characters_to_list(Input), Number));
 center(Input, Number) when is_list(Input) ->
     string:centre(Input, Number).
  
 %% @doc Removes all values of arg from the given string.
 cut(Input, Arg) when is_binary(Arg) ->
-    cut(Input, binary_to_list(Arg));
+    cut(Input, unicode:characters_to_list(Arg));
 cut(Input, Arg) when is_binary(Input) ->
-    cut(binary_to_list(Input), Arg);
+    cut(unicode:characters_to_list(Input), Arg);
 cut(Input, [Char]) when is_list(Input) ->
     cut(Input, Char, []).
  
@@ -284,11 +284,11 @@ dictsortreversed(DictList, Key) ->
 
 %% @doc Returns `true' if the value is divisible by the argument.
 divisibleby(Input, Divisor) when is_binary(Input) ->
-    divisibleby(binary_to_list(Input), Divisor);
+    divisibleby(unicode:characters_to_list(Input), Divisor);
 divisibleby(Input, Divisor) when is_list(Input) ->
     divisibleby(list_to_integer(Input), Divisor);
 divisibleby(Input, Divisor) when is_binary(Divisor) ->
-    divisibleby(Input, binary_to_list(Divisor));
+    divisibleby(Input, unicode:characters_to_list(Divisor));
 divisibleby(Input, Divisor) when is_list(Divisor) ->
     divisibleby(Input, list_to_integer(Divisor));
 divisibleby(Input, Divisor) when is_integer(Input), is_integer(Divisor) ->
@@ -302,7 +302,7 @@ escapejs(Input) when is_list(Input) ->
 
 %% @doc Format the value like a human-readable file size.
 filesizeformat(Input) when is_binary(Input) ->
-    filesizeformat(binary_to_list(Input));
+    filesizeformat(unicode:characters_to_list(Input));
 filesizeformat(Input) when is_list(Input) ->
     filesizeformat(list_to_integer(Input));
 filesizeformat(Bytes) when is_integer(Bytes), Bytes >= ?GIGABYTE->
@@ -379,11 +379,11 @@ format_number(Input) ->
 
 %% @doc Given a whole number, returns the requested digit, where 1 is the right-most digit.
 get_digit(Input, Digit) when is_binary(Input) ->
-    get_digit(binary_to_list(Input), Digit);
+    get_digit(unicode:characters_to_list(Input), Digit);
 get_digit(Input, Digit) when is_integer(Input) ->
     get_digit(integer_to_list(Input), Digit);
 get_digit(Input, Digit) when is_binary(Digit) ->
-    get_digit(Input, binary_to_list(Digit));
+    get_digit(Input, unicode:characters_to_list(Digit));
 get_digit(Input, Digit) when is_list(Digit) ->
     get_digit(Input, list_to_integer(Digit));
 get_digit(Input, Digit) when Digit > erlang:length(Input) ->
@@ -426,7 +426,7 @@ length_is(Input, Number) when is_list(Input), is_list(Number) ->
 
 %% @doc Replaces line breaks in plain text with appropriate HTML
 linebreaks(Input) when is_binary(Input) ->
-    linebreaks(binary_to_list(Input),[]);
+    linebreaks(unicode:characters_to_list(Input),[]);
 linebreaks(Input) ->
     linebreaks(Input,[]).
 
@@ -455,7 +455,7 @@ linebreaksbr(Input) ->
 
 %% @doc Displays text with line numbers.
 linenumbers(Input) when is_binary(Input) ->
-    linenumbers(binary_to_list(Input));
+    linenumbers(unicode:characters_to_list(Input));
 linenumbers(Input) when is_list(Input) ->
     linenumbers_io(Input, [], 1).
 
@@ -470,7 +470,7 @@ linenumbers_io([H|T], Acc, LineNumber) ->
 
 %% @doc Left-aligns the value in a field of a given width.
 ljust(Input, Number) when is_binary(Input) ->
-    list_to_binary(ljust(binary_to_list(Input), Number));
+    unicode:characters_to_binary(ljust(unicode:characters_to_list(Input), Number));
 ljust(Input, Number) when is_list(Input) ->
     string:left(Input, Number).
 
@@ -484,19 +484,19 @@ lower(Input) ->
 %% For a string, it's a list of characters.
 %% Added this for DTL compatibility, but since strings are lists in Erlang, no need for this.
 make_list(Input) when is_binary(Input) ->
-    make_list(binary_to_list(Input));
+    make_list(unicode:characters_to_list(Input));
 make_list(Input) ->
     unjoin(Input,"").
 
 %% @doc Converts a phone number (possibly containing letters) to its numerical equivalent.
 phone2numeric(Input) when is_binary(Input) ->
-    phone2numeric(binary_to_list(Input));
+    phone2numeric(unicode:characters_to_list(Input));
 phone2numeric(Input) when is_list(Input) ->
     phone2numeric(Input, []).
 
 %% @doc Returns a plural suffix if the value is not 1. By default, this suffix is 's'.
 pluralize(Number, Suffix) when is_binary(Suffix) ->
-    pluralize_io(Number, binary_to_list(Suffix) );
+    pluralize_io(Number, unicode:characters_to_list(Suffix) );
 pluralize(Number, Suffix) when is_list(Suffix) ->
     pluralize_io(Number, Suffix).
 
@@ -548,9 +548,9 @@ random_range(Start, End) when End >= Start ->
     lists:flatten(io_lib:format("~B",[Num])).
 
 removetags(Input, Tags) when is_binary(Input) ->
-    removetags(binary_to_list(Input), Tags);
+    removetags(unicode:characters_to_list(Input), Tags);
 removetags(Input, Tags) when is_binary(Tags) ->
-    removetags(Input, binary_to_list(Tags));
+    removetags(Input, unicode:characters_to_list(Tags));
 removetags(Input, Tags) ->
     TagList = string:tokens(Tags," "),
     TagListString = string:join(TagList,"|"),
@@ -560,13 +560,13 @@ removetags(Input, Tags) ->
 
 %% @doc Right-aligns the value in a field of a given width.
 rjust(Input, Number) when is_binary(Input) ->
-    list_to_binary(rjust(binary_to_list(Input), Number));
+    unicode:characters_to_binary(rjust(unicode:characters_to_list(Input), Number));
 rjust(Input, Number) ->
     string:right(Input, Number).
 
 %% @doc Returns a slice of the list.
 slice(Input, Index) when is_binary(Input) ->
-    erlydtl_slice:slice(binary_to_list(Input), Index);
+    erlydtl_slice:slice(unicode:characters_to_list(Input), Index);
 slice(Input, Index) when is_list(Input) ->
     erlydtl_slice:slice(Input, Index).
 
@@ -574,9 +574,9 @@ slice(Input, Index) when is_list(Input) ->
 %% ([#0-\s+]?)([0-9\*]+)?(\.?)([0-9]?)([diouxXeEfFgGcrs])
 %% @doc Returns a formatted string
 stringformat(Input, Conversion) when is_binary(Input) ->
-    stringformat(binary_to_list(Input), Conversion);
+    stringformat(unicode:characters_to_list(Input), Conversion);
 stringformat(Input, Conversion) when is_binary(Conversion) ->
-    stringformat(Input, binary_to_list(Conversion));
+    stringformat(Input, unicode:characters_to_list(Conversion));
 stringformat(Input, Conversion) ->
     ParsedConversion = re:replace(Conversion, "([\-#\+ ]?)([0-9\*]+)?(\.?)([0-9]?)([diouxXeEfFgGcrs])", "\\1 ,\\2 ,\\3 ,\\4 ,\\5 ", [{return,list}]),
     ?debugFmt("ParsedConversion: ~p~n", [ParsedConversion]),
@@ -705,7 +705,7 @@ stringformat_io(Input, Conversion, ConversionFlag, MinFieldWidth,
 
 %% @doc Strips all [X]HTML tags.
 striptags(Input) when is_binary(Input) ->
-    striptags(binary_to_list(Input));
+    striptags(unicode:characters_to_list(Input));
 striptags(Input) ->
     Regex = "(<[^>]+>)",
     Result = re:replace(Input,Regex,"", [global,{return,list}]),
@@ -743,7 +743,7 @@ cast_to_integer(Input) when is_integer(Input) ->
 cast_to_integer(Input) when is_float(Input) ->
     erlang:round(Input);
 cast_to_integer(Input) when is_binary(Input) ->
-    cast_to_integer(binary_to_list(Input));
+    cast_to_integer(unicode:characters_to_list(Input));
 cast_to_integer(Input) when is_list(Input)->
     case lists:member($., Input) of
         true ->
@@ -759,7 +759,7 @@ cast_to_list(Input) -> hd(io_lib:format("~p", [Input])).
 
 %% @doc Converts to lowercase, removes non-word characters (alphanumerics and underscores) and converts spaces to hyphens.
 slugify(Input) when is_binary(Input) ->
-    slugify(binary_to_list(Input));
+    slugify(unicode:characters_to_list(Input));
 slugify(Input) when is_list(Input) ->
     slugify(Input, []).
 
@@ -812,7 +812,7 @@ timeuntil(Date,Comparison) ->
 
 %% @doc Converts a string into titlecase.
 title(Input) when is_binary(Input) ->
-    title(binary_to_list(Input));
+    title(unicode:characters_to_list(Input));
 title(Input) when is_list(Input) ->
     title(lower(Input), []).
 
@@ -821,10 +821,18 @@ truncatechars(Input, Max) ->
     truncatechars_io(cast_to_list(Input), Max, []).
 
 %% @doc Truncates a string after a certain number of words.
+truncatewords(_Input, Max) when Max =< 0 ->
+    "";
+truncatewords(Input, Max) when is_binary(Input) ->
+    unicode:characters_to_binary(truncatewords(unicode:characters_to_list(Input), Max));
 truncatewords(Input, Max) ->
     truncatewords_io(cast_to_list(Input), Max, []).
 
 %% @doc Similar to truncatewords, except that it is aware of HTML tags.
+truncatewords_html(_Input, Max) when Max =< 0 ->
+    "";
+truncatewords_html(Input, Max) when is_binary(Input) ->
+    unicode:characters_to_binary(truncatewords_html(unicode:characters_to_list(Input), Max));
 truncatewords_html(Input, Max) ->
     truncatewords_html_io(cast_to_list(Input), Max, [], [], text).
 
@@ -846,7 +854,7 @@ unordered_list([First|Rest], Acc) when is_list(First) ->
 
 %% @doc Converts a string into all uppercase.
 upper(Input) when is_binary(Input) ->
-    list_to_binary(upper(binary_to_list(Input)));
+    unicode:characters_to_binary(upper(unicode:characters_to_list(Input)));
 upper(Input) ->
     string:to_upper(Input).
 
@@ -861,13 +869,13 @@ urlencode(Input, Safe) when is_list(Input) ->
 
 %% @doc Returns the number of words.
 wordcount(Input) when is_binary(Input) ->
-    wordcount(binary_to_list(Input));
+    wordcount(unicode:characters_to_list(Input));
 wordcount(Input) when is_list(Input) ->
     wordcount(Input, 0).
 
 %% @doc Wraps words at specified line length, uses `<BR/>' html tag to delimit lines
 wordwrap(Input, Number) when is_binary(Input) ->
-    wordwrap(binary_to_list(Input), Number);
+    wordwrap(unicode:characters_to_list(Input), Number);
 wordwrap(Input, Number) when is_list(Input) ->
     wordwrap(Input, [], [], 0, Number).
 
@@ -875,7 +883,7 @@ wordwrap(Input, Number) when is_list(Input) ->
 yesno(Bool, Choices) when is_binary(Choices) ->
     yesno_io(Bool, Choices);
 yesno(Bool, Choices) when is_list(Choices) ->
-    yesno_io(Bool, list_to_binary(Choices)).
+    yesno_io(Bool, unicode:characters_to_binary(Choices)).
 
 % internal
 
@@ -1179,12 +1187,12 @@ maybe_urlencode_char(C, Safe) ->
 %% @doc Converts URLs in text into clickable links.
 %%TODO: Autoescape not yet implemented
 urlize(Input) when is_binary(Input) ->
-    urlize(binary_to_list(Input),0);
+    urlize(unicode:characters_to_list(Input),0);
 urlize(Input) ->
     urlize(Input,0).
 
 urlize(Input, Trunc) when is_binary(Input) ->
-    urlize(binary_to_list(Input),Trunc);
+    urlize(unicode:characters_to_list(Input),Trunc);
 urlize(Input, Trunc) ->
     {ok,RE} = re:compile("(([[:alpha:]]+://|www\.)[^<>[:space:]]+[[:alnum:]/])"),
     RegexResult = re:run(Input,RE,[global]),
