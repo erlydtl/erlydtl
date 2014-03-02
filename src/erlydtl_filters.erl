@@ -821,7 +821,7 @@ truncatechars(Input, Max) ->
     truncatechars_io(cast_to_list(Input), Max, []).
 
 %% @doc Truncates a string after a certain number of words.
-truncatewords(_Input, Max) when Max =< 0 ->
+truncatewords(_Input, Max) when Max < 0 ->
     "";
 truncatewords(Input, Max) when is_binary(Input) ->
     unicode:characters_to_binary(truncatewords(unicode:characters_to_list(Input), Max));
@@ -829,7 +829,7 @@ truncatewords(Input, Max) ->
     truncatewords_io(cast_to_list(Input), Max, []).
 
 %% @doc Similar to truncatewords, except that it is aware of HTML tags.
-truncatewords_html(_Input, Max) when Max =< 0 ->
+truncatewords_html(_Input, Max) when Max < 0 ->
     "";
 truncatewords_html(Input, Max) when is_binary(Input) ->
     unicode:characters_to_binary(truncatewords_html(unicode:characters_to_list(Input), Max));
