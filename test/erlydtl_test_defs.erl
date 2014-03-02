@@ -50,7 +50,9 @@ all_test_defs() ->
       [{"Render literal",
         <<"{{ \"foo\" }} is my name">>, [], <<"foo is my name">>},
        {"Newlines are escaped",
-        <<"{{ \"foo\\n\" }}">>, [], <<"foo\n">>}
+        <<"{{ \"foo\\n\" }}">>, [], <<"foo\n">>},
+       {"strip quotes",
+        <<"{{ \"foo\"|add:\"\\\"\" }}">>, [], <<"foo\"">>}
       ]},
      {"cycle",
       [{"Cycling through quoted strings",
