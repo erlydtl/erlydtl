@@ -14,6 +14,36 @@ Template Languge, there are still a few
 [differences](https://github.com/erlydtl/erlydtl#differences-from-standard-django-template-language).
 
 
+### The erlydtl branches & tags
+
+As things are progressing somewhat more rapidly, I'll describe our
+branch and tagging strategy to help you stay on the branch or tag(s)
+that suits you best.
+
+#### master branch
+
+This is were all the action is, and at times may be slightly
+broken. Suitable for early adopters who aren't afraid of a little
+debugging and hopefully also reporting issues.
+
+#### release tags
+
+Whenever *master* is deemed stable with a nice set of
+additions/changes, it may be up for a new release.
+
+As we're still going for the big 1.0 release, breaking changes **may**
+be introduced also on minor release bumps; but after that, we'll stick
+with [semver](http://semver.org/) (as a matter of fact, this is all
+covered by the Semantic Versioning Spec 2.0.0, see 4§).
+
+#### stable branch
+
+The *stable* branch Will follow the latest release after it has proven
+itself stable. This is a bit fuzzy, what will be considered stable,
+but if you want to follow the releases without having to keep track of
+when to jump to a new tag, the *stable* branch is for you.
+
+
 Compilation
 -----------
 
