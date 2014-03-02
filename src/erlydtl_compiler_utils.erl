@@ -48,30 +48,27 @@
 
 -export([
          add_error/3, add_errors/2,
-         add_filters/2, add_tags/2,
+         add_filters/2,
+         add_tags/2,
          add_warning/3, add_warnings/2,
+         begin_scope/1, begin_scope/2,
          call_extension/3,
+         empty_scope/0,
+         end_scope/4,
          format_error/1,
          full_path/2,
          get_current_file/1,
          init_treewalker/1,
-         load_library/2,
-         load_library/3,
-         load_library/4,
+         load_library/2, load_library/3, load_library/4,
          merge_info/2,
-         print/3,
-         print/4,
-         to_string/2,
-         unescape_string_literal/1,
-         reset_parse_trail/2,
-         resolve_variable/2,
-         resolve_variable/3,
+         print/3, print/4,
          push_scope/2,
+         reset_parse_trail/2,
+         resolve_variable/2, resolve_variable/3,
          restore_scope/2,
-         begin_scope/1,
-         begin_scope/2,
-         end_scope/4,
-         empty_scope/0
+         shorten_filename/1, shorten_filename/2,
+         to_string/2,
+         unescape_string_literal/1
         ]).
 
 -include("erlydtl_ext.hrl").
@@ -282,6 +279,21 @@ add_filters(Load, #dtl_context{ filters=Filters }=Context) ->
 add_tags(Load, #dtl_context{ tags=Tags }=Context) ->
     ?LOG_TRACE("Load tags: ~p~n", [Load], Context),
     Context#dtl_context{ tags=Load ++ Tags }.
+
+%% shorten_filename/1 copied from Erlang/OTP lib/compiler/src/compile.erl
+shorten_filename(Name) ->
+    {ok, Cwd} = file:get_cwd(),
+    shorten_filename(Name, Cwd).
+
+shorten_filename(Name, Cwd) ->
+    case lists:prefix(Cwd, Name) of
+        false -> Name;
+        true ->
+            case lists:nthtail(length(Cwd), Name) of
+                "/"++N -> N;
+                N -> N
+            end
+    end.
 
 format_error({load_library, Name, Mod, Reason}) ->
     io_lib:format("Failed to load library '~p' (~p): ~p", [Name, Mod, Reason]);

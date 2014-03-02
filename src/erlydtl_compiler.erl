@@ -52,7 +52,7 @@
 
 -import(erlydtl_compiler_utils,
          [add_filters/2, add_tags/2, call_extension/3,
-         load_library/2]).
+         load_library/2, shorten_filename/1]).
 
 -include("erlydtl_ext.hrl").
 
@@ -170,18 +170,6 @@ env_default_opts() ->
                 {error, {_,_,_Reason}, _} ->
                     io:format("Ignoring bad term in ~s\n", [Key]),
                     []
-            end
-    end.
-
-%% shorten_filename/1 copied from Erlang/OTP lib/compiler/src/compile.erl
-shorten_filename(Name0) ->
-    {ok,Cwd} = file:get_cwd(),
-    case lists:prefix(Cwd, Name0) of
-        false -> Name0;
-        true ->
-            case lists:nthtail(length(Cwd), Name0) of
-                "/"++N -> N;
-                N -> N
             end
     end.
 

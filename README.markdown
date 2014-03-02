@@ -118,11 +118,18 @@ Options is a proplist possibly containing:
   argument to the `render/2` call at render-time. (These may include
   any options, not just `locale` and `translation_fun`.)
 
+* `debug_compiler` - Enable compiler debug diagnostics.  Currently it
+  debug prints the options passed to `compile:forms` (i.e. if
+  verbosity is >= 2; that is, with two or more `verbose` options) and
+  enables the saving of the compiled template in source form to a .erl
+  file.
+
 * `debug_info` - This option is passed to `compile:forms` to include
-  debug information in the compiled module. It will also print all
-  options passed to `compile:forms` if verbosity is >= 2 (e.g. with
-  two or more `verbose` options) and save the compiled template in
-  source form to a .erl file.
+  debug information in the compiled module.
+
+* `debug_root` - The root directory for debug source dumps. If set to
+  `false`, no source dump will be saved. Defaults to `undefined`,
+  leaving the source dump next to the source template file.
 
 * `default_libraries` - A list of libraries that should be loaded by
   default when compiling a template. Libraries can be specified either

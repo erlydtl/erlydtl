@@ -39,9 +39,7 @@ plt:
 clean:
 	@echo "Clean merl..." ; $(MAKE) -C deps/merl clean
 	@$(REBAR) clean
-	rm -fv ebintest/*
 	rm -fv erl_crash.dump
-	rm -fv tests/output/*
 
 # rebuild any .slex files as well..  not included by default to avoid
 # the slex dependency, which is only needed in case the .slex file has
@@ -54,3 +52,6 @@ slex-skip-deps: slex-compile
 
 slex-compile:
 	@$(REBAR) -C rebar-slex.config $(REBAR_DEPS) compile
+
+shell:
+	@$(ERL) -pz ebin deps/*/ebin

@@ -63,7 +63,8 @@
          empty_scope/0, get_current_file/1, add_errors/2,
          add_warnings/2, merge_info/2, call_extension/3,
          init_treewalker/1, resolve_variable/2, resolve_variable/3,
-         reset_parse_trail/2, load_library/3, load_library/4]).
+         reset_parse_trail/2, load_library/3, load_library/4,
+         shorten_filename/2]).
 
 -include_lib("merl/include/merl.hrl").
 -include("erlydtl_ext.hrl").
@@ -263,17 +264,44 @@ load_code(Module, Bin, Context) ->
     end.
 
 maybe_debug_template(Forms, Context) ->
-    %% undocumented option to debug the compiled template
-    case proplists:get_bool(debug_info, Context#dtl_context.all_options) of
+    case proplists:get_bool(debug_compiler, Context#dtl_context.all_options) of
         false -> nop;
         true ->
             Options = Context#dtl_context.compiler_options,
             ?LOG_DEBUG("Compiler options: ~p~n", [Options], Context),
             try
                 Source = erl_prettypr:format(erl_syntax:form_list(Forms)),
-                File = lists:concat([proplists:get_value(source, Options), ".erl"]),
-                io:format("Saving template source to: ~s.. ~p~n",
-                          [File, file:write_file(File, Source)])
+                SourceFile = lists:concat(
+                               [proplists:get_value(source, Options),".erl"]),
+                File = case proplists:get_value(
+                              debug_root,
+                              Context#dtl_context.all_options) of
+                           false -> undefined;
+                           undefined -> SourceFile;
+                           Dir ->
+                               Abs = filename:absname(
+                                 shorten_filename(
+                                   SourceFile,
+                                   Context#dtl_context.doc_root),
+                                       Dir),
+                               case filelib:is_dir(Dir) of
+                                   true -> Abs;
+                                   false ->
+                                       case filelib:ensure_dir(Abs) of
+                                           ok -> Abs;
+                                           {error, Reason} ->
+                                               io:format(
+                                                 "Failed to ensure directories for file '~s': ~p~n",
+                                                 [Abs, Reason]),
+                                               undefined
+                                       end
+                               end
+                       end,
+                if File =/= undefined ->
+                        io:format("Saving template source to: ~s.. ~p~n",
+                                  [File, file:write_file(File, Source)]);
+                   true -> ok
+                end
             catch
                 error:Err ->
                     io:format("Pretty printing failed: ~p~n"
