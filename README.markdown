@@ -127,9 +127,10 @@ Options is a proplist possibly containing:
 * `debug_info` - This option is passed to `compile:forms` to include
   debug information in the compiled module.
 
-* `debug_root` - The root directory for debug source dumps. If set to
-  `false`, no source dump will be saved. Defaults to `undefined`,
-  leaving the source dump next to the source template file.
+* `debug_root` - Only applies when `debug_compiler` is `true`. The
+  root directory for debug source dumps. If set to `false`, no source
+  dump will be saved. Defaults to `undefined`, leaving the source dump
+  next to the source template file.
 
 * `default_libraries` - A list of libraries that should be loaded by
   default when compiling a template. Libraries can be specified either
