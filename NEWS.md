@@ -1,4 +1,3 @@
-<!-- -*- mode: markdown -*- -->
 ErlyDTL NEWS file
 -----------------
 
