@@ -1,16 +1,15 @@
-ErlyDTL NEWS file
------------------
+# ErlyDTL NEWS file
 
 This file records noteworthy changes and additions to erlydtl as
 suggested by the [GNU Coding
 Standards](http://www.gnu.org/prep/standards/html_node/NEWS-File.html#NEWS-File).
 
-# master (upcoming release)
+## master (upcoming release)
 
 * Added NEWS file.
 
 
-# 0.9.1 (2014-03-02)
+## 0.9.1 (2014-03-02)
 
 This release brings a row of major internal improvements and also a few new and improved features.
 
@@ -46,7 +45,7 @@ See milestone 0.9.1 for a complete list of closed issues in this release.
 Happy templating!
 
 
-# 0.9.0 (2014-02-17)
+## 0.9.0 (2014-02-17)
 
 After some fluctuating stability around *0.8.1*, this release brings a set of improvements that has been tested not only by the test suite, but also in a couple of projects.
 
@@ -64,7 +63,7 @@ After some fluctuating stability around *0.8.1*, this release brings a set of im
 * The error reporting has been fixed for certain cases.
 
 
-# 0.8.2 (2014-01-29)
+## 0.8.2 (2014-01-29)
 
 My sincere apologies, this really should have been in the *0.8.1*
 release.
@@ -84,7 +83,7 @@ These changes were made already in *0.8.1*, but the specs were not, so
 dialyzer did not pick up on them.
 
 
-# 0.8.1 (2014-01-19)
+## 0.8.1 (2014-01-19)
 
 This release is a clean-up release with a bunch of minor issues squeezed out.
 
@@ -100,18 +99,18 @@ errors and warnings, and is in a semi-workable state. A fix is
 committed to *master*, and will be included in the next release.
 
 
-# 0.8.0 (2014-01-10)
+## 0.8.0 (2014-01-10)
 
 This is a release to bring in all the changes together since *0.7.0*,
 and will be the starting point for a lot of future improvements.
 
 
-# 0.7.0 (2011-03-21
+## 0.7.0 (2011-03-21
 
 * Support no-argument version of `date` filter.
 
 
-# 0.6.0 (2010-04-28)
+## 0.6.0 (2010-04-28)
 
 * Implement `trans` tag with support for .po files Includes a .po
   parser and generator, docs, and tests. See README_I18N.
@@ -119,26 +118,25 @@ and will be the starting point for a lot of future improvements.
   Many thanks to David Garcia.
 
 
-# 0.5.3 (2009-08-13)
+## 0.5.3 (2009-08-13)
 
 * Create "ebin" directory if it does not exist.  Thanks to uri.sharf
   for the bug report, ja...@nialscorva.net for the patch.
 
 
-# 0.5.2 (2009-02-13)
+## 0.5.2 (2009-02-13)
 
 * Do not require a space between a variable name and closing bracket,
   e.g. allow `{{var1}}`.
 
 
-# 0.5.1 (2008-10-23)
+## 0.5.1 (2008-10-23)
 
-* Issue [#6](https://github.com/erlydtl/erlydtl/pull/6) (Dependencies fix).
 * Applied patch from Dan Milstein to fix a crash when rendering floats.
 * Added a baseline failing test case for the problem.
 
 
-# 0.5.0 (2008-08-07)
+## 0.5.0 (2008-08-07)
 
 * Run functional tests from "make test".
 * Clean up the output from all test suites.
