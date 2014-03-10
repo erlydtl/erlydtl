@@ -7,6 +7,7 @@ Standards](http://www.gnu.org/prep/standards/html_node/NEWS-File.html#NEWS-File)
 ## master (upcoming release)
 
 * Added NEWS file.
+* Fixed broken `compile_dir` (#146).
 
 
 ## 0.9.1 (2014-03-02)
