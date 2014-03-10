@@ -113,6 +113,7 @@ print(_Verbosity, _Fmt, _Args, _Context) ->
 get_current_file(#treewalker{ context=Context }) ->
     get_current_file(Context);
 get_current_file(#dtl_context{ parse_trail=[File|_] }) -> File;
+get_current_file(#dtl_context{ is_compiling_dir=Dir }) when Dir =/= false -> Dir;
 get_current_file(#dtl_context{ doc_root=Root }) -> Root.
 
 add_error(Module, Error, #treewalker{ context=Context }=TreeWalker) ->

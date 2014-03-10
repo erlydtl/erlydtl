@@ -6,6 +6,7 @@
           title = "<no title>",
           module = erly_test,
           source,
+          renderer = render,
           output,
           compile_opts = [report, return, {auto_escape, false}, force_recompile, {out_dir, false}],
           compile_vars = [],

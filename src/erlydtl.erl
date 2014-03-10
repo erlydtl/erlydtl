@@ -135,28 +135,34 @@ compile_dir(DirectoryPath, Module, Options) ->
 %% --------------------------------------------------------------------
 
 %% keep for backwards compatibility, with a tuple-twist to ease migration / offer alternative path..
--spec compile(FileOrBinary, atom()) -> {ok, Module::atom()} | error
-                                           when FileOrBinary :: string() | binary()
+-spec compile(FileOrTemplate, atom()) -> {ok, Module::atom()} | error
+                                           when FileOrTemplate :: string() | binary()
                                                               | {file, filename()}
-                                                              | {template, iodata()}.
+                                                              | {template, iodata()}
+                                                              | {dir, filename()}.
 compile({file, File}, Module) ->
     compile_file(File, Module);
 compile({template, Template}, Module) ->
     compile_template(Template, Module);
-compile(FileOrBinary, Module) when is_binary(FileOrBinary) ->
-    compile_template(FileOrBinary, Module);
-compile(FileOrBinary, Module) ->
-    compile_file(FileOrBinary, Module).
+compile({dir, Directory}, Module) ->
+    compile_dir(Directory, Module);
+compile(FileOrTemplate, Module) when is_binary(FileOrTemplate) ->
+    compile_template(FileOrTemplate, Module);
+compile(FileOrTemplate, Module) ->
+    compile_file(FileOrTemplate, Module).
 
--spec compile(FileOrBinary, atom(), compile_options() ) -> ok_ret() | err_ret()
-                                                               when FileOrBinary :: string() | binary()
+-spec compile(FileOrTemplate, atom(), compile_options() ) -> ok_ret() | err_ret()
+                                                               when FileOrTemplate :: string() | binary()
                                                                                   | {file, filename()}
-                                                                                  | {template, iodata()}.
+                                                                                  | {template, iodata()}
+                                                                                  | {dir, filename()}.
 compile({file, File}, Module, Options) ->
     compile_file(File, Module, Options);
 compile({template, Template}, Module, Options) ->
     compile_template(Template, Module, Options);
-compile(FileOrBinary, Module, Options) when is_binary(FileOrBinary) ->
-    compile_template(FileOrBinary, Module, Options);
-compile(FileOrBinary, Module, Options) ->
-    compile_file(FileOrBinary, Module, Options).
+compile({dir, Directory}, Module, Options) ->
+    compile_dir(Directory, Module, Options);
+compile(FileOrTemplate, Module, Options) when is_binary(FileOrTemplate) ->
+    compile_template(FileOrTemplate, Module, Options);
+compile(FileOrTemplate, Module, Options) ->
+    compile_file(FileOrTemplate, Module, Options).

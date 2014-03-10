@@ -60,8 +60,13 @@ run_compile(T) ->
             error_ok
     end.
 
-run_render(T) ->    
-    case (T#test.module):render(T#test.render_vars, T#test.render_opts) of
+run_render(#test{ renderer=Renderer }=T) ->
+    Output = if is_atom(Renderer) ->
+                     (T#test.module):Renderer(T#test.render_vars, T#test.render_opts);
+                is_function(Renderer) ->
+                     Renderer(T)
+             end,
+    case Output of
         {ok, O} ->
             B = iolist_to_binary(O),
             case T#test.output of

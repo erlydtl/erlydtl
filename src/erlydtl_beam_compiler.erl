@@ -130,7 +130,7 @@ do_compile_dir(Dir, Context) ->
                                     case parse_file(FilePath, Ctx) of
                                         up_to_date -> {ResultAcc, Ctx};
                                         {ok, DjangoParseTree, CheckSum} ->
-                                            {[{File, DjangoParseTree, CheckSum}|ResultAcc], Ctx};
+                                            {[{FilePath, DjangoParseTree, CheckSum}|ResultAcc], Ctx};
                                         {error, Reason} -> {ResultAcc, ?ERR(Reason, Ctx)}
                                     end
                             end
@@ -161,15 +161,16 @@ compile_multiple_to_binary(Dir, ParserResults, Context) ->
                                                              {FilePath, CheckSum},
                                                              body_ast(DjangoParseTree, TreeWalker)),
                       FunctionName = filename:rootname(filename:basename(File)),
-                      Function1 = ?Q("'@FunctionName@'(Variables) -> _@FunctionName@(Variables, [])."),
-                      Function2 = ?Q(["'@FunctionName@'(Variables, RenderOptions) ->",
-                                      "  try _@MatchAst, _@body of",
-                                      "    Val -> {ok, Val}",
-                                      "  catch",
-                                      "    Err -> {error, Err}",
-                                      "  end."],
-                                     [{body, stringify(BodyAst, Ctx)}]),
-                      {{FunctionName, Function1, Function2}, {merge_info(AstInfo, BodyInfo), TreeWalker1}}
+                      FunctionDefs = ?Q(["'@func'(Variables) -> _@func(Variables, []).",
+                                         "'@func'(_Variables, RenderOptions) ->",
+                                         "  try _@MatchAst, _@body of",
+                                         "    Val -> {ok, Val}",
+                                         "  catch",
+                                         "    Err -> {error, Err}",
+                                         "  end."],
+                                        [{func, erl_syntax:atom(FunctionName)},
+                                         {body, stringify(BodyAst, Ctx)}]),
+                      {{FunctionName, FunctionDefs}, {merge_info(AstInfo, BodyInfo), TreeWalker1}}
                   catch
                       throw:Error ->
                           {error, {AstInfo, TreeWalker#treewalker{ context=?ERR(Error, Ctx) }}}
@@ -437,20 +438,20 @@ custom_forms(Dir, Module, Functions, AstInfo) ->
                 erl_syntax:arity_qualifier(erl_syntax:atom(dependencies), erl_syntax:integer(0)),
                 erl_syntax:arity_qualifier(erl_syntax:atom(translatable_strings), erl_syntax:integer(0))
                 | lists:foldl(
-                    fun({FunctionName, _, _}, Acc) ->
+                    fun({FunctionName, _}, Acc) ->
                             [erl_syntax:arity_qualifier(erl_syntax:atom(FunctionName), erl_syntax:integer(1)),
                              erl_syntax:arity_qualifier(erl_syntax:atom(FunctionName), erl_syntax:integer(2))
                              |Acc]
                     end, [], Functions)
                ],
     ModuleAst = ?Q("-module('@Module@')."),
-    ExportAst = ?Q("-export(['@_Exported'/1])"),
+    ExportAst = ?Q("-export(['@_Exported'/1])."),
 
     SourceFunctionAst = ?Q("source_dir() -> _@Dir@."),
 
     DependenciesFunctionAst = dependencies_function(AstInfo#ast_info.dependencies),
     TranslatableStringsFunctionAst = translatable_strings_function(AstInfo#ast_info.translatable_strings),
-    FunctionAsts = lists:foldl(fun({_, Function1, Function2}, Acc) -> [Function1, Function2 | Acc] end, [], Functions),
+    FunctionAsts = lists:foldl(fun({_, FunctionDefs}, Acc) -> FunctionDefs ++ Acc end, [], Functions),
 
     [erl_syntax:revert(X)
      || X <- [ModuleAst, ExportAst, SourceFunctionAst, DependenciesFunctionAst, TranslatableStringsFunctionAst

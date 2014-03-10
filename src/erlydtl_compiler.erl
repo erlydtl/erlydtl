@@ -52,7 +52,7 @@
 
 -import(erlydtl_compiler_utils,
          [add_filters/2, add_tags/2, call_extension/3,
-         load_library/2, shorten_filename/1]).
+         load_library/2, shorten_filename/1, get_current_file/1]).
 
 -include("erlydtl_ext.hrl").
 
@@ -242,7 +242,7 @@ init_context(ParseTrail, DefDir, Module, Options) ->
            binary_strings = proplists:get_value(binary_strings, Options, Ctx#dtl_context.binary_strings),
            force_recompile = proplists:get_bool(force_recompile, Options),
            verbose = length(proplists:get_all_values(verbose, Options)),
-           is_compiling_dir = ParseTrail == [],
+           is_compiling_dir = if ParseTrail == [] -> DefDir; true -> false end,
            extension_module = proplists:get_value(extension_module, Options, Ctx#dtl_context.extension_module),
            scanner_module = proplists:get_value(scanner_module, Options, Ctx#dtl_context.scanner_module),
            record_info = [{R, lists:zip(I, lists:seq(2, length(I) + 1))}
@@ -427,12 +427,13 @@ collect_error_info([], Rest, Acc) ->
     end.
 
 
-do_compile(#dtl_context{ is_compiling_dir=true, parse_trail=[Dir] }=Context) ->
-    erlydtl_beam_compiler:compile_dir(Dir, Context);
-do_compile(#dtl_context{ bin=undefined, parse_trail=[File] }=Context) ->
-    compile_output(parse_file(File, Context), Context);
-do_compile(#dtl_context{ bin=Template }=Context) ->
-    compile_output(parse_template(Template, Context), Context).
+do_compile(#dtl_context{ is_compiling_dir=false, bin=undefined }=Context) ->
+    compile_output(parse_file(get_current_file(Context), Context), Context);
+do_compile(#dtl_context{ is_compiling_dir=false, bin=Template }=Context) ->
+    compile_output(parse_template(Template, Context), Context);
+do_compile(#dtl_context{ is_compiling_dir=Dir }=Context) ->
+    erlydtl_beam_compiler:compile_dir(Dir, Context).
+
 
 compile_output(up_to_date, Context) -> Context;
 compile_output({ok, DjangoParseTree, CheckSum}, Context) ->

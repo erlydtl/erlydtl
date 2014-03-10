@@ -1422,6 +1422,20 @@ all_test_defs() ->
                 "extends_path2", "trans", "extends2", "extends3",
                 "recursive_block", "extend_recursive_block", "missing",
                 "block_super"]
+      ]},
+     {"compile_dir",
+      [setup_compile(T)
+       || T <- [#test{
+                   title = "non-existing dir",
+                   source = {dir, "non-existing-made-up-dir"},
+                   renderer = fun(#test{ source={dir, Dir} }) -> Dir end,
+                   output = "non-existing-made-up-dir"
+                  },
+                #test{
+                   title = "path1",
+                   source = {dir, template_file(input, "path1")},
+                   renderer = base1
+                  }]
       ]}
     ].
 
@@ -1570,12 +1584,22 @@ setup_compile(_) ->
 
 
 expected(File) ->
-    case file:read_file(template_file(expect, File)) of
+    Filename = template_file(expect, File),
+    case file:read_file(Filename) of
         {ok, Data} -> Data;
-        _ -> fun (Data) -> file:write_file(template_file(expect, File), Data) end
+        _ -> fun (Data) ->
+                     ok = file:write_file(Filename, Data),
+                     io:format(
+                       user,
+                       "## Saved expected output for test ~p to ~p.~n"
+                       "   Verify the contents, as it is used to pass the test on subsequent test runs.~n"
+                       "~n",
+                       [File, Filename]),
+                     throw({verify_new_expected_output, Filename})
+             end
     end.
 
-setup(#test{ title = F }=T) ->
+setup(#test{ title = F, output=undefined }=T) ->
     {Vars, Opts, Result} =
         case setup(F) of
             {ok, V} -> {V, [], expected(F)};
@@ -1588,6 +1612,7 @@ setup(#test{ title = F }=T) ->
       render_opts = Opts,
       output = Result
      };
+setup(#test{}=T) -> T;
 setup("autoescape") ->
     RenderVars = [{var1, "<b>bold</b>"}],
     {ok, RenderVars};
