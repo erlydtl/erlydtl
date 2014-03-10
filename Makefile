@@ -38,7 +38,7 @@ plt:
 
 clean:
 	@echo "Clean merl..." ; $(MAKE) -C deps/merl clean
-	@$(REBAR) clean
+	@$(REBAR) -C rebar-slex.config clean
 	rm -fv erl_crash.dump
 
 # rebuild any .slex files as well..  not included by default to avoid
