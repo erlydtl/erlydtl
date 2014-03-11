@@ -178,7 +178,7 @@ Options is a proplist possibly containing:
 
 * `libraries` - A list of `{Name, Module}` libraries implementing
   custom tags and filters. `Module` should implement the
-  `erlydtl_library` behaviour.
+  `erlydtl_library` behaviour (see [Custom tags and filters] below).
 
 * `locale` **deprecated** - The same as {blocktrans_locales, [Val]}.
 
@@ -341,6 +341,36 @@ my_compiled_template:variables() -> [Variable::atom()]
 Sorted list of unique variables used in the template's body. The list
 can be used for determining which variable bindings need to be passed
 to the `render/3` function.
+
+
+Custom tags and filters
+-----------------------
+
+Starting with release *0.9.1*, the recommended way to add custom tags
+and filters are to register a module implementing the
+`erlydtl_library` behaviour. There are two functions needed to
+implement a custom library: `version/0` and `inventory/1`.
+
+The `version/0` function is to be able to keep backwards compatibility
+in face of an evolving library behaviour, and should return the
+version of the behaviour the library supports. The valid range of
+versions is in the spec for the `version/0` callback in
+`erlydtl_library.erl`.
+
+### Library version 1
+
+The `inventory/1` function is called with either `filters` or `tags`
+as argument, and should return a list of all filters or tags available
+in that library, respectively (see spec in `erlydtl_library.erl` for
+details on syntax for this list).
+
+Tag functions must take a list of arguments, and may take a list of
+render options, and should return an `iolist()` as result value (see
+`custom_tags_modules` compile option).
+
+Filter functions must take an `iolist()` value to filter, and may take
+an argument, and should return an `iolist()` as result value (see
+`custom_filters_modules` compile option).
 
 
 Differences from standard Django Template Language

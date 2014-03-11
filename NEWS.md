@@ -15,7 +15,8 @@ Standards](http://www.gnu.org/prep/standards/html_node/NEWS-File.html#NEWS-File)
 
 ## 0.9.1 (2014-03-02)
 
-This release brings a row of major internal improvements and also a few new and improved features.
+This release brings a row of major internal improvements and also a
+few new and improved features.
 
 * Replaced most of `erl_syntax` use for merl (#123).
 * Refactored compiler and test suite (#134, #136).
@@ -51,7 +52,9 @@ Happy templating!
 
 ## 0.9.0 (2014-02-17)
 
-After some fluctuating stability around *0.8.1*, this release brings a set of improvements that has been tested not only by the test suite, but also in a couple of projects.
+After some fluctuating stability around *0.8.1*, this release brings a
+set of improvements that has been tested not only by the test suite,
+but also in a couple of projects.
 
 * API changes. Added `_file` and `_template` suffixes to the compile
   functions to explicitly convey what is to be compiled.
