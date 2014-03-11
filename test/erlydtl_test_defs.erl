@@ -1434,7 +1434,9 @@ all_test_defs() ->
                 #test{
                    title = "path1",
                    source = {dir, template_file(input, "path1")},
-                   renderer = base1
+                   renderer = fun(#test{ module=M, render_vars=V, render_opts=O }) ->
+                                      M:render(base1, V, O)
+                              end
                   }]
       ]}
     ].

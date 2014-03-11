@@ -163,11 +163,7 @@ compile_multiple_to_binary(Dir, ParserResults, Context) ->
                       FunctionName = filename:rootname(filename:basename(File)),
                       FunctionDefs = ?Q(["'@func'(Variables) -> _@func(Variables, []).",
                                          "'@func'(_Variables, RenderOptions) ->",
-                                         "  try _@MatchAst, _@body of",
-                                         "    Val -> {ok, Val}",
-                                         "  catch",
-                                         "    Err -> {error, Err}",
-                                         "  end."],
+                                         "    _@MatchAst, _@body."],
                                         [{func, erl_syntax:atom(FunctionName)},
                                          {body, stringify(BodyAst, Ctx)}]),
                       {{FunctionName, FunctionDefs}, {merge_info(AstInfo, BodyInfo), TreeWalker1}}
@@ -436,7 +432,10 @@ variables_function(Variables) ->
 custom_forms(Dir, Module, Functions, AstInfo) ->
     Exported = [erl_syntax:arity_qualifier(erl_syntax:atom(source_dir), erl_syntax:integer(0)),
                 erl_syntax:arity_qualifier(erl_syntax:atom(dependencies), erl_syntax:integer(0)),
-                erl_syntax:arity_qualifier(erl_syntax:atom(translatable_strings), erl_syntax:integer(0))
+                erl_syntax:arity_qualifier(erl_syntax:atom(translatable_strings), erl_syntax:integer(0)),
+                erl_syntax:arity_qualifier(erl_syntax:atom(render), erl_syntax:integer(1)),
+                erl_syntax:arity_qualifier(erl_syntax:atom(render), erl_syntax:integer(2)),
+                erl_syntax:arity_qualifier(erl_syntax:atom(render), erl_syntax:integer(3))
                 | lists:foldl(
                     fun({FunctionName, _}, Acc) ->
                             [erl_syntax:arity_qualifier(erl_syntax:atom(FunctionName), erl_syntax:integer(1)),
@@ -449,13 +448,27 @@ custom_forms(Dir, Module, Functions, AstInfo) ->
 
     SourceFunctionAst = ?Q("source_dir() -> _@Dir@."),
 
+    RenderAsts = ?Q(["render(Tag) -> render(Tag, [], []).",
+                     "render(Tag, Vars) -> render(Tag, Vars, []).",
+                     "render(Tag, Vars, Opts) ->",
+                     "    try '@Module@':Tag(Vars, Opts) of",
+                     "      Val -> {ok, Val}",
+                     "    catch",
+                     "      Err -> {error, Err}",
+                     "    end."]),
+
     DependenciesFunctionAst = dependencies_function(AstInfo#ast_info.dependencies),
     TranslatableStringsFunctionAst = translatable_strings_function(AstInfo#ast_info.translatable_strings),
-    FunctionAsts = lists:foldl(fun({_, FunctionDefs}, Acc) -> FunctionDefs ++ Acc end, [], Functions),
+    FunctionAsts = lists:foldl(
+                     fun({_, FunctionDefs}, Acc) ->
+                             FunctionDefs ++ Acc
+                     end,
+                     RenderAsts, Functions),
 
     [erl_syntax:revert(X)
-     || X <- [ModuleAst, ExportAst, SourceFunctionAst, DependenciesFunctionAst, TranslatableStringsFunctionAst
-              | FunctionAsts] ++ AstInfo#ast_info.pre_render_asts
+     || X <- [ModuleAst, ExportAst, SourceFunctionAst, DependenciesFunctionAst,
+              TranslatableStringsFunctionAst | FunctionAsts]
+            ++ AstInfo#ast_info.pre_render_asts
     ].
 
 stringify(BodyAst, #dtl_context{ binary_strings=BinaryStrings }) ->

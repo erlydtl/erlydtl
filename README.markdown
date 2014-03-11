@@ -248,6 +248,12 @@ Compiling a helper module can be more efficient than using
 `custom_tags_dir` because the helper functions will be compiled only
 once (rather than once per template).
 
+Notice: The exported template functions return an `iolist()` on
+success only, failures are non-local (e.g. as a throw). To get the
+result in wrapped tuple `{ok, iolist()} | {error, Reason}` call one of
+the `render` functions: `render(Tag) | render(Tag, Vars) | render(Tag,
+Vars, Opts)`.
+
 
 Usage (of a compiled template)
 ------------------------------
