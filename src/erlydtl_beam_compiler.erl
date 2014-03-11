@@ -1434,12 +1434,12 @@ custom_tags_modules_ast({identifier, Pos, Name}, InterpretedArgs,
                     empty_ast(?WARN({Pos, {bad_tag, Name, Tag, I}}, TreeWalker))
             end;
         undefined ->
-            if IsCompilingDir ->
+            if IsCompilingDir =/= false ->
                     {{?Q("'@Module@':'@Name@'([_@InterpretedArgs], RenderOptions)"),
-                     #ast_info{ custom_tags = [Name] }}, TreeWalker};
-            true ->
+                      #ast_info{ custom_tags = [Name] }}, TreeWalker};
+               true ->
                     {{?Q("render_tag(_@Name@, [_@InterpretedArgs], RenderOptions)"),
-                     #ast_info{ custom_tags = [Name] }}, TreeWalker}
+                      #ast_info{ custom_tags = [Name] }}, TreeWalker}
             end
     end.
 
