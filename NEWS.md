@@ -11,6 +11,7 @@ Standards](http://www.gnu.org/prep/standards/html_node/NEWS-File.html#NEWS-File)
 * The backwards incompatible change in 0.9.1 for directory-compiled
   templates has been reverted. A new `render` function has been added
   instead (#148).
+* Fixed broken escape feature (#150).
 
 
 ## 0.9.1 (2014-03-02)

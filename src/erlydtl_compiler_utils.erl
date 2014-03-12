@@ -68,7 +68,9 @@
          restore_scope/2,
          shorten_filename/1, shorten_filename/2,
          to_string/2,
-         unescape_string_literal/1
+         unescape_string_literal/1,
+         push_auto_escape/2,
+         pop_auto_escape/1
         ]).
 
 -include("erlydtl_ext.hrl").
@@ -295,6 +297,18 @@ shorten_filename(Name, Cwd) ->
                 N -> N
             end
     end.
+
+push_auto_escape(State, #treewalker{ context=Context }=TreeWalker) ->
+    TreeWalker#treewalker{ context=push_auto_escape(State, Context) };
+push_auto_escape(State, #dtl_context{ auto_escape=AutoEscape }=Context) ->
+    Context#dtl_context{ auto_escape=[State|AutoEscape] }.
+
+pop_auto_escape(#treewalker{ context=Context }=TreeWalker) ->
+    TreeWalker#treewalker{ context=pop_auto_escape(Context) };
+pop_auto_escape(#dtl_context{ auto_escape=[_|AutoEscape] }=Context)
+  when length(AutoEscape) > 0 ->
+    Context#dtl_context{ auto_escape=AutoEscape };
+pop_auto_escape(Context) -> Context.
 
 format_error({load_library, Name, Mod, Reason}) ->
     io_lib:format("Failed to load library '~p' (~p): ~p", [Name, Mod, Reason]);

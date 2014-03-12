@@ -65,11 +65,17 @@ default_options() -> [verbose, report].
 
 compile_template(Template, Module, Options) ->
     Context = process_opts(undefined, Module, Options),
-    compile(Context#dtl_context{ bin = iolist_to_binary(Template) }).
+    Bin = iolist_to_binary(Template),
+    ?LOG_INFO("Compile template: ~32s~s~n",
+              [Bin, if size(Bin) > 32 -> "...";
+                       true -> ""
+                    end],
+              Context),
+    compile(Context#dtl_context{ bin = Bin }).
 
 compile_file(File, Module, Options) ->
     Context = process_opts(File, Module, Options),
-    ?LOG_INFO("Compile template: ~s~n", [File], Context),
+    ?LOG_INFO("Compile file: ~s~n", [File], Context),
     compile(Context).
 
 compile_dir(Dir, Module, Options) ->
@@ -88,7 +94,6 @@ format_error({read_file, File, Error}) ->
       [File, file:format_error(Error)]);
 format_error(Error) ->
     erlydtl_compiler_utils:format_error(Error).
-
 
 
 %%====================================================================
@@ -224,8 +229,8 @@ init_context(ParseTrail, DefDir, Module, Options) ->
         #dtl_context{
            all_options = Options,
            auto_escape = case proplists:get_value(auto_escape, Options, true) of
-                             true -> on;
-                             _ -> off
+                             true -> [on];
+                             _ -> [off]
                          end,
            parse_trail = ParseTrail,
            module = Module,

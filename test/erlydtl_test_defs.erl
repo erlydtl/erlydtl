@@ -44,7 +44,14 @@ all_test_defs() ->
         [{var1, "<b>bold</b>"}], <<"&lt;b&gt;bold&lt;/b&gt;">>},
        {"Nested autoescape",
         <<"{% autoescape on %}{{ var1 }}{% autoescape off %}{{ var1 }}{% endautoescape %}{% endautoescape %}">>,
-        [{var1, "<b>"}], <<"&lt;b&gt;<b>">>}
+        [{var1, "<b>"}], <<"&lt;b&gt;<b>">>},
+       {"default auto escape",
+        <<"{{ var1 }}">>, [{var1, "&"}], [], [auto_escape],
+        <<"&amp;">>},
+       {"intermixed autoescape",
+        <<"{% autoescape on %}1:{{ var1 }}{% endautoescape %} 2:{{ var1 }}{% autoescape on %} 3:{{ var1 }}{% endautoescape %}">>,
+        [{var1, "&"}],
+        <<"1:&amp; 2:& 3:&amp;">>}
       ]},
      {"string literal",
       [{"Render literal",
@@ -648,6 +655,9 @@ all_test_defs() ->
        {"|safe",
         <<"{% autoescape on %}{{ var1|safe|escape }}{% endautoescape %}">>, [{var1, "&"}],
         <<"&">>},
+       {"|safe is local",
+        <<"{{ var1 }}{{ var1|safe }}{{ var1 }}">>, [{var1, "&"}], [], [auto_escape],
+        <<"&amp;&&amp;">>},
        %%python/django slice is zero based, erlang lists are 1 based
        %%first number included, second number not
        %%negative numbers are allowed
@@ -1030,7 +1040,34 @@ all_test_defs() ->
           source = <<"{{ var|yesno:\"missing_false_choice\" }}">>,
           render_vars = [{var, true}],
           output = {error, {yesno, choices}}
-         }
+         },
+       {"escape only once (#150) - no auto escape",
+        %% note that auto_escape is off by default in the test suite
+        %% due to how the tests have been written (and it's too much
+        %% work for me to rewrite them)
+        <<"{{ foo }}{{ foo|add:'bar' }}">>,
+        [{foo, "foo&"}],
+        <<"foo&foo&bar">>},
+       {"escape only once (#150) - auto escape block",
+        <<"{% autoescape on %}{{ foo }}{{ foo|add:'bar' }}{% endautoescape %}">>,
+        [{foo, "foo&"}],
+        <<"foo&amp;foo&amp;bar">>},
+       {"escape only once (#150) - auto escape",
+        <<"{{ foo }}{{ foo|add:'bar' }}">>,
+        [{foo, "foo&"}], [], [auto_escape],
+        <<"foo&amp;foo&amp;bar">>},
+       {"escape only once (#150) - auto escape, safe",
+        <<"{{ foo|safe }}{{ foo|add:'bar'|safe }}&{{ foo|safe|add:'bar' }}">>,
+        [{foo, "foo&"}], [], [auto_escape],
+        <<"foo&foo&bar&foo&bar">>},
+       {"escape only once (#150) - escape filter",
+        <<"{{ foo|escape }}{{ foo|add:'bar'|escape }}&{{ foo|escape|add:'bar' }}">>,
+        [{foo, "foo&"}],
+        <<"foo&amp;foo&amp;bar&foo&amp;bar">>},
+       {"escape only once (#150) - auto escape + escape filter",
+        <<"{{ foo|escape }}{{ foo|add:'bar'|escape }}&{{ foo|escape|add:'bar' }}">>,
+        [{foo, "foo&"}], [], [auto_escape],
+        <<"foo&amp;foo&amp;bar&foo&amp;bar">>}
       ]},
      {"filters_if",
       [{"Filter if 1.1",

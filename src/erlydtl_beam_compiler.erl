@@ -50,7 +50,7 @@
 -export([
          is_up_to_date/2,
 
-         format/2,
+         format/1,
          value_ast/4,
          interpret_args/2
         ]).
@@ -64,7 +64,7 @@
          add_warnings/2, merge_info/2, call_extension/3,
          init_treewalker/1, resolve_variable/2, resolve_variable/3,
          reset_parse_trail/2, load_library/3, load_library/4,
-         shorten_filename/2]).
+         shorten_filename/2, push_auto_escape/2, pop_auto_escape/1]).
 
 -include_lib("merl/include/merl.hrl").
 -include("erlydtl_ext.hrl").
@@ -590,8 +590,9 @@ body_ast(DjangoParseTree, BodyScope, TreeWalker) ->
     {ScopeId, TreeWalkerScope} = begin_scope(BodyScope, TreeWalker),
     {AstInfoList, TreeWalker1} =
         lists:mapfoldl(
-          fun ({'autoescape', {identifier, _, OnOrOff}, Contents}, #treewalker{ context=Context }=TW) ->
-                  body_ast(Contents, TW#treewalker{ context=Context#dtl_context{auto_escape = OnOrOff} });
+          fun ({'autoescape', {identifier, _, OnOrOff}, Contents}, TW) ->
+                  {Info, BodyTW} = body_ast(Contents, push_auto_escape(OnOrOff, TW)),
+                  {Info, pop_auto_escape(BodyTW)};
               ({'block', {identifier, Pos, Name}, Contents}, #treewalker{ context=Context }=TW) ->
                   {Block, BlockScope} =
                       case dict:find(Name, Context#dtl_context.block_dict) of
@@ -712,8 +713,7 @@ body_ast(DjangoParseTree, BodyScope, TreeWalker) ->
               ({'extends', _}, TW) ->
                   empty_ast(?ERR(unexpected_extends_tag, TW));
               (ValueToken, TW) ->
-                  {{ValueAst,ValueInfo},ValueTW} = value_ast(ValueToken, true, true, TW),
-                  {{format(ValueAst, ValueTW),ValueInfo},ValueTW}
+                  format(value_ast(ValueToken, true, true, TW))
           end,
           TreeWalkerScope,
           DjangoParseTree),
@@ -987,12 +987,8 @@ ssi_ast(FileName, #treewalker{
     {{FileAst, Info}, TreeWalker1} = value_ast(FileName, true, true, TreeWalker),
     {{?Q("erlydtl_runtime:read_file(_@Mod@, _@Fun@, _@Dir@, _@FileAst)"), Info}, TreeWalker1}.
 
-filter_tag_ast(FilterList, Contents, #treewalker{ context=Context }=TreeWalker) ->
-    {{InnerAst, Info}, #treewalker{ context=Context1 }=TreeWalker1} = body_ast(
-                                        Contents,
-                                        TreeWalker#treewalker{
-                                          context=Context#dtl_context{ auto_escape = did }
-                                         }),
+filter_tag_ast(FilterList, Contents, TreeWalker) ->
+    {{InnerAst, Info}, TreeWalker1} = body_ast(Contents, push_auto_escape(did, TreeWalker)),
     {{FilteredAst, FilteredInfo}, TreeWalker2} =
         lists:foldl(
           fun ({{identifier, _, Name}, []}, {{AstAcc, InfoAcc}, TreeWalkerAcc})
@@ -1003,10 +999,7 @@ filter_tag_ast(FilterList, Contents, #treewalker{ context=Context }=TreeWalker) 
                   {{Ast, merge_info(InfoAcc, AstInfo)}, TW}
           end,
           {{?Q("erlang:iolist_to_binary(_@InnerAst)"), Info},
-           TreeWalker1#treewalker{
-             context=Context1#dtl_context{
-                       auto_escape = Context#dtl_context.auto_escape
-                      }}},
+           pop_auto_escape(TreeWalker1)},
           FilterList),
 
     EscapedAst = case search_for_escape_filter(
@@ -1017,9 +1010,9 @@ filter_tag_ast(FilterList, Contents, #treewalker{ context=Context }=TreeWalker) 
                  end,
     {{EscapedAst, FilteredInfo}, TreeWalker2}.
 
-search_for_escape_filter(FilterList, #dtl_context{auto_escape = on}) ->
+search_for_escape_filter(FilterList, #dtl_context{auto_escape = [on|_]}) ->
     search_for_safe_filter(FilterList);
-search_for_escape_filter(_, #dtl_context{auto_escape = did}) -> off;
+search_for_escape_filter(_, #dtl_context{auto_escape = [did|_]}) -> off;
 search_for_escape_filter([{{identifier, _, 'escape'}, []}|Rest], _Context) ->
     search_for_safe_filter(Rest);
 search_for_escape_filter([_|Rest], Context) ->
@@ -1031,29 +1024,24 @@ search_for_safe_filter([{{identifier, _, Name}, []}|_])
 search_for_safe_filter([_|Rest]) -> search_for_safe_filter(Rest);
 search_for_safe_filter([]) -> on.
 
-filter_ast(Variable, Filter, #treewalker{ context=Context }=TreeWalker) ->
+filter_ast(Variable, Filter, TreeWalker) ->
     %% the escape filter is special; it is always applied last, so we have to go digging for it
 
     %% AutoEscape = 'did' means we (will have) decided whether to escape the current variable,
     %% so don't do any more escaping
 
-    {{UnescapedAst, Info}, #treewalker{
-                              context=Context1
-                             }=TreeWalker1} = filter_ast_noescape(
-                                                Variable, Filter,
-                                                TreeWalker#treewalker{
-                                                  context=Context#dtl_context{
-                                                            auto_escape = did
-                                                           } }),
+    {{UnescapedAst, Info}, TreeWalker1} =
+        filter_ast_noescape(
+          Variable, Filter,
+          push_auto_escape(did, TreeWalker)),
 
-    EscapedAst = case search_for_escape_filter(Variable, Filter, Context) of
-                     on -> ?Q("erlydtl_filters:force_escape(_@UnescapedAst)");
-                     _ -> UnescapedAst
-                 end,
-    {{EscapedAst, Info}, TreeWalker1#treewalker{
-                           context=Context1#dtl_context{
-                                     auto_escape = Context#dtl_context.auto_escape
-                                    }}}.
+    {EscapedAst, TreeWalker2} =
+        case search_for_escape_filter(Variable, Filter, TreeWalker#treewalker.context) of
+            on -> {?Q("erlydtl_filters:force_escape(_@UnescapedAst)"),
+                   TreeWalker1#treewalker{ safe = true }};
+            _ -> {UnescapedAst, TreeWalker1}
+        end,
+    {{EscapedAst, Info}, pop_auto_escape(TreeWalker2)}.
 
 filter_ast_noescape(Variable, {{identifier, _, Name}, []}, TreeWalker)
   when Name =:= 'escape'; Name =:= 'safe'; Name =:= 'safeseq' ->
@@ -1091,9 +1079,9 @@ filter_ast2(Name, Args, #dtl_context{ filters = Filters }) ->
             {unknown_filter, Name, length(Args)}
     end.
 
-search_for_escape_filter(Variable, Filter, #dtl_context{auto_escape = on}) ->
+search_for_escape_filter(Variable, Filter, #dtl_context{auto_escape = [on|_]}) ->
     search_for_safe_filter(Variable, Filter);
-search_for_escape_filter(_, _, #dtl_context{auto_escape = did}) ->
+search_for_escape_filter(_, _, #dtl_context{auto_escape = [did|_]}) ->
     off;
 search_for_escape_filter(Variable, {{identifier, _, 'escape'}, []} = Filter, _Context) ->
     search_for_safe_filter(Variable, Filter);
@@ -1156,17 +1144,18 @@ resolve_variable_ast1({variable, {identifier, Pos, VarName}}, {Runtime, Finder},
           end,
     {Ast, TreeWalker}.
 
-format(Ast, TreeWalker) ->
-    auto_escape(format_number_ast(Ast), TreeWalker).
+format({{Ast, Info}, TreeWalker}) ->
+    auto_escape({{format_number_ast(Ast), Info}, TreeWalker}).
 
 format_number_ast(Ast) ->
     ?Q("erlydtl_filters:format_number(_@Ast)").
 
 
-auto_escape(Value, #treewalker{ safe = true }) -> Value;
-auto_escape(Value, #treewalker{ context=#dtl_context{ auto_escape = on }}) ->
-    ?Q("erlydtl_filters:force_escape(_@Value)");
-auto_escape(Value, _) -> Value.
+auto_escape({AstInfo, #treewalker{ safe = true }=TW}) ->
+    {AstInfo, TW#treewalker{ safe = false }};
+auto_escape({{Value, Info}, #treewalker{ context=#dtl_context{auto_escape=[on|_]} }=TW}) ->
+    {{?Q("erlydtl_filters:force_escape(_@Value)"), Info}, TW};
+auto_escape(Value) -> Value.
 
 firstof_ast(Vars, TreeWalker) ->
     body_ast(
@@ -1352,7 +1341,7 @@ cycle_ast(Names, #treewalker{ context=Context }=TreeWalker) ->
                     {{V, #ast_info{ var_names=[VarName] }}, _} = resolve_variable_ast(Var, true, TreeWalker),
                     {V, [VarName|VarNamesAcc]};
                 ({number_literal, _, Num}, VarNamesAcc) ->
-                    {format(erl_syntax:integer(Num), TreeWalker), VarNamesAcc};
+                    {format_number_ast(erl_syntax:integer(Num)), VarNamesAcc};
                 (_, VarNamesAcc) ->
                     {[], VarNamesAcc}
             end, [], Names),

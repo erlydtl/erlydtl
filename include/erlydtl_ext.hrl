@@ -10,7 +10,7 @@
           block_dict = dict:new(), 
           trans_fun = none,
           trans_locales = [],
-          auto_escape = off, 
+          auto_escape = [off],
           doc_root = "", 
           parse_trail = [],
           vars = [],
