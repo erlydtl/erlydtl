@@ -6,6 +6,8 @@ Standards](http://www.gnu.org/prep/standards/html_node/NEWS-File.html#NEWS-File)
 
 ## master (upcoming release)
 
+## 0.9.2 (2014-03-22)
+
 * Added NEWS file.
 * Fixed broken `compile_dir` (#146).
 * The backwards incompatible change in 0.9.1 for directory-compiled
@@ -13,6 +15,7 @@ Standards](http://www.gnu.org/prep/standards/html_node/NEWS-File.html#NEWS-File)
   instead (#148).
 * Fixed broken escape feature (#150).
 * Added translator comments (#152, #127) (@seriyps).
+
 
 ## 0.9.1 (2014-03-02)
 
