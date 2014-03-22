@@ -6,7 +6,7 @@ all_sources_parser_test_() ->
     [{Title, [test_fun(Test) || Test <- Tests]}
      || {Title, Tests} <- test_defs()].
 
-all_wources_parser_ext_test_() ->
+all_sources_parser_ext_test_() ->
     [test_ext_fun(Test) || Test <- ext_test_defs()].
 
 
