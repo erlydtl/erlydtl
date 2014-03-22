@@ -12,7 +12,7 @@ Standards](http://www.gnu.org/prep/standards/html_node/NEWS-File.html#NEWS-File)
   templates has been reverted. A new `render` function has been added
   instead (#148).
 * Fixed broken escape feature (#150).
-
+* Added translator comments (#152, #127) (@seriyps).
 
 ## 0.9.1 (2014-03-02)
 

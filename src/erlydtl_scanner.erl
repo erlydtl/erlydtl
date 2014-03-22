@@ -36,7 +36,7 @@
 %%%-------------------------------------------------------------------
 -module(erlydtl_scanner).
 
-%% This file was generated 2014-02-27 13:29:50 UTC by slex 0.2.1.
+%% This file was generated 2014-03-21 23:07:32 UTC by slex 0.2.1.
 %% http://github.com/erlydtl/slex
 -slex_source(["src/erlydtl_scanner.slex"]).
 
@@ -178,8 +178,15 @@ scan("#}-->" ++ T, S, {R, C}, {_, "#}-->"}) ->
     scan(T, S, {R, C + 5}, in_text);
 scan("#}" ++ T, S, {R, C}, {_, "#}"}) ->
     scan(T, S, {R, C + 2}, in_text);
-scan([H | T], S, {R, C}, {in_comment, E} = St) ->
-    scan(T, S,
+scan([H | T], S, {R, C} = P, {in_comment, E} = St) ->
+    scan(T,
+	 case S of
+	   [{comment_inline, _, L} = M | Ss] ->
+	       [setelement(3, M, [H | L]) | Ss];
+	   _ ->
+	       [{comment_inline, P, [H]} | post_process(S,
+							comment_inline)]
+	 end,
 	 case H of
 	   $\n -> {R + 1, 1};
 	   _ -> {R, C + 1}
@@ -532,6 +539,8 @@ scan([], S, {R, C} = P, {_, E} = St) ->
 post_process(_, {string, _, L} = T, _) ->
     setelement(3, T, begin L1 = lists:reverse(L), L1 end);
 post_process(_, {string_literal, _, L} = T, _) ->
+    setelement(3, T, begin L1 = lists:reverse(L), L1 end);
+post_process(_, {comment_inline, _, L} = T, _) ->
     setelement(3, T, begin L1 = lists:reverse(L), L1 end);
 post_process(_, {number_literal, _, L} = T, _) ->
     setelement(3, T,

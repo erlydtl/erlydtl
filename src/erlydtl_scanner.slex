@@ -72,7 +72,7 @@ end.
 30 #} any+: skip, in_text-.
 
 %% must come before the `space any' rule
-40 any in_comment: skip.
+40 any in_comment: +comment_inline.
 %% end comment rules
 
 %% The rest is "just" text..
@@ -257,6 +257,7 @@ end.
 
 string: lists reverse.
 string_literal: lists reverse.
+comment_inline: lists reverse.
 number_literal: lists reverse, list_to_integer.
 open_var: to_atom.
 close_var: to_atom.
