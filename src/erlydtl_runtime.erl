@@ -40,7 +40,7 @@ find_value(Key, L) when is_binary(Key), is_list(L) ->
         {Key, Value}    -> Value
     end;
 find_value(Key, L) when is_integer(Key), is_list(L) ->
-    if Key < length(L) -> lists:nth(Key, L);
+    if Key =< length(L) -> lists:nth(Key, L);
        true -> undefined
     end;
 find_value(Key, {GBSize, GBData}) when is_integer(GBSize) ->
