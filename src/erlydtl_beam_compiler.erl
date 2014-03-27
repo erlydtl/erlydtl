@@ -1118,13 +1118,17 @@ resolve_variable_ast(VarTuple, FinderFunction, TreeWalker) ->
 
 resolve_variable_ast1({attribute, {{_, Pos, Attr}, Variable}}, {Runtime, Finder}=FinderFunction, TreeWalker) ->
     {{VarAst, VarInfo}, TreeWalker1} = resolve_variable_ast(Variable, FinderFunction, TreeWalker),
+    #treewalker{ context=#dtl_context{ lists_0_based = Lists0Based } } = TreeWalker,
     FileName = get_current_file(TreeWalker1),
     {{?Q(["'@Runtime@':'@Finder@'(",
           "  _@Attr@, _@VarAst,",
-          "  [{filename, _@FileName@},",
-          "   {pos, _@Pos@},",
+          "  [",
+          "   {lists_0_based, _@Lists0Based@},",
+          "   {render_options, RenderOptions},",
           "   {record_info, _RecordInfo},",
-          "   {render_options, RenderOptions}])"]),
+          "   {filename, _@FileName@},",
+          "   {pos, _@Pos@}",
+          "  ])"]),
       VarInfo},
      TreeWalker1};
 

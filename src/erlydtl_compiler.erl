@@ -253,7 +253,8 @@ init_context(ParseTrail, DefDir, Module, Options) ->
            record_info = [{R, lists:zip(I, lists:seq(2, length(I) + 1))}
                           || {R, I} <- proplists:get_value(record_info, Options, Ctx#dtl_context.record_info)],
            errors = init_error_info(errors, Ctx#dtl_context.errors, Options),
-           warnings = init_error_info(warnings, Ctx#dtl_context.warnings, Options)
+           warnings = init_error_info(warnings, Ctx#dtl_context.warnings, Options),
+           lists_0_based = proplists:get_value(lists_0_based, Options, Ctx#dtl_context.lists_0_based)
           },
     Context = load_libraries(proplists:get_value(default_libraries, Options, []), Context0),
     case call_extension(Context, init_context, [Context]) of

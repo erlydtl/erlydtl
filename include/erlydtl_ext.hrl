@@ -32,7 +32,8 @@
           all_options = [],
           errors = #error_info{},
           warnings = #error_info{},
-          bin = undefined
+          bin = undefined,
+          lists_0_based = false
          }).
 
 -record(ast_info, {

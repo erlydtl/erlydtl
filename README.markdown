@@ -178,6 +178,11 @@ Options is a proplist possibly containing:
   custom tags and filters. `Module` should implement the
   `erlydtl_library` behaviour (see [Custom tags and filters] below).
 
+* `lists_0_based` - **Compatibility warning** Defaults to `false`,
+  giving 1-based list access, as is common practice in Erlang. Set it
+  to `true` to get 1-based access as in Django, or to `defer` to not
+  decide until render time, using the render option `lists_0_based`.
+
 * `locale` **deprecated** - The same as {blocktrans_locales, [Val]}.
 
 * `no_env` - Do not read additional options from the OS environment
@@ -283,6 +288,10 @@ Same as `render/1`, but with the following options:
   simplest TranslationFun would be `fun(Val) -> Val end`. Placeholders
   for blocktrans variable interpolation should be wrapped to `{{` and
   `}}`.
+
+* `lists_0_based` - If the compile option `lists_0_based` was set to
+  `defer`, pass this option (or set it to true, `{lists_0_based,
+  true}`) to get 0-based list indexing when rendering the template.
 
 * `locale` - A string specifying the current locale, for use with the
   `blocktrans_fun` compile-time option.
