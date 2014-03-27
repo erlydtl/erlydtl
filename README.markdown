@@ -29,7 +29,7 @@ debugging and hopefully also reporting issues.
 #### release tags
 
 Whenever *master* is deemed stable with a nice set of
-additions/changes, it may be up for a new release.
+additions/changes, it is merged with stable for a new release.
 
 As we're still going for the big 1.0 release, breaking changes **may**
 be introduced also on minor release bumps; but after that, we'll stick
@@ -38,10 +38,8 @@ covered by the Semantic Versioning Spec 2.0.0, see 4§).
 
 #### stable branch
 
-The *stable* branch Will follow the latest release after it has proven
-itself stable. This is a bit fuzzy, what will be considered stable,
-but if you want to follow the releases without having to keep track of
-when to jump to a new tag, the *stable* branch is for you.
+Releases are made from the *stable* branch, with dependency versions
+pinned down and a hard coded version number in the app file.
 
 
 Compilation
