@@ -19,6 +19,8 @@ find_value(Key, Data, Options) when is_atom(Key), is_tuple(Data) ->
     end;
 find_value(Key, Data, Options) when is_integer(Key), is_list(Data) ->
     find_value(adjust_index(Key, 1, lists_0_based, Options), Data);
+find_value(Key, Data, Options) when is_integer(Key), is_tuple(Data) ->
+    find_value(adjust_index(Key, 1, tuples_0_based, Options), Data);
 find_value(Key, Data, _Options) ->
     find_value(Key, Data).
 
