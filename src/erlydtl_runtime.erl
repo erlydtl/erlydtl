@@ -75,7 +75,7 @@ find_value(Key, Tuple) when is_tuple(Tuple) ->
                     undefined
             end;
         _ when is_integer(Key) ->
-            if Key < size(Tuple) -> element(Key, Tuple);
+            if Key =< size(Tuple) -> element(Key, Tuple);
                true -> undefined
             end;
         Module ->
