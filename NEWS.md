@@ -4,9 +4,11 @@ This file records noteworthy changes and additions to erlydtl as
 suggested by the [GNU Coding
 Standards](http://www.gnu.org/prep/standards/html_node/NEWS-File.html#NEWS-File).
 
-## master (upcoming release)
+
+## 0.9.3 (2014-03-27)
 
 * Fixed list indexing (#155).
+* Fixed release process to work for non-git installations (#154).
 
 
 ## 0.9.2 (2014-03-22)
