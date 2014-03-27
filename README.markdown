@@ -382,6 +382,8 @@ Differences from standard Django Template Language
   tag is not implemented. This should be
   [addressed](https://github.com/erlydtl/erlydtl/issues/115) in a
   future release.
+* List indexing is 1-based in erlydtl, while 0-based in Django (see
+  [#156](https://github.com/erlydtl/erlydtl/issues/156)).
 * For an up-to-date list, see all
   [issues](https://github.com/erlydtl/erlydtl/issues) marked
   `dtl_compat`.
