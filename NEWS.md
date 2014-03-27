@@ -6,6 +6,9 @@ Standards](http://www.gnu.org/prep/standards/html_node/NEWS-File.html#NEWS-File)
 
 ## master (upcoming release)
 
+* Fixed list indexing (#155).
+
+
 ## 0.9.2 (2014-03-22)
 
 * Added NEWS file.
