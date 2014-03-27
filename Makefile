@@ -2,7 +2,7 @@ ERL=erl
 ERLC=erlc
 REBAR=./rebar $(REBAR_ARGS)
 
-all: compile
+all: compile tests
 
 compile: check-slex get-deps
 	@$(REBAR) compile
@@ -18,7 +18,7 @@ update-deps:
 	@$(REBAR) update-deps
 
 .PHONY: tests
-tests:
+tests: src/erlydtl_parser.erl
 	@$(REBAR) eunit
 
 check: tests dialyze
@@ -55,3 +55,8 @@ slex-compile:
 
 shell:
 	@$(ERL) -pz ebin deps/*/ebin
+
+
+# this file must exist for rebar eunit to work
+# but is only built when running rebar compile
+src/erlydtl_parser.erl: compile

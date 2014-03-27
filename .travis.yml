@@ -8,4 +8,4 @@ otp_release:
 
 # since Travis is naughty and calls rebar get-deps behind our backs,
 # we'll have to clean it up and build merl our selves..
-script: "make -C deps/merl && make all tests"
+script: "make -C deps/merl && make tests"
