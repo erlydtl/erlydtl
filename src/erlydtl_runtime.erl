@@ -17,8 +17,25 @@ find_value(Key, Data, Options) when is_atom(Key), is_tuple(Data) ->
             end;
         _ -> find_value(Key, Data)
     end;
+find_value(Key, Data, Options) when is_integer(Key), is_list(Data) ->
+    find_value(adjust_index(Key, 1, lists_0_based, Options), Data);
+find_value(Key, Data, Options) when is_integer(Key), is_tuple(Data) ->
+    find_value(adjust_index(Key, 1, tuples_0_based, Options), Data);
 find_value(Key, Data, _Options) ->
     find_value(Key, Data).
+
+adjust_index(Key, Off, Opt, Options) when is_list(Options) ->
+    case proplists:get_value(Opt, Options) of
+        defer ->
+            adjust_index(
+              Key, Off, Opt,
+              proplists:get_value(render_options, Options));
+        true ->
+            Key + Off;
+        _ ->
+            Key
+    end;
+adjust_index(Key, _Off, _Opt, _Options) -> Key.
 
 find_value(_, undefined) ->
     undefined;
@@ -60,7 +77,7 @@ find_value(Key, Tuple) when is_tuple(Tuple) ->
                     undefined
             end;
         _ when is_integer(Key) ->
-            if Key < size(Tuple) -> element(Key, Tuple);
+            if Key =< size(Tuple) -> element(Key, Tuple);
                true -> undefined
             end;
         Module ->

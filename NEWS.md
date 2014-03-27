@@ -7,8 +7,9 @@ Standards](http://www.gnu.org/prep/standards/html_node/NEWS-File.html#NEWS-File)
 
 ## 0.9.3 (2014-03-27)
 
-* Fixed list indexing (#155).
-* Fixed release process to work for non-git installations (#154).
+* Fix release process to work for non-git installations (#154).
+* Fix list indexing (#155).
+* New option for 0-based list/tuple access (#156) (see README for details).
 
 
 ## 0.9.2 (2014-03-22)
@@ -159,4 +160,3 @@ and will be the starting point for a lot of future improvements.
 * New README file.
 * Remove create_parser stuff because "make" handles this.
 * Make `erlydtl:compile/2,3` a wrapper for `erlydtl_compiler:compile/2,3`.
-
