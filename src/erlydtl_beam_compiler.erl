@@ -186,7 +186,7 @@ compile_to_binary(DjangoParseTree, CheckSum, Context) ->
     try body_ast(DjangoParseTree, init_treewalker(Context)) of
         {{BodyAst, BodyInfo}, BodyTreeWalker} ->
             try custom_tags_ast(BodyInfo#ast_info.custom_tags, BodyTreeWalker) of
-                {{CustomTagsAst, CustomTagsInfo},
+                {CustomTags,
                  #treewalker{
                     context=#dtl_context{
                                errors=#error_info{ list=Errors }
@@ -194,8 +194,7 @@ compile_to_binary(DjangoParseTree, CheckSum, Context) ->
                   when length(Errors) == 0 ->
                     Forms = forms(
                               {BodyAst, BodyInfo},
-                              {CustomTagsAst, CustomTagsInfo},
-                              CheckSum,
+                              CustomTags, CheckSum,
                               CustomTagsTreeWalker),
                     compile_forms(Forms, CustomTagsTreeWalker#treewalker.context);
                 {_, #treewalker{ context=Context1 }} ->
@@ -422,13 +421,6 @@ dependencies_function(Dependencies) ->
 translatable_strings_function(TranslatableStrings) ->
     ?Q("translatable_strings() -> _@TranslatableStrings@.").
 
-translated_blocks_function(TranslatedBlocks) ->
-    ?Q("translated_blocks() -> _@TranslatedBlocks@.").
-
-variables_function(Variables) ->
-    ?Q("variables() -> _@vars.",
-       [{vars, merl:term(lists:usort(Variables))}]).
-
 custom_forms(Dir, Module, Functions, AstInfo) ->
     Exported = [erl_syntax:arity_qualifier(erl_syntax:atom(source_dir), erl_syntax:integer(0)),
                 erl_syntax:arity_qualifier(erl_syntax:atom(dependencies), erl_syntax:integer(0)),
@@ -483,55 +475,35 @@ forms({BodyAst, BodyInfo}, {CustomTagsFunctionAst, CustomTagsInfo}, CheckSum,
         }=TreeWalker) ->
     MergedInfo = merge_info(BodyInfo, CustomTagsInfo),
 
-    Render0FunctionAst = ?Q("render() -> render([])."),
-    Render1FunctionAst = ?Q("render(Variables) -> render(Variables, [])."),
+    Dependencies = MergedInfo#ast_info.dependencies,
+    TranslatableStrings = MergedInfo#ast_info.translatable_strings,
+    TranslatedBlocks = MergedInfo#ast_info.translated_blocks,
+    Variables = lists:usort(MergedInfo#ast_info.var_names),
 
-    Render2FunctionAst = ?Q(["render(Variables, RenderOptions) ->",
-                             "  try render_internal(Variables, RenderOptions) of",
-                             "    Val -> {ok, Val}",
-                             "  catch",
-                             "    Err -> {error, Err}",
-                             "end."
-                            ]),
-
-    SourceFunctionAst = ?Q("source() -> {_@File@, _@CheckSum@}."),
-
-    DependenciesFunctionAst = dependencies_function(MergedInfo#ast_info.dependencies),
-
-    TranslatableStringsAst = translatable_strings_function(MergedInfo#ast_info.translatable_strings),
-
-    TranslatedBlocksAst = translated_blocks_function(MergedInfo#ast_info.translated_blocks),
-
-    VariablesAst = variables_function(MergedInfo#ast_info.var_names),
-
-    MatchAst = options_match_ast(TreeWalker),
-    BodyAstTmp = MatchAst ++ stringify(BodyAst, Context),
-    RenderInternalFunctionAst = ?Q("render_internal(_Variables, RenderOptions) -> _@BodyAstTmp."),
-
-    ModuleAst  = ?Q("-module('@Module@')."),
-
-    ExportAst = erl_syntax:attribute(
-                  erl_syntax:atom(export),
-                  [erl_syntax:list(
-                     [erl_syntax:arity_qualifier(erl_syntax:atom(render), erl_syntax:integer(0)),
-                      erl_syntax:arity_qualifier(erl_syntax:atom(render), erl_syntax:integer(1)),
-                      erl_syntax:arity_qualifier(erl_syntax:atom(render), erl_syntax:integer(2)),
-                      erl_syntax:arity_qualifier(erl_syntax:atom(source), erl_syntax:integer(0)),
-                      erl_syntax:arity_qualifier(erl_syntax:atom(dependencies), erl_syntax:integer(0)),
-                      erl_syntax:arity_qualifier(erl_syntax:atom(translatable_strings), erl_syntax:integer(0)),
-                      erl_syntax:arity_qualifier(erl_syntax:atom(translated_blocks), erl_syntax:integer(0)),
-                      erl_syntax:arity_qualifier(erl_syntax:atom(variables), erl_syntax:integer(0))
-                     ])
-                  ]),
+    FinalBodyAst = options_match_ast(TreeWalker) ++ stringify(BodyAst, Context),
 
     erl_syntax:revert_forms(
       erl_syntax:form_list(
-        [ModuleAst, ExportAst, Render0FunctionAst, Render1FunctionAst, Render2FunctionAst,
-         SourceFunctionAst, DependenciesFunctionAst, TranslatableStringsAst,
-         TranslatedBlocksAst, VariablesAst, RenderInternalFunctionAst,
-         CustomTagsFunctionAst
-         |BodyInfo#ast_info.pre_render_asts
-        ])).
+        ?Q(["-module('@Module@').",
+            "-export([render/0, render/1, render/2, source/0, dependencies/0,",
+            "         translatable_strings/0, translated_blocks/0, variables/0]).",
+            "render() -> render([], []).",
+            "render(Variables) -> render(Variables, []).",
+            "render(Variables, RenderOptions) ->",
+            "  try render_internal(Variables, RenderOptions) of",
+            "    Val -> {ok, Val}",
+            "  catch",
+            "    Err -> {error, Err}",
+            "  end.",
+            "source() -> {_@File@, _@CheckSum@}.",
+            "dependencies() -> _@Dependencies@.",
+            "translatable_strings() -> _@TranslatableStrings@.",
+            "translated_blocks() -> _@TranslatedBlocks@.",
+            "variables() -> _@Variables@.",
+            "render_internal(_Variables, RenderOptions) -> _@FinalBodyAst.",
+            "'@_CustomTagsFunctionAst'() -> _."
+           ])
+       )).
 
 options_match_ast(#treewalker{ context=Context }=TreeWalker) ->
     options_match_ast(Context, TreeWalker);
