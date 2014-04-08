@@ -462,7 +462,6 @@ custom_forms(Dir, Module, Functions, AstInfo) ->
     [erl_syntax:revert(X)
      || X <- [ModuleAst, ExportAst, SourceFunctionAst, DependenciesFunctionAst,
               TranslatableStringsFunctionAst | FunctionAsts]
-            ++ AstInfo#ast_info.pre_render_asts
     ].
 
 stringify(BodyAst, #dtl_context{ binary_strings=BinaryStrings }) ->

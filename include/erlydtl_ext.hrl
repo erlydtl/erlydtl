@@ -46,8 +46,8 @@
           custom_tags = [],
           var_names = [],
           def_names = [],
-          const_names = [],
-          pre_render_asts = []}).
+          const_names = []
+         }).
 
 -record(treewalker, {
           counter = 0,
