@@ -417,52 +417,36 @@ custom_tags_clauses_ast1([Tag|CustomTags], ExcludeTags, ClauseAcc, InfoAcc, Tree
             end
     end.
 
-dependencies_function(Dependencies) ->
-    ?Q("dependencies() -> _@Dependencies@.").
-
-translatable_strings_function(TranslatableStrings) ->
-    ?Q("translatable_strings() -> _@TranslatableStrings@.").
-
 custom_forms(Dir, Module, Functions, AstInfo) ->
-    Exported = [erl_syntax:arity_qualifier(erl_syntax:atom(source_dir), erl_syntax:integer(0)),
-                erl_syntax:arity_qualifier(erl_syntax:atom(dependencies), erl_syntax:integer(0)),
-                erl_syntax:arity_qualifier(erl_syntax:atom(translatable_strings), erl_syntax:integer(0)),
-                erl_syntax:arity_qualifier(erl_syntax:atom(render), erl_syntax:integer(1)),
-                erl_syntax:arity_qualifier(erl_syntax:atom(render), erl_syntax:integer(2)),
-                erl_syntax:arity_qualifier(erl_syntax:atom(render), erl_syntax:integer(3))
-                | lists:foldl(
-                    fun({FunctionName, _}, Acc) ->
-                            [erl_syntax:arity_qualifier(erl_syntax:atom(FunctionName), erl_syntax:integer(1)),
-                             erl_syntax:arity_qualifier(erl_syntax:atom(FunctionName), erl_syntax:integer(2))
-                             |Acc]
-                    end, [], Functions)
-               ],
-    ModuleAst = ?Q("-module('@Module@')."),
-    ExportAst = ?Q("-export(['@_Exported'/1])."),
+    Dependencies = AstInfo#ast_info.dependencies,
+    TranslatableStrings = AstInfo#ast_info.translatable_strings,
 
-    SourceFunctionAst = ?Q("source_dir() -> _@Dir@."),
-
-    RenderAsts = ?Q(["render(Tag) -> render(Tag, [], []).",
-                     "render(Tag, Vars) -> render(Tag, Vars, []).",
-                     "render(Tag, Vars, Opts) ->",
-                     "    try '@Module@':Tag(Vars, Opts) of",
-                     "      Val -> {ok, Val}",
-                     "    catch",
-                     "      Err -> {error, Err}",
-                     "    end."]),
-
-    DependenciesFunctionAst = dependencies_function(AstInfo#ast_info.dependencies),
-    TranslatableStringsFunctionAst = translatable_strings_function(AstInfo#ast_info.translatable_strings),
-    FunctionAsts = lists:foldl(
-                     fun({_, FunctionDefs}, Acc) ->
-                             FunctionDefs ++ Acc
-                     end,
-                     RenderAsts, Functions),
-
-    [erl_syntax:revert(X)
-     || X <- [ModuleAst, ExportAst, SourceFunctionAst, DependenciesFunctionAst,
-              TranslatableStringsFunctionAst | FunctionAsts]
-    ].
+    erl_syntax:revert_forms(
+      lists:flatten(
+        ?Q(["-module('@Module@').",
+            "-export([source_dir/0, dependencies/0, translatable_strings/0,",
+            "         render/1, render/2, render/3]).",
+            "-export(['@__export_functions'/0]).",
+            "source_dir() -> _@Dir@.",
+            "dependencies() -> _@Dependencies@.",
+            "translatable_strings() -> _@TranslatableStrings@.",
+            "render(Tag) -> render(Tag, [], []).",
+            "render(Tag, Vars) -> render(Tag, Vars, []).",
+            "render(Tag, Vars, Opts) ->",
+            "  try '@Module@':Tag(Vars, Opts) of",
+            "    Val -> {ok, Val}",
+            "  catch",
+            "    Err -> {error, Err}",
+            "  end.",
+            "'@_functions'() -> _."
+           ],
+           [{export_functions,
+             erl_syntax:list(
+               [erl_syntax:arity_qualifier(erl_syntax:atom(FName), erl_syntax:integer(Arity))
+                || {FName, _} <- Functions, Arity <- [1, 2]])},
+            {functions, [Ast || {_, Ast} <- Functions]}
+           ]))
+     ).
 
 stringify(BodyAst, #dtl_context{ binary_strings=BinaryStrings }) ->
     [?Q("erlydtl_runtime:stringify_final(_@BodyAst, '@BinaryStrings@')")].
@@ -485,30 +469,28 @@ forms({BodyAst, BodyInfo}, {CustomTagsFunctionAst, CustomTagsInfo}, CheckSum,
     FinalBodyAst = options_match_ast(TreeWalker) ++ stringify(BodyAst, Context),
 
     erl_syntax:revert_forms(
-      erl_syntax:form_list(
-        ?Q(["-module('@Module@').",
-            "-export([render/0, render/1, render/2, source/0, dependencies/0,",
-            "         translatable_strings/0, translated_blocks/0, variables/0,",
-            "         default_variables/0, constants/0]).",
-            "source() -> {_@File@, _@CheckSum@}.",
-            "dependencies() -> _@Dependencies@.",
-            "variables() -> _@Variables@.",
-            "default_variables() -> _@DefaultVariables@.",
-            "constants() -> _@Constants@.",
-            "translatable_strings() -> _@TranslatableStrings@.",
-            "translated_blocks() -> _@TranslatedBlocks@.",
-            "'@_CustomTagsFunctionAst'() -> _.",
-            "render() -> render([], []).",
-            "render(Variables) -> render(Variables, []).",
-            "render(Variables, RenderOptions) ->",
-            "  try render_internal(Variables, RenderOptions) of",
-            "    Val -> {ok, Val}",
-            "  catch",
-            "    Err -> {error, Err}",
-            "  end.",
-            "render_internal(_Variables, RenderOptions) -> _@FinalBodyAst."
-           ])
-       )).
+      ?Q(["-module('@Module@').",
+          "-export([render/0, render/1, render/2, source/0, dependencies/0,",
+          "         translatable_strings/0, translated_blocks/0, variables/0,",
+          "         default_variables/0, constants/0]).",
+          "source() -> {_@File@, _@CheckSum@}.",
+          "dependencies() -> _@Dependencies@.",
+          "variables() -> _@Variables@.",
+          "default_variables() -> _@DefaultVariables@.",
+          "constants() -> _@Constants@.",
+          "translatable_strings() -> _@TranslatableStrings@.",
+          "translated_blocks() -> _@TranslatedBlocks@.",
+          "'@_CustomTagsFunctionAst'() -> _.",
+          "render() -> render([], []).",
+          "render(Variables) -> render(Variables, []).",
+          "render(Variables, RenderOptions) ->",
+          "  try render_internal(Variables, RenderOptions) of",
+          "    Val -> {ok, Val}",
+          "  catch",
+          "    Err -> {error, Err}",
+          "  end.",
+          "render_internal(_Variables, RenderOptions) -> _@FinalBodyAst."
+         ])).
 
 options_match_ast(#treewalker{ context=Context }=TreeWalker) ->
     options_match_ast(Context, TreeWalker);
