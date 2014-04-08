@@ -102,6 +102,8 @@ format_error({bad_tag, Name, {Mod, Fun}, Arity}) ->
     io_lib:format("Invalid tag '~p' (~p:~p/~p)", [Name, Mod, Fun, Arity]);
 format_error({load_code, Error}) ->
     io_lib:format("Failed to load BEAM code: ~p", [Error]);
+format_error({reserved_variable, ReservedName}) ->
+    io_lib:format("Variable '~s' is reserved for internal use.", [ReservedName]);
 format_error(Error) ->
     erlydtl_compiler:format_error(Error).
 
@@ -479,14 +481,24 @@ forms({BodyAst, BodyInfo}, {CustomTagsFunctionAst, CustomTagsInfo}, CheckSum,
     TranslatableStrings = MergedInfo#ast_info.translatable_strings,
     TranslatedBlocks = MergedInfo#ast_info.translated_blocks,
     Variables = lists:usort(MergedInfo#ast_info.var_names),
-
+    DefaultVariables = lists:usort(MergedInfo#ast_info.def_names),
+    Constants = lists:usort(MergedInfo#ast_info.const_names),
     FinalBodyAst = options_match_ast(TreeWalker) ++ stringify(BodyAst, Context),
 
     erl_syntax:revert_forms(
       erl_syntax:form_list(
         ?Q(["-module('@Module@').",
             "-export([render/0, render/1, render/2, source/0, dependencies/0,",
-            "         translatable_strings/0, translated_blocks/0, variables/0]).",
+            "         translatable_strings/0, translated_blocks/0, variables/0,",
+            "         default_variables/0, constants/0]).",
+            "source() -> {_@File@, _@CheckSum@}.",
+            "dependencies() -> _@Dependencies@.",
+            "variables() -> _@Variables@.",
+            "default_variables() -> _@DefaultVariables@.",
+            "constants() -> _@Constants@.",
+            "translatable_strings() -> _@TranslatableStrings@.",
+            "translated_blocks() -> _@TranslatedBlocks@.",
+            "'@_CustomTagsFunctionAst'() -> _.",
             "render() -> render([], []).",
             "render(Variables) -> render(Variables, []).",
             "render(Variables, RenderOptions) ->",
@@ -495,13 +507,7 @@ forms({BodyAst, BodyInfo}, {CustomTagsFunctionAst, CustomTagsInfo}, CheckSum,
             "  catch",
             "    Err -> {error, Err}",
             "  end.",
-            "source() -> {_@File@, _@CheckSum@}.",
-            "dependencies() -> _@Dependencies@.",
-            "translatable_strings() -> _@TranslatableStrings@.",
-            "translated_blocks() -> _@TranslatedBlocks@.",
-            "variables() -> _@Variables@.",
-            "render_internal(_Variables, RenderOptions) -> _@FinalBodyAst.",
-            "'@_CustomTagsFunctionAst'() -> _."
+            "render_internal(_Variables, RenderOptions) -> _@FinalBodyAst."
            ])
        )).
 
@@ -560,169 +566,145 @@ body_ast(DjangoParseTree, TreeWalker) ->
 
 body_ast(DjangoParseTree, BodyScope, TreeWalker) ->
     {ScopeId, TreeWalkerScope} = begin_scope(BodyScope, TreeWalker),
-    {AstInfoList, TreeWalker1} =
-        lists:mapfoldl(
-          fun ({'autoescape', {identifier, _, OnOrOff}, Contents}, TW) ->
-                  {Info, BodyTW} = body_ast(Contents, push_auto_escape(OnOrOff, TW)),
-                  {Info, pop_auto_escape(BodyTW)};
-              ({'block', {identifier, Pos, Name}, Contents}, #treewalker{ context=Context }=TW) ->
-                  {Block, BlockScope} =
-                      case dict:find(Name, Context#dtl_context.block_dict) of
-                          {ok, ChildBlock} ->
-                              {{ContentsAst, _ContentsInfo}, _ContentsTW} = body_ast(Contents, TW),
-                              {ChildBlock,
-                               create_scope(
-                                 [{block, ?Q("[{super, _@ContentsAst}]")}],
-                                 Pos, TW)
-                              };
-                          _ ->
-                              {Contents, empty_scope()}
-                      end,
-                  body_ast(Block, BlockScope, TW);
-              ({'blocktrans', Args, Contents}, TW) ->
-                  blocktrans_ast(Args, Contents, TW);
-              ({'call', {identifier, _, Name}}, TW) ->
-                  call_ast(Name, TW);
-              ({'call', {identifier, _, Name}, With}, TW) ->
-                  call_with_ast(Name, With, TW);
-              ({'comment', _Contents}, TW) ->
-                  empty_ast(TW);
-              ({'cycle', Names}, TW) ->
-                  cycle_ast(Names, TW);
-              ({'cycle_compat', Names}, TW) ->
-                  cycle_compat_ast(Names, TW);
-              ({'date', 'now', {string_literal, _Pos, FormatString}}, TW) ->
-                  now_ast(FormatString, TW);
-              ({'filter', FilterList, Contents}, TW) ->
-                  filter_tag_ast(FilterList, Contents, TW);
-              ({'firstof', Vars}, TW) ->
-                  firstof_ast(Vars, TW);
-              ({'for', {'in', IteratorList, Variable, Reversed}, Contents}, TW) ->
-                  {EmptyAstInfo, TW1} = empty_ast(TW),
-                  for_loop_ast(IteratorList, Variable, Reversed, Contents, EmptyAstInfo, TW1);
-              ({'for', {'in', IteratorList, Variable, Reversed}, Contents, EmptyPartContents}, TW) ->
-                  {EmptyAstInfo, TW1} = body_ast(EmptyPartContents, TW),
-                  for_loop_ast(IteratorList, Variable, Reversed, Contents, EmptyAstInfo, TW1);
-              ({'if', Expression, Contents, Elif}, TW) ->
-                  {IfAstInfo, TW1} = body_ast(Contents, TW),
-                  {ElifAstInfo, TW2} = body_ast(Elif, TW1),
-                  ifelse_ast(Expression, IfAstInfo, ElifAstInfo, TW2);
-              ({'if', Expression, Contents}, TW) ->
-                  {IfAstInfo, TW1} = body_ast(Contents, TW),
-                  {ElseAstInfo, TW2} = empty_ast(TW1),
-                  ifelse_ast(Expression, IfAstInfo, ElseAstInfo, TW2);
-              ({'ifchanged', '$undefined', Contents}, TW) ->
-                  {IfAstInfo, TW1} = body_ast(Contents, TW),
-                  {ElseAstInfo, TW2} = empty_ast(TW1),
-                  ifchanged_contents_ast(Contents, IfAstInfo, ElseAstInfo, TW2);
-              ({'ifchanged', Values, Contents}, TW) ->
-                  {IfAstInfo, TW1} = body_ast(Contents, TW),
-                  {ElseAstInfo, TW2} = empty_ast(TW1),
-                  ifchanged_values_ast(Values, IfAstInfo, ElseAstInfo, TW2);
-              ({'ifchangedelse', '$undefined', IfContents, ElseContents}, TW) ->
-                  {IfAstInfo, TW1} = body_ast(IfContents, TW),
-                  {ElseAstInfo, TW2} = body_ast(ElseContents, TW1),
-                  ifchanged_contents_ast(IfContents, IfAstInfo, ElseAstInfo, TW2);
-              ({'ifchangedelse', Values, IfContents, ElseContents}, TW) ->
-                  {IfAstInfo, TW1} = body_ast(IfContents, TW),
-                  {ElseAstInfo, TW2} = body_ast(ElseContents, TW1),
-                  ifchanged_values_ast(Values, IfAstInfo, ElseAstInfo, TW2);
-              ({'ifelse', Expression, IfContents, ElseContents}, TW) ->
-                  {IfAstInfo, TW1} = body_ast(IfContents, TW),
-                  {ElseAstInfo, TW2} = body_ast(ElseContents, TW1),
-                  ifelse_ast(Expression, IfAstInfo, ElseAstInfo, TW2);
-              ({'ifequal', [Arg1, Arg2], Contents}, TW) ->
-                  {IfAstInfo, TW1} = body_ast(Contents, TW),
-                  {ElseAstInfo, TW2} = empty_ast(TW1),
-                  ifelse_ast({'expr', "eq", Arg1, Arg2}, IfAstInfo, ElseAstInfo, TW2);
-              ({'ifequalelse', [Arg1, Arg2], IfContents, ElseContents}, TW) ->
-                  {IfAstInfo, TW1} = body_ast(IfContents, TW),
-                  {ElseAstInfo, TW2} = body_ast(ElseContents,TW1),
-                  ifelse_ast({'expr', "eq", Arg1, Arg2}, IfAstInfo, ElseAstInfo, TW2);
-              ({'ifnotequal', [Arg1, Arg2], Contents}, TW) ->
-                  {IfAstInfo, TW1} = body_ast(Contents, TW),
-                  {ElseAstInfo, TW2} = empty_ast(TW1),
-                  ifelse_ast({'expr', "ne", Arg1, Arg2}, IfAstInfo, ElseAstInfo, TW2);
-              ({'ifnotequalelse', [Arg1, Arg2], IfContents, ElseContents}, TW) ->
-                  {IfAstInfo, TW1} = body_ast(IfContents, TW),
-                  {ElseAstInfo, TW2} = body_ast(ElseContents, TW1),
-                  ifelse_ast({'expr', "ne", Arg1, Arg2}, IfAstInfo, ElseAstInfo, TW2);
-              ({'include', {string_literal, _, File}, Args}, #treewalker{ context=Context }=TW) ->
-                  include_ast(unescape_string_literal(File), Args, Context#dtl_context.local_scopes, TW);
-              ({'include_only', {string_literal, _, File}, Args}, TW) ->
-                  {Info, IncTW} = include_ast(unescape_string_literal(File), Args, [], TW),
-                  {Info, restore_scope(TW, IncTW)};
-              ({'load_libs', Libs}, TW) ->
-                  load_libs_ast(Libs, TW);
-              ({'load_from_lib', What, Lib}, TW) ->
-                  load_from_lib_ast(What, Lib, TW);
-              ({'regroup', {ListVariable, Grouper, {identifier, _, NewVariable}}}, TW) ->
-                  regroup_ast(ListVariable, Grouper, NewVariable, TW);
-              ('end_regroup', TW) ->
-                  {{end_scope, #ast_info{}}, TW};
-              ({'spaceless', Contents}, TW) ->
-                  spaceless_ast(Contents, TW);
-              ({'ssi', Arg}, TW) ->
-                  ssi_ast(Arg, TW);
-              ({'ssi_parsed', {string_literal, _, FileName}}, #treewalker{ context=Context }=TW) ->
-                  include_ast(unescape_string_literal(FileName), [], Context#dtl_context.local_scopes, TW);
-              ({'string', _Pos, String}, TW) ->
-                  string_ast(String, TW);
-              ({'tag', Name, Args}, TW) ->
-                  tag_ast(Name, Args, TW);
-              ({'templatetag', {_, _, TagName}}, TW) ->
-                  templatetag_ast(TagName, TW);
-              ({'trans', Value}, TW) ->
-                  translated_ast(Value, TW);
-              ({'widthratio', Numerator, Denominator, Scale}, TW) ->
-                  widthratio_ast(Numerator, Denominator, Scale, TW);
-              ({'with', Args, Contents}, TW) ->
-                  with_ast(Args, Contents, TW);
-              ({'scope_as', {identifier, _, Name}, Contents}, TW) ->
-                  scope_as(Name, Contents, TW);
-              ({'extension', Tag}, TW) ->
-                  extension_ast(Tag, TW);
-              ({'extends', _}, TW) ->
-                  empty_ast(?ERR(unexpected_extends_tag, TW));
-              (ValueToken, TW) ->
-                  format(value_ast(ValueToken, true, true, TW))
-          end,
-          TreeWalkerScope,
-          DjangoParseTree),
+    BodyFun =
+        fun ({'autoescape', {identifier, _, OnOrOff}, Contents}, TW) ->
+                {Info, BodyTW} = body_ast(Contents, push_auto_escape(OnOrOff, TW)),
+                {Info, pop_auto_escape(BodyTW)};
+            ({'block', {identifier, Pos, Name}, Contents}, #treewalker{ context=Context }=TW) ->
+                {Block, BlockScope} =
+                    case dict:find(Name, Context#dtl_context.block_dict) of
+                        {ok, ChildBlock} ->
+                            {{ContentsAst, _ContentsInfo}, _ContentsTW} = body_ast(Contents, TW),
+                            {ChildBlock,
+                             create_scope(
+                               [{block, ?Q("[{super, _@ContentsAst}]")}],
+                               Pos, TW)
+                            };
+                        _ ->
+                            {Contents, empty_scope()}
+                    end,
+                body_ast(Block, BlockScope, TW);
+            ({'blocktrans', Args, Contents}, TW) ->
+                blocktrans_ast(Args, Contents, TW);
+            ({'call', {identifier, _, Name}}, TW) ->
+                call_ast(Name, TW);
+            ({'call', {identifier, _, Name}, With}, TW) ->
+                call_with_ast(Name, With, TW);
+            ({'comment', _Contents}, TW) ->
+                empty_ast(TW);
+            ({'cycle', Names}, TW) ->
+                cycle_ast(Names, TW);
+            ({'cycle_compat', Names}, TW) ->
+                cycle_compat_ast(Names, TW);
+            ({'date', 'now', {string_literal, _Pos, FormatString}}, TW) ->
+                now_ast(FormatString, TW);
+            ({'filter', FilterList, Contents}, TW) ->
+                filter_tag_ast(FilterList, Contents, TW);
+            ({'firstof', Vars}, TW) ->
+                firstof_ast(Vars, TW);
+            ({'for', {'in', IteratorList, Variable, Reversed}, Contents}, TW) ->
+                {EmptyAstInfo, TW1} = empty_ast(TW),
+                for_loop_ast(IteratorList, Variable, Reversed, Contents, EmptyAstInfo, TW1);
+            ({'for', {'in', IteratorList, Variable, Reversed}, Contents, EmptyPartContents}, TW) ->
+                {EmptyAstInfo, TW1} = body_ast(EmptyPartContents, TW),
+                for_loop_ast(IteratorList, Variable, Reversed, Contents, EmptyAstInfo, TW1);
+            ({'if', Expression, Contents, Elif}, TW) ->
+                {IfAstInfo, TW1} = body_ast(Contents, TW),
+                {ElifAstInfo, TW2} = body_ast(Elif, TW1),
+                ifelse_ast(Expression, IfAstInfo, ElifAstInfo, TW2);
+            ({'if', Expression, Contents}, TW) ->
+                {IfAstInfo, TW1} = body_ast(Contents, TW),
+                {ElseAstInfo, TW2} = empty_ast(TW1),
+                ifelse_ast(Expression, IfAstInfo, ElseAstInfo, TW2);
+            ({'ifchanged', '$undefined', Contents}, TW) ->
+                {IfAstInfo, TW1} = body_ast(Contents, TW),
+                {ElseAstInfo, TW2} = empty_ast(TW1),
+                ifchanged_contents_ast(Contents, IfAstInfo, ElseAstInfo, TW2);
+            ({'ifchanged', Values, Contents}, TW) ->
+                {IfAstInfo, TW1} = body_ast(Contents, TW),
+                {ElseAstInfo, TW2} = empty_ast(TW1),
+                ifchanged_values_ast(Values, IfAstInfo, ElseAstInfo, TW2);
+            ({'ifchangedelse', '$undefined', IfContents, ElseContents}, TW) ->
+                {IfAstInfo, TW1} = body_ast(IfContents, TW),
+                {ElseAstInfo, TW2} = body_ast(ElseContents, TW1),
+                ifchanged_contents_ast(IfContents, IfAstInfo, ElseAstInfo, TW2);
+            ({'ifchangedelse', Values, IfContents, ElseContents}, TW) ->
+                {IfAstInfo, TW1} = body_ast(IfContents, TW),
+                {ElseAstInfo, TW2} = body_ast(ElseContents, TW1),
+                ifchanged_values_ast(Values, IfAstInfo, ElseAstInfo, TW2);
+            ({'ifelse', Expression, IfContents, ElseContents}, TW) ->
+                {IfAstInfo, TW1} = body_ast(IfContents, TW),
+                {ElseAstInfo, TW2} = body_ast(ElseContents, TW1),
+                ifelse_ast(Expression, IfAstInfo, ElseAstInfo, TW2);
+            ({'ifequal', [Arg1, Arg2], Contents}, TW) ->
+                {IfAstInfo, TW1} = body_ast(Contents, TW),
+                {ElseAstInfo, TW2} = empty_ast(TW1),
+                ifelse_ast({'expr', "eq", Arg1, Arg2}, IfAstInfo, ElseAstInfo, TW2);
+            ({'ifequalelse', [Arg1, Arg2], IfContents, ElseContents}, TW) ->
+                {IfAstInfo, TW1} = body_ast(IfContents, TW),
+                {ElseAstInfo, TW2} = body_ast(ElseContents,TW1),
+                ifelse_ast({'expr', "eq", Arg1, Arg2}, IfAstInfo, ElseAstInfo, TW2);
+            ({'ifnotequal', [Arg1, Arg2], Contents}, TW) ->
+                {IfAstInfo, TW1} = body_ast(Contents, TW),
+                {ElseAstInfo, TW2} = empty_ast(TW1),
+                ifelse_ast({'expr', "ne", Arg1, Arg2}, IfAstInfo, ElseAstInfo, TW2);
+            ({'ifnotequalelse', [Arg1, Arg2], IfContents, ElseContents}, TW) ->
+                {IfAstInfo, TW1} = body_ast(IfContents, TW),
+                {ElseAstInfo, TW2} = body_ast(ElseContents, TW1),
+                ifelse_ast({'expr', "ne", Arg1, Arg2}, IfAstInfo, ElseAstInfo, TW2);
+            ({'include', {string_literal, _, File}, Args}, #treewalker{ context=Context }=TW) ->
+                include_ast(unescape_string_literal(File), Args, Context#dtl_context.local_scopes, TW);
+            ({'include_only', {string_literal, _, File}, Args}, TW) ->
+                {Info, IncTW} = include_ast(unescape_string_literal(File), Args, [], TW),
+                {Info, restore_scope(TW, IncTW)};
+            ({'load_libs', Libs}, TW) ->
+                load_libs_ast(Libs, TW);
+            ({'load_from_lib', What, Lib}, TW) ->
+                load_from_lib_ast(What, Lib, TW);
+            ({'regroup', {ListVariable, Grouper, {identifier, _, NewVariable}}}, TW) ->
+                regroup_ast(ListVariable, Grouper, NewVariable, TW);
+            ('end_regroup', TW) ->
+                {{end_scope, #ast_info{}}, TW};
+            ({'spaceless', Contents}, TW) ->
+                spaceless_ast(Contents, TW);
+            ({'ssi', Arg}, TW) ->
+                ssi_ast(Arg, TW);
+            ({'ssi_parsed', {string_literal, _, FileName}}, #treewalker{ context=Context }=TW) ->
+                include_ast(unescape_string_literal(FileName), [], Context#dtl_context.local_scopes, TW);
+            ({'string', _Pos, String}, TW) ->
+                string_ast(String, TW);
+            ({'tag', Name, Args}, TW) ->
+                tag_ast(Name, Args, TW);
+            ({'templatetag', {_, _, TagName}}, TW) ->
+                templatetag_ast(TagName, TW);
+            ({'trans', Value}, TW) ->
+                translated_ast(Value, TW);
+            ({'widthratio', Numerator, Denominator, Scale}, TW) ->
+                widthratio_ast(Numerator, Denominator, Scale, TW);
+            ({'with', Args, Contents}, TW) ->
+                with_ast(Args, Contents, TW);
+            ({'scope_as', {identifier, _, Name}, Contents}, TW) ->
+                scope_as(Name, Contents, TW);
+            ({'extension', Tag}, TW) ->
+                extension_ast(Tag, TW);
+            ({'extends', _}, TW) ->
+                empty_ast(?ERR(unexpected_extends_tag, TW));
+            (ValueToken, TW) ->
+                format(value_ast(ValueToken, true, true, TW))
+        end,
 
-    Vars = TreeWalker1#treewalker.context#dtl_context.vars,
-    {AstList, {Info, TreeWalker2}} =
-        lists:mapfoldl(
-          fun ({Ast, Info}, {InfoAcc, TreeWalkerAcc}) ->
-                  PresetVars = lists:foldl(
-                                 fun (X, Acc) ->
-                                         case proplists:lookup(X, Vars) of
-                                             none -> Acc;
-                                             Val -> [Val|Acc]
-                                         end
-                                 end,
-                                 [],
-                                 Info#ast_info.var_names),
-                  if length(PresetVars) == 0 ->
-                          {Ast, {merge_info(Info, InfoAcc), TreeWalkerAcc}};
-                     true ->
-                          Counter = TreeWalkerAcc#treewalker.counter,
-                          Name = list_to_atom(lists:concat([pre_render, Counter])),
-                          Ast1 = ?Q("'@Name@'(_@PresetVars@, RenderOptions)"),
-                          PreRenderAst = ?Q("'@Name@'(_Variables, RenderOptions) -> _@match, _@Ast.",
-                                            [{match, options_match_ast(TreeWalkerAcc)}]),
-                          PreRenderAsts = Info#ast_info.pre_render_asts,
-                          Info1 = Info#ast_info{pre_render_asts = [PreRenderAst | PreRenderAsts]},
-                          {Ast1, {merge_info(Info1, InfoAcc), TreeWalkerAcc#treewalker{counter = Counter + 1}}}
-                  end
-          end,
-          {#ast_info{}, TreeWalker1},
-          AstInfoList),
+    {AstInfoList, TreeWalker1} = lists:mapfoldl(BodyFun, TreeWalkerScope, DjangoParseTree),
 
-    {Ast, TreeWalker3} = end_scope(
+    {AstList, Info} =
+        lists:mapfoldl(
+          fun ({Ast, Info}, InfoAcc) ->
+                  {Ast, merge_info(Info, InfoAcc)}
+          end, #ast_info{}, AstInfoList),
+
+    {Ast, TreeWalker2} = end_scope(
                            fun ([ScopeVars|ScopeBody]) -> [?Q("begin _@ScopeVars, [_@ScopeBody] end")] end,
-                           ScopeId, AstList, TreeWalker2),
-    {{erl_syntax:list(Ast), Info}, TreeWalker3}.
+                           ScopeId, AstList, TreeWalker1),
+    {{erl_syntax:list(Ast), Info}, TreeWalker2}.
 
 
 value_ast(ValueToken, AsString, EmptyIfUndefined, TreeWalker) ->
@@ -1099,8 +1081,7 @@ resolve_variable_ast1({attribute, {{_, Pos, Attr}, Variable}}, {Runtime, Finder}
     FileName = get_current_file(TreeWalker1),
     {{?Q(["'@Runtime@':'@Finder@'(",
           "  _@Attr@, _@VarAst,",
-          "  [",
-          "   {lists_0_based, _@Lists0Based@},",
+          "  [{lists_0_based, _@Lists0Based@},",
           "   {tuples_0_based, _@Tuples0Based@},",
           "   {render_options, RenderOptions},",
           "   {record_info, _RecordInfo},",
@@ -1112,19 +1093,46 @@ resolve_variable_ast1({attribute, {{_, Pos, Attr}, Variable}}, {Runtime, Finder}
 
 resolve_variable_ast1({variable, {identifier, Pos, VarName}}, {Runtime, Finder}, TreeWalker) ->
     Ast = case resolve_variable(VarName, TreeWalker) of
-              undefined ->
+              {_, undefined} ->
                   FileName = get_current_file(TreeWalker),
                   {?Q(["'@Runtime@':'@Finder@'(",
                        "  _@VarName@, _Variables,",
                        "  [{filename, _@FileName@},",
                        "   {pos, _@Pos@},",
                        "   {record_info, _RecordInfo},",
-                       "   {render_options, RenderOptions}])"]),
+                       "   {render_options, RenderOptions}])"
+                      ]),
                    #ast_info{ var_names=[VarName] }};
-              Val ->
+              {default_vars, Val} ->
+                  FileName = get_current_file(TreeWalker),
+                  {?Q(["'@Runtime@':fetch_value(",
+                       "  _@VarName@, _Variables,",
+                       "  [{filename, _@FileName@},",
+                       "   {pos, _@Pos@},",
+                       "   {record_info, _RecordInfo},",
+                       "   {render_options, RenderOptions}],",
+                       "   _@val)"
+                      ],
+                      [{val, merl:term(erlydtl_filters:format_number(Val))}]),
+                   #ast_info{ var_names=[VarName], def_names=[VarName] }};
+              {constant, Val} ->
+                  {merl:term(erlydtl_filters:format_number(Val)),
+                   #ast_info{ const_names=[VarName] }};
+              {scope, Val} ->
                   {Val, #ast_info{}}
           end,
     {Ast, TreeWalker}.
+
+resolve_reserved_variable(ReservedName, TreeWalker) ->
+    resolve_reserved_variable(ReservedName, merl:term(undefined), TreeWalker).
+
+resolve_reserved_variable(ReservedName, Default, TreeWalker) ->
+    case resolve_variable(ReservedName, Default, TreeWalker) of
+        {Src, Value} when Src =:= scope; Value =:= Default ->
+            {Value, TreeWalker};
+        _ ->
+            {Default, ?ERR({reserved_variable, ReservedName}, TreeWalker)}
+    end.
 
 format({{Ast, Info}, TreeWalker}) ->
     auto_escape({{format_number_ast(Ast), Info}, TreeWalker}).
@@ -1262,7 +1270,7 @@ for_loop_ast(IteratorList, LoopValue, IsReversed, Contents,
 
     LoopValueAst0 = to_list_ast(LoopValueAst, merl:term(IsReversed), TreeWalker2),
 
-    ParentLoop = resolve_variable('forloop', erl_syntax:atom(undefined), TreeWalker2),
+    {ParentLoop, TreeWalker3} = resolve_reserved_variable('forloop', TreeWalker2),
 
     %% call for loop
     {{?Q(["case erlydtl_runtime:forloop(",
@@ -1285,7 +1293,7 @@ for_loop_ast(IteratorList, LoopValue, IsReversed, Contents,
                               ?Q("() when true -> {_@Vars}")
                       end}]),
       merge_info(merge_info(Info, EmptyContentsInfo), LoopValueInfo)},
-     TreeWalker2}.
+     TreeWalker3}.
 
 ifchanged_values_ast(Values, {IfContentsAst, IfContentsInfo}, {ElseContentsAst, ElseContentsInfo}, TreeWalker) ->
     Info = merge_info(IfContentsInfo, ElseContentsInfo),
@@ -1327,10 +1335,10 @@ cycle_ast(Names, #treewalker{ context=Context }=TreeWalker) ->
                 (_, VarNamesAcc) ->
                     {[], VarNamesAcc}
             end, [], Names),
-    {{?Q("erlydtl_runtime:cycle({_@NamesTuple}, _@forloop)",
-        [{forloop, resolve_variable('forloop', TreeWalker)}]),
+    {ForLoop, TreeWalker1} = resolve_reserved_variable('forloop', TreeWalker),
+    {{?Q("erlydtl_runtime:cycle({_@NamesTuple}, _@ForLoop)"),
       #ast_info{ var_names = VarNames }},
-     TreeWalker}.
+     TreeWalker1}.
 
 %% Older Django templates treat cycle with comma-delimited elements as strings
 cycle_compat_ast(Names, #treewalker{ context=Context }=TreeWalker) ->
@@ -1338,10 +1346,10 @@ cycle_compat_ast(Names, #treewalker{ context=Context }=TreeWalker) ->
                    fun ({identifier, _, X}) ->
                            string_ast(X, Context)
                    end, Names),
-    {{?Q("erlydtl_runtime:cycle({_@NamesTuple}, _@forloop)",
-        [{forloop, resolve_variable('forloop', TreeWalker)}]),
+    {ForLoop, TreeWalker1} = resolve_reserved_variable('forloop', TreeWalker),
+    {{?Q("erlydtl_runtime:cycle({_@NamesTuple}, _@ForLoop)"),
       #ast_info{}},
-     TreeWalker}.
+     TreeWalker1}.
 
 now_ast(FormatString, TreeWalker) ->
     %% Note: we can't use unescape_string_literal here

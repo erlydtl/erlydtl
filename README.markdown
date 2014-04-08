@@ -109,6 +109,10 @@ Options is a proplist possibly containing:
   `compiler:forms/2`. This can prove useful when using extensions to
   add extra defines etc when compiling the generated code.
 
+* `constants` - Replace template variables with a constant value when
+  compiling the template. This can _not_ be overridden when rendering
+  the template. See also `default_vars`.
+
 * `custom_filters_modules` **deprecated** - A list of modules to be
   used for handling custom filters. The modules will be searched in
   order and take precedence over the built-in filters. Each custom
@@ -164,6 +168,11 @@ Options is a proplist possibly containing:
   default when compiling a template. Libraries can be specified either
   by name (when there is a name to module mapping also provided in the
   `libraries` option) or by module.
+
+* `default_vars` - Provide default values for variables. Any value
+  from the render variables takes precedence. Notice: in case the
+  value is a `fun/0`, it will be called at compile time. See also
+  `constants`.
 
 * `doc_root` - Included template paths will be relative to this
   directory; defaults to the compiled template's directory.
@@ -228,9 +237,10 @@ Options is a proplist possibly containing:
   `tuples_0_based`. See also `lists_0_based`.
 
 
-* `vars` - Variables (and their values) to evaluate at compile-time
-  rather than render-time. (Currently not strictly true, see
-  [#61](https://github.com/erlydtl/erlydtl/issues/61))
+* `vars` **deprecated** - Use `default_vars` instead. Variables (and
+  their values) to evaluate at compile-time rather than
+  render-time.
+
 
 * `verbose` - Enable verbose printing of compilation progress. Add
   several for even more verbose (e.g. debug) output.
@@ -362,6 +372,27 @@ my_compiled_template:variables() -> [Variable::atom()]
 Sorted list of unique variables used in the template's body. The list
 can be used for determining which variable bindings need to be passed
 to the `render/3` function.
+
+
+### default_variables/0
+
+```erlang
+my_compiled_template:default_variables() -> [Variable::atom()]
+```
+
+Like `variables/0`, but for any variable which have a default value
+provided at compile time.
+
+
+### constants/0
+
+```erlang
+my_compiled_template:constants() -> [Variable::atom()]
+```
+
+Like `default_variables/0`, but these template variables has been
+replaced with a fixed value at compile time and can not be changed
+when rendering the template.
 
 
 Custom tags and filters

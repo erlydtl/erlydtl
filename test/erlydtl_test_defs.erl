@@ -1479,6 +1479,62 @@ all_test_defs() ->
         <<"ytrewQ">>
        }
       ]},
+     {"compile time default vars/constants",
+      begin
+          Tpl = <<"Test {{ var1 }}:{{ var2 }}.">>,
+          Txt = <<"Test 123:abc.">>,
+          Fun = fun (F) ->
+                        fun (#test{ module=M }) ->
+                                M:F()
+                        end
+                end,
+          [{"default vars",
+            Tpl, [], [],
+            [{default_vars, [{var1, 123}, {var2, abc}]}], Txt},
+           {"default vars (using fun)",
+            Tpl, [], [],
+            [{default_vars, [{var1, 123}, {var2, fun () -> abc end}]}], Txt},
+           {"override default vars",
+            Tpl, [{var2, abc}], [],
+            [{default_vars, [{var1, 123}, {var2, 456}]}], Txt},
+           {"constants",
+            Tpl, [], [],
+            [{constants, [{var1, 123}, {var2, abc}]}], Txt},
+           {"constants (using fun)",
+            Tpl, [], [],
+            [{constants, [{var1, 123}, {var2, fun () -> abc end}]}], Txt},
+           {"constants non-overridable",
+            Tpl, [{var1, ohno}, {var2, noway}], [],
+            [{constants, [{var1, 123}, {var2, "abc"}]}], Txt}
+           |[#test{ title = T,
+                    source = Tpl,
+                    compile_vars = undefined,
+                    compile_opts = CO ++ (#test{})#test.compile_opts,
+                    renderer = Fun(F),
+                    output = O
+                  }
+             || {T, F, O, CO} <-
+                    [{"variables/0",
+                      variables, [var1, var2], []},
+                     {"variables/0 w. defaults",
+                      variables, [var1, var2], [{default_vars, [{var1, aaa}]}]},
+                     {"variables/0 w. constants",
+                      variables, [var2], [{constants, [{var1, bbb}]}]},
+                     {"default_variables/0",
+                      default_variables, [], []},
+                     {"default_variables/0 w. defaults",
+                      default_variables, [var1], [debug_compiler, {default_vars, [{var1, aaa}]}]},
+                     {"default_variables/0 w. constants",
+                      default_variables, [], [{constants, [{var1, bbb}]}]},
+                     {"constants/0",
+                      constants, [], []},
+                     {"constants/0 w. defaults",
+                      constants, [], [{default_vars, [{var1, aaa}]}]},
+                     {"constants/0 w. constants",
+                      constants, [var1], [{constants, [{var1, bbb}]}]}
+                    ]
+            ]]
+      end},
      {"functional",
       [functional_test(F)
        %% order is important.
@@ -1507,7 +1563,8 @@ all_test_defs() ->
                    renderer = fun(#test{ module=M, render_vars=V, render_opts=O }) ->
                                       M:render(base1, V, O)
                               end
-                  }]
+                  }
+               ]
       ]}
     ].
 
@@ -1530,6 +1587,7 @@ def_to_test(Group, {Name, DTL, Vars, RenderOpts, CompilerOpts, Output, Warnings}
        source = {template, DTL},
        render_vars = Vars,
        render_opts = RenderOpts,
+       compile_vars = undefined,
        compile_opts = CompilerOpts ++ (#test{})#test.compile_opts,
        output = Output,
        warnings = Warnings

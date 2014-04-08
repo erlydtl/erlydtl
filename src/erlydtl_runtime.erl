@@ -98,8 +98,11 @@ find_value(Key, Tuple) when is_tuple(Tuple) ->
     end.
 
 fetch_value(Key, Data, Options) ->
+    fetch_value(Key, Data, Options, []).
+
+fetch_value(Key, Data, Options, Default) ->
     case find_value(Key, Data, Options) of
-        undefined -> [];
+        undefined -> Default;
         Val -> Val
     end.
 
