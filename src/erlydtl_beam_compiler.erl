@@ -573,6 +573,8 @@ body_ast(DjangoParseTree, BodyScope, TreeWalker) ->
                 call_with_ast(Name, With, TW);
             ({'comment', _Contents}, TW) ->
                 empty_ast(TW);
+            ({'comment_tag', _, _}, TW) ->
+                empty_ast(TW);
             ({'cycle', Names}, TW) ->
                 cycle_ast(Names, TW);
             ({'cycle_compat', Names}, TW) ->

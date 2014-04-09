@@ -52,7 +52,7 @@ Nonterminals
     BlockBraced
     EndBlockBraced
 
-    CommentInline
+    CommentTag
     CommentBlock
     CommentBraced
     EndCommentBraced
@@ -143,7 +143,7 @@ Terminals
     call_keyword
     close_tag
     close_var
-    comment_inline
+    comment_tag
     comment_keyword
     cycle_keyword
     elif_keyword
@@ -226,7 +226,7 @@ Elements -> Elements BlockTransBlock : '$1' ++ ['$2'].
 Elements -> Elements CallTag : '$1' ++ ['$2'].
 Elements -> Elements CallWithTag : '$1' ++ ['$2'].
 Elements -> Elements CommentBlock : '$1' ++ ['$2'].
-Elements -> Elements CommentInline : '$1' ++ ['$2'].
+Elements -> Elements CommentTag : '$1' ++ ['$2'].
 Elements -> Elements CustomTag : '$1' ++ ['$2'].
 Elements -> Elements CycleTag : '$1' ++ ['$2'].
 Elements -> Elements ExtendsTag : '$1' ++ ['$2'].
@@ -299,7 +299,7 @@ CommentBlock -> CommentBraced Elements EndCommentBraced : {comment, '$2'}.
 CommentBraced -> open_tag comment_keyword close_tag.
 EndCommentBraced -> open_tag endcomment_keyword close_tag.
 
-CommentInline -> comment_inline : {comment, inline_comment_to_string('$1')}.
+CommentTag -> comment_tag : '$1'.
 
 CycleTag -> open_tag cycle_keyword CycleNamesCompat close_tag : {cycle_compat, '$3'}.
 CycleTag -> open_tag cycle_keyword CycleNames close_tag : {cycle, '$3'}.
@@ -427,9 +427,5 @@ CallTag -> open_tag call_keyword identifier close_tag : {call, '$3'}.
 CallWithTag -> open_tag call_keyword identifier with_keyword Value close_tag : {call, '$3', '$5'}.
 
 Erlang code.
-
-inline_comment_to_string({comment_inline, Pos, S}) ->
-    %% inline comment converted to block comment for simplicity
-    [{string, Pos, S}].
 
 %% vim: syntax=erlang

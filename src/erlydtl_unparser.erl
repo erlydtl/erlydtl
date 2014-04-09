@@ -5,7 +5,7 @@ unparse(DjangoParseTree) ->
     unparse(DjangoParseTree, []).
 
 unparse([], Acc) ->
-    lists:reverse(Acc);
+    lists:flatten(lists:reverse(Acc));
 unparse([{'extends', Value}|Rest], Acc) ->
     unparse(Rest, [["{% extends ", unparse_value(Value), " %}"]|Acc]);
 unparse([{'autoescape', OnOrOff, Contents}|Rest], Acc) ->
@@ -22,6 +22,8 @@ unparse([{'call', Identifier, With}|Rest], Acc) ->
     unparse(Rest, [["{% call ", unparse_identifier(Identifier), " with ", unparse_args(With), " %}"]|Acc]);
 unparse([{'comment', Contents}|Rest], Acc) ->
     unparse(Rest, [["{% comment %}", unparse(Contents), "{% endcomment %}"]|Acc]);
+unparse([{'comment_tag', _Pos, Text}|Rest], Acc) ->
+    unparse(Rest, [["{#", Text, "#}"]|Acc]);
 unparse([{'cycle', Names}|Rest], Acc) ->
     unparse(Rest, [["{% cycle ", unparse(Names), " %}"]|Acc]);
 unparse([{'cycle_compat', Names}|Rest], Acc) ->
