@@ -8,7 +8,7 @@ otp_release:
   - R16B02
   - R16B01
   - R16B
-  - R15B03-1
+#  - R15B03-1 not available on travis
   - R15B03
   - R15B02
   - R15B01
