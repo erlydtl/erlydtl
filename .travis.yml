@@ -11,8 +11,6 @@ otp_release:
 #  - R15B03-1 not available on travis
   - R15B03
   - R15B02
-  - R15B01
-  - R15B
 
 # since Travis is naughty and calls rebar get-deps behind our backs,
 # we'll have to clean it up and build merl our selves..
