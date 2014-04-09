@@ -52,6 +52,12 @@ To compile ErlyDTL, run
 in this directory.
 
 
+#### Do not use Erlang R16B03
+
+The erl syntax tools is broken in Erlang R16B03, use R16B03-1 or any
+other supported version instead.
+
+
 Template compilation
 --------------------
 

@@ -1,11 +1,22 @@
 language: erlang
 otp_release:
-#  - 17.0-rc1
+# Test on all supported releases accepted by the `require_otp_vsn` in rebar.config
+#  - 17.0-rc2  not yet supported
+#  - 17.0-rc1  not yet supported
   - R16B03-1
+#  - R16B03 this version is broken!
   - R16B02
+  - R16B01
+  - R16B
+  - R15B03-1
   - R15B03
-#  - R14B04 (seems lists:concat/1 is broken on R14B04..)
+  - R15B02
+  - R15B01
+  - R15B
 
 # since Travis is naughty and calls rebar get-deps behind our backs,
 # we'll have to clean it up and build merl our selves..
 script: "make -C deps/merl && make tests"
+
+notifications:
+  irc: "chat.freenode.net#erlydtl"
