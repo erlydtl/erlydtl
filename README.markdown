@@ -457,6 +457,3 @@ From a Unix shell, run:
     make tests
 
 Note that the tests will create some output in tests/output in case of regressions.
-
-
-[![Bitdeli Badge](https://d2weczhvl823v0.cloudfront.net/erlydtl/erlydtl/trend.png)](https://bitdeli.com/free "Bitdeli Badge")
