@@ -113,7 +113,8 @@ Nonterminals
 
     BlockTransBlock
     BlockTransContent
-    TransTag    
+    TransTag
+    TransArgs
     TransText
 
     TemplatetagTag
@@ -145,6 +146,7 @@ Terminals
     close_var
     comment_tag
     comment_keyword
+    context_keyword
     cycle_keyword
     elif_keyword
     else_keyword
@@ -401,9 +403,12 @@ Templatetag -> closebrace_keyword : '$1'.
 Templatetag -> opencomment_keyword : '$1'.
 Templatetag -> closecomment_keyword : '$1'.
 
-TransTag -> open_tag trans_keyword TransText close_tag : {trans, '$3'}.
-TransTag -> open_tag trans_keyword TransText as_keyword identifier close_tag : {scope_as, '$5', [{trans, '$3'}]}.
-TransTag -> open_tag trans_keyword TransText noop_keyword close_tag : '$3'.
+TransTag -> open_tag trans_keyword TransArgs close_tag : '$3'.
+TransTag -> open_tag trans_keyword TransArgs as_keyword identifier close_tag : {scope_as, '$5', ['$3']}.
+TransTag -> open_tag trans_keyword TransArgs noop_keyword close_tag : element(2, '$3').
+
+TransArgs -> TransText : {trans, '$1'}.
+TransArgs -> TransText context_keyword string_literal: {trans, '$1', '$3'}.
 
 TransText -> string_literal : '$1'.
 TransText -> Variable : '$1'.

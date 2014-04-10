@@ -100,9 +100,10 @@ Options is a proplist possibly containing:
   (rather than lists). Defaults to `true`.
 
 * `blocktrans_fun` - A two-argument fun to use for translating
-  `blocktrans` blocks, `trans` tags and `_(..)` expressions. This will
-  be called once for each pair of translated element and locale
-  specified in `blocktrans_locales`. The fun should take the form:
+  `blocktrans` blocks, `trans` tags and `_(..)` expressions at compile
+  time. This will be called once for each pair of translated element
+  and locale specified in `blocktrans_locales`. The fun should take
+  the form:
 
   ```erlang
   Fun(Block::string(), Locale::string()) -> <<"ErlyDTL code">>::binary() | default
@@ -307,11 +308,30 @@ my_compiled_template:render(Variables, Options) -> {ok, IOList} | {error, Err}
 
 Same as `render/1`, but with the following options:
 
-* `translation_fun` - A fun/1 that will be used to translate strings
-  appearing inside `{% trans %}` and `{% blocktrans %}` tags. The
-  simplest TranslationFun would be `fun(Val) -> Val end`. Placeholders
-  for blocktrans variable interpolation should be wrapped to `{{` and
-  `}}`.
+* `translation_fun` - A `fun/1` or `fun/2` that will be used to
+  translate strings appearing inside `{% trans %}` and `{% blocktrans
+  %}` tags at render-time. The simplest TranslationFun would be
+  `fun(Val) -> Val end`. Placeholders for blocktrans variable
+  interpolation should be wrapped in `{{` and `}}`. In case of
+  `fun/2`, the extra argument is the current locale, possibly together
+  with a translation context in a tuple:
+
+  ```erlang
+  fun (Val, {Locale, Context}) -> Translated_Val;
+      (Val, Locale) -> Translated_Val
+  end
+  ```
+
+  The context is present when specified in the translation
+  tag. Example:
+
+  ```django
+  {% trans "Some text to translate" context "app-specific" %}
+    or
+  {% blocktrans context "another-context" %}
+    Translate this for {{ name }}.
+  {% endblocktrans %}
+  ```
 
 * `lists_0_based` - If the compile option `lists_0_based` was set to
   `defer`, pass this option (or set it to true, `{lists_0_based,

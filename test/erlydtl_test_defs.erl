@@ -1289,8 +1289,8 @@ all_test_defs() ->
         <<"Hello {% trans var1 noop %}">>, [{var1, <<"Hi">>}], [{translation_fun, fun(<<"Hi">>) -> <<"Konichiwa">> end}], [],
         <<"Hello Hi">>},
        {"trans as",
-        <<"{% trans 'Hans' as name %}Hello {{ name }}">>, [], <<"Hello Hans">>
-       }
+        <<"{% trans 'Hans' as name %}Hello {{ name }}">>, [],
+        <<"Hello Hans">>}
       ]},
      {"blocktrans",
       [{"blocktrans default locale",
@@ -1315,6 +1315,31 @@ all_test_defs() ->
         [{name, "Mr. President"}, {foo, <<"rubber-duck">>}],
         [{translation_fun, fun("Hello, {{ name }}! See {{ v1 }}.") -> <<"Guten tag, {{name}}! Sehen {{    v1   }}.">> end}],
         [], <<"Guten tag, Mr. President! Sehen rubber-duck.">>}
+      ]},
+     {"extended translation features (#131)",
+      [{"trans default locale",
+        <<"test {% trans 'message' %}">>,
+        [], [{translation_fun, fun ("message", none) -> "ok" end}],
+        <<"test ok">>},
+       {"trans foo locale",
+        <<"test {% trans 'message' %}">>,
+        [], [{locale, "foo"}, {translation_fun, fun ("message", "foo") -> "ok" end}],
+        <<"test ok">>},
+       {"trans context (run-time)",
+        <<"test {% trans 'message' context 'foo' %}">>,
+        [], [{translation_fun, fun ("message", {none, "foo"}) -> "ok" end}],
+        <<"test ok">>},
+       {"trans context (compile-time)",
+        <<"test {% trans 'message' context 'foo' %}">>,
+        [], [{locale, "baz"}],
+        [{blocktrans_locales, ["bar", "baz"]},
+         {blocktrans_fun, fun ("message", {L, "foo"}) ->
+                                  case L of
+                                      "bar" -> "rab";
+                                      "baz" -> "ok"
+                                  end
+                          end}],
+        <<"test ok">>}
       ]},
      {"verbatim",
       [{"Plain verbatim",
@@ -1523,7 +1548,7 @@ all_test_defs() ->
                      {"default_variables/0",
                       default_variables, [], []},
                      {"default_variables/0 w. defaults",
-                      default_variables, [var1], [debug_compiler, {default_vars, [{var1, aaa}]}]},
+                      default_variables, [var1], [{default_vars, [{var1, aaa}]}]},
                      {"default_variables/0 w. constants",
                       default_variables, [], [{constants, [{var1, bbb}]}]},
                      {"constants/0",

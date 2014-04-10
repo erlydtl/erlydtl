@@ -119,7 +119,9 @@ compare_token({'firstof', Vars1}, {'firstof', Vars2}) ->
 %% TODO...
 %% compare_token({'for', {'in', IteratorList, Identifier}, Contents}, {'for', {'in', IteratorList, Identifier}, Contents}) -> ok;
 %% compare_token({'for', {'in', IteratorList, Identifier}, Contents, EmptyPartsContents}, {'for', {'in', IteratorList, Identifier}, Contents, EmptyPartsContents}) -> ok;
-%% compare_token({'if', Expression, Contents}, {'if', Expression, Contents}) -> ok;
+compare_token({'if', Expression1, Contents1}, {'if', Expression2, Contents2}) ->
+    compare_expression(Expression1, Expression2),
+    compare_tree(Contents1, Contents2);
 %% compare_token({'ifchanged', Expression, IfContents}, {'ifchanged', Expression, IfContents}) -> ok;
 %% compare_token({'ifchangedelse', Expression, IfContents, ElseContents}, {'ifchangedelse', Expression, IfContents, ElseContents}) -> ok;
 %% compare_token({'ifelse', Expression, IfContents, ElseContents}, {'ifelse', Expression, IfContents, ElseContents}) -> ok;

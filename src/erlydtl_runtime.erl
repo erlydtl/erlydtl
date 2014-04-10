@@ -2,7 +2,13 @@
 
 -compile(export_all).
 
--type translate_fun() :: fun((string() | binary()) -> string() | binary() | undefined).
+-type text() :: string() | binary().
+-type phrase() :: text() | {text(), {PluralPhrase::text(), non_neg_integer()}}.
+-type locale() :: term() | {Locale::term(), Context::binary()}.
+
+-type old_translate_fun() :: fun((text()) -> text() | undefined).
+-type new_translate_fun() :: fun((phrase(), locale()) -> text() | undefined).
+-type translate_fun() :: new_translate_fun() | old_translate_fun().
 
 -define(IFCHANGED_CONTEXT_VARIABLE, erlydtl_ifchanged_context).
 
@@ -130,17 +136,29 @@ regroup([Item|Rest], Attribute, [[{grouper, PrevGrouper}, {list, PrevList}]|Acc]
             regroup(Rest, Attribute, [[{grouper, Value}, {list, [Item]}], [{grouper, PrevGrouper}, {list, lists:reverse(PrevList)}]|Acc])
     end.
 
--spec translate(Str, none | translate_fun()) -> Str when
-      Str :: string() | binary().
-translate(String, none) -> String;
-translate(String, TranslationFun)
-  when is_function(TranslationFun) ->
-    case TranslationFun(String) of
-        undefined -> String;
-        <<"">> -> String;
-        "" -> String;
-        Str -> Str
+-spec translate(Phrase, Locale, Fun) -> text() | undefined when
+      Phrase :: phrase(),
+      Locale :: locale(),
+      Fun :: none | translate_fun().
+translate(Phrase, _Locale, none) -> trans_text(Phrase);
+translate(Phrase, Locale, TranslationFun) ->
+    case do_translate(Phrase, Locale, TranslationFun) of
+        undefined -> trans_text(Phrase);
+        <<"">> -> trans_text(Phrase);
+        "" -> trans_text(Phrase);
+        Translated -> Translated
     end.
+
+trans_text({Text, _}) -> Text;
+trans_text(Text) -> Text.
+
+do_translate(Phrase, _Locale, TranslationFun)
+  when is_function(TranslationFun, 1) ->
+    TranslationFun(trans_text(Phrase));
+do_translate(Phrase, Locale, TranslationFun)
+  when is_function(TranslationFun, 2) ->
+    TranslationFun(Phrase, Locale).
+
 
 %% @doc Translate and interpolate 'blocktrans' content.
 %% Pre-requisites:
