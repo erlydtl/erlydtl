@@ -746,7 +746,15 @@ empty_ast(TreeWalker) ->
 
 %%% Note: Context here refers to the translation context, not the #dtl_context{} record
 
-blocktrans_ast(ArgList, Contents, TreeWalker) ->
+blocktrans_ast(Args, Contents, TreeWalker) ->
+    %% get args and context
+    ArgList = proplists:get_value(args, Args, []),
+    Context = case proplists:get_value(context, Args) of
+                  undefined -> undefined;
+                  {string_literal, _, S} ->
+                      unescape_string_literal(S)
+              end,
+
     %% add new scope using 'with' values
     {NewScope, {ArgInfo, TreeWalker1}} =
         lists:mapfoldl(
@@ -760,24 +768,25 @@ blocktrans_ast(ArgList, Contents, TreeWalker) ->
     TreeWalker2 = push_scope(NewScope, TreeWalker1),
 
     %% key for translation lookup
-    SourceText = lists:flatten(erlydtl_unparser:unparse(Contents)),
+    SourceText = erlydtl_unparser:unparse(Contents),
     {{DefaultAst, AstInfo}, TreeWalker3} = body_ast(Contents, TreeWalker2),
     MergedInfo = merge_info(AstInfo, ArgInfo),
 
-    Context = TreeWalker3#treewalker.context,
-    case Context#dtl_context.trans_fun of
-        none ->
+    #dtl_context{
+      trans_fun = TFun,
+      trans_locales = TLocales } = TreeWalker3#treewalker.context,
+    if TFun =:= none ->
             %% translate in runtime
             {FinalAst, FinalTW} = blocktrans_runtime_ast(
-                                    {DefaultAst, MergedInfo},
-                                    SourceText, Contents, TreeWalker3),
+                                    {DefaultAst, MergedInfo}, SourceText,
+                                    Contents, Context, TreeWalker3),
             {FinalAst, restore_scope(TreeWalker1, FinalTW)};
-        BlockTransFun when is_function(BlockTransFun) ->
+       is_function(TFun, 2) ->
             %% translate in compile-time
             {FinalAstInfo, FinalTreeWalker, Clauses} =
                 lists:foldr(
                   fun (Locale, {AstInfoAcc, TreeWalkerAcc, ClauseAcc}) ->
-                          case BlockTransFun(SourceText, Locale) of
+                          case TFun(SourceText, phrase_locale(Locale, Context)) of
                               default ->
                                   {AstInfoAcc, TreeWalkerAcc, ClauseAcc};
                               Body ->
@@ -787,14 +796,13 @@ blocktrans_ast(ArgList, Contents, TreeWalker) ->
                                    [?Q("_@Locale@ -> _@BodyAst")|ClauseAcc]}
                           end
                   end,
-                  {MergedInfo, TreeWalker2, []},
-                  Context#dtl_context.trans_locales),
+                  {MergedInfo, TreeWalker3, []}, TLocales),
             FinalAst = ?Q("case _CurrentLocale of _@_Clauses -> _; _ -> _@DefaultAst end"),
             {{FinalAst, FinalAstInfo#ast_info{ translated_blocks = [SourceText] }},
              restore_scope(TreeWalker1, FinalTreeWalker)}
     end.
 
-blocktrans_runtime_ast({DefaultAst, Info}, SourceText, Contents, TreeWalker) ->
+blocktrans_runtime_ast({DefaultAst, Info}, SourceText, Contents, Context, TreeWalker) ->
     %% Contents is flat - only strings and '{{var}}' allowed.
     %% build sorted list (orddict) of pre-resolved variables to pass to runtime translation function
     USortedVariables = lists:usort(fun({variable, {identifier, _, A}},
@@ -807,36 +815,60 @@ blocktrans_runtime_ast({DefaultAst, Info}, SourceText, Contents, TreeWalker) ->
                  end,
     {VarAsts, TreeWalker1} = lists:mapfoldl(VarBuilder, TreeWalker, USortedVariables),
     VarListAst = erl_syntax:list(VarAsts),
-    BlockTransAst = ?Q(["if _TranslationFun =:= none -> _@DefaultAst;",
-                        "  true -> erlydtl_runtime:translate_block(",
-                        "    _@SourceText@, _TranslationFun, _@VarListAst)",
-                        "end"]),
+    BlockTransAst = ?Q(["begin",
+                        "  case erlydtl_runtime:translate_block(",
+                        "         _@SourceText@, _@locale,",
+                        "         _@VarListAst, _TranslationFun) of",
+                        "    default -> _@DefaultAst;",
+                        "    Text -> Text",
+                        "  end",
+                        "end"],
+                      [{locale, phrase_locale_ast(Context)}]),
     {{BlockTransAst, Info}, TreeWalker1}.
 
-translated_ast(Phrase, TreeWalker) ->
-    translated_ast(Phrase, undefined, TreeWalker).
+%% extract_phrase({{string_literal, _, String}, {string_literal, _, Plural}}, TreeWalker) ->
+%%     {compiletime, {unescape_string_literal(String), unescape_string_literal(Plural)}, TreeWalker};
+%% extract_phrase({string_literal, _, String}, TreeWalker) ->
+%%     {compiletime, unescape_string_literal(String), TreeWalker};
+%% extract_phrase({Value, {string_literal, _, Plural}}, TreeWalker) ->
+%%     {{ValueAst, ValueInfo}, TreeWalker1} = value_ast(Value, true, false, TreeWalker),
+%%     ContextAst = string_ast(unescape_string_literal(Plural), TreeWalker1),
+%%     {runtime, {{erl_syntax:tuple([ValueAst, ContextAst]), ValueInfo}, TreeWalker1}};
+%% extract_phrase(Value, TreeWalker) ->
+%%     {runtime, value_ast(Value, true, false, TreeWalker)}.
 
-translated_ast(Phrase, {string_literal, _, Context}, TreeWalker) ->
-    translated_ast(Phrase, unescape_string_literal(Context), TreeWalker);
-translated_ast(Phrase, Context, TreeWalker) ->
-    case extract_phrase(Phrase, TreeWalker) of
-        {compiletime, Phrase1, TreeWalker1} ->
-            case call_extension(TreeWalker, translate_ast, [Phrase1, Context, TreeWalker1]) of
-                undefined ->
-                    case TreeWalker#treewalker.context#dtl_context.trans_fun of
-                        none -> runtime_trans_ast(Phrase1, Context, TreeWalker1);
-                        _ -> compiletime_trans_ast(Phrase1, Context, TreeWalker1)
-                    end;
-                TranslatedAst ->
-                    TranslatedAst
+%% phrase_ast({Text, _}, TreeWalker) -> string_ast(Text, TreeWalker);
+%% phrase_ast(Text, TreeWalker) -> string_ast(Text, TreeWalker).
+
+phrase_locale_ast(undefined) -> merl:var('_CurrentLocale');
+phrase_locale_ast(Context) -> erl_syntax:tuple([merl:var('_CurrentLocale'), merl:term(Context)]).
+
+phrase_locale(Locale, undefined) -> Locale;
+phrase_locale(Locale, Context) -> {Locale, Context}.
+
+translated_ast(Text, TreeWalker) ->
+    translated_ast(Text, undefined, TreeWalker).
+
+translated_ast(Text, {string_literal, _, Context}, TreeWalker) ->
+    translated_ast(Text, unescape_string_literal(Context), TreeWalker);
+translated_ast({string_literal, _, String}, Context, TreeWalker) ->
+    Text = unescape_string_literal(String),
+    case call_extension(TreeWalker, translate_ast, [Text, Context, TreeWalker]) of
+        undefined ->
+            case TreeWalker#treewalker.context#dtl_context.trans_fun of
+                none -> runtime_trans_ast(Text, Context, TreeWalker);
+                Fun when is_function(Fun, 2) ->
+                    compiletime_trans_ast(Text, Context, TreeWalker)
             end;
-        {runtime, PhraseAst} ->
-            runtime_trans_ast(PhraseAst, Context)
-    end.
+        TranslatedAst ->
+            TranslatedAst
+    end;
+translated_ast(Value, Context, TreeWalker) ->
+    runtime_trans_ast(value_ast(Value, true, false, TreeWalker), Context).
 
-runtime_trans_ast(Phrase, Context, TreeWalker) ->
-    Info = #ast_info{ translatable_strings = [Phrase] },
-    runtime_trans_ast({{merl:term(Phrase), Info}, TreeWalker}, Context).
+runtime_trans_ast(Text, Context, TreeWalker) ->
+    Info = #ast_info{ translatable_strings = [Text] },
+    runtime_trans_ast({{merl:term(Text), Info}, TreeWalker}, Context).
 
 runtime_trans_ast({{ValueAst, AstInfo}, TreeWalker}, undefined) ->
     {{?Q("erlydtl_runtime:translate(_@ValueAst, _CurrentLocale, _TranslationFun)"),
@@ -845,7 +877,7 @@ runtime_trans_ast({{ValueAst, AstInfo}, TreeWalker}, Context) ->
     {{?Q("erlydtl_runtime:translate(_@ValueAst, {_CurrentLocale, _@Context@}, _TranslationFun)"),
       AstInfo}, TreeWalker}.
 
-compiletime_trans_ast(Phrase, LContext,
+compiletime_trans_ast(Text, LContext,
                       #treewalker{
                          context=#dtl_context{
                                     trans_fun=TFun,
@@ -855,8 +887,8 @@ compiletime_trans_ast(Phrase, LContext,
     ClAst = lists:foldl(
               fun(Locale, ClausesAcc) ->
                       [?Q("_@Locale@ -> _@translated",
-                          [{translated, case TFun(Phrase, phrase_context(Locale, LContext)) of
-                                            default -> phrase_ast(Phrase, Context);
+                          [{translated, case TFun(Text, phrase_locale(Locale, LContext)) of
+                                            default -> string_ast(Text, Context);
                                             Translated -> string_ast(Translated, Context)
                                         end}])
                        |ClausesAcc]
@@ -866,26 +898,9 @@ compiletime_trans_ast(Phrase, LContext,
           "  _@_ClAst -> _;",
           " _ -> _@string",
           "end"],
-         [{string, phrase_ast(Phrase, Context)}]),
-      #ast_info{translatable_strings = [Phrase]}},
+         [{string, string_ast(Text, Context)}]),
+      #ast_info{ translatable_strings = [Text] }},
      TreeWalker}.
-
-phrase_context(Locale, undefined) -> Locale;
-phrase_context(Locale, Context) -> {Locale, Context}.
-
-extract_phrase({{string_literal, _, String}, {string_literal, _, Plural}}, TreeWalker) ->
-    {compiletime, {unescape_string_literal(String), unescape_string_literal(Plural)}, TreeWalker};
-extract_phrase({string_literal, _, String}, TreeWalker) ->
-    {compiletime, unescape_string_literal(String), TreeWalker};
-extract_phrase({Value, {string_literal, _, Plural}}, TreeWalker) ->
-    {{ValueAst, ValueInfo}, TreeWalker1} = value_ast(Value, true, false, TreeWalker),
-    ContextAst = string_ast(unescape_string_literal(Plural), TreeWalker1),
-    {runtime, {{erl_syntax:tuple([ValueAst, ContextAst]), ValueInfo}, TreeWalker1}};
-extract_phrase(Value, TreeWalker) ->
-    {runtime, value_ast(Value, true, false, TreeWalker)}.
-
-phrase_ast({Text, _}, TreeWalker) -> string_ast(Text, TreeWalker);
-phrase_ast(Text, TreeWalker) -> string_ast(Text, TreeWalker).
 
 %%% end of context being translation context
 

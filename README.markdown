@@ -106,8 +106,13 @@ Options is a proplist possibly containing:
   the form:
 
   ```erlang
-  Fun(Block::string(), Locale::string()) -> <<"ErlyDTL code">>::binary() | default
+  fun (Block::string(), Locale|{Locale, Context}) ->
+      <<"ErlyDTL code">>::binary() | default
+    when Locale::string(), Context::string().
   ```
+
+  See description of the `translation_fun` render option for more
+  details on the translation `context`.
 
 * `blocktrans_locales` - A list of locales to be passed to
   `blocktrans_fun`.  Defaults to [].

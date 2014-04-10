@@ -112,7 +112,11 @@ Nonterminals
     SSITag
 
     BlockTransBlock
+    BlockTransBraced
+    EndBlockTransBraced
+    BlockTransArgs
     BlockTransContent
+
     TransTag
     TransArgs
     TransText
@@ -385,11 +389,17 @@ SpacelessBlock -> open_tag spaceless_keyword close_tag Elements open_tag endspac
 SSITag -> open_tag ssi_keyword Value close_tag : {ssi, '$3'}.
 SSITag -> open_tag ssi_keyword string_literal parsed_keyword close_tag : {ssi_parsed, '$3'}.
 
-BlockTransBlock -> open_tag blocktrans_keyword close_tag BlockTransContent open_tag endblocktrans_keyword close_tag : {blocktrans, [], '$4'}.
-BlockTransBlock -> open_tag blocktrans_keyword with_keyword Args close_tag BlockTransContent open_tag endblocktrans_keyword close_tag : {blocktrans, '$4', '$6'}.
+BlockTransBlock -> BlockTransBraced BlockTransContent EndBlockTransBraced : {blocktrans, '$1', '$2'}.
+BlockTransBraced -> open_tag blocktrans_keyword BlockTransArgs close_tag : '$3'.
+EndBlockTransBraced -> open_tag endblocktrans_keyword close_tag.
+
+BlockTransArgs -> '$empty' : [].
+BlockTransArgs -> with_keyword Args BlockTransArgs : [{args, '$2'}|'$2'].
+BlockTransArgs -> context_keyword string_literal BlockTransArgs : [{context, '$2'}|'$3'].
+
 BlockTransContent -> '$empty' : [].
-BlockTransContent -> BlockTransContent open_var identifier close_var : '$1' ++ [{variable, '$3'}].
-BlockTransContent -> BlockTransContent string : '$1' ++ ['$2'].
+BlockTransContent -> open_var identifier close_var BlockTransContent : [{variable, '$2'}|'$4'].
+BlockTransContent -> string BlockTransContent : ['$1'|'$2'].
 %% TODO: {% plural %}
 
 TemplatetagTag -> open_tag templatetag_keyword Templatetag close_tag : {templatetag, '$3'}.

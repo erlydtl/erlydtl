@@ -1339,7 +1339,22 @@ all_test_defs() ->
                                       "baz" -> "ok"
                                   end
                           end}],
-        <<"test ok">>}
+        <<"test ok">>},
+       {"blocktrans context (run-time)",
+        <<"{% blocktrans context 'bar' %}translate this{% endblocktrans %}">>,
+        [], [{locale, "foo"}, {translation_fun,
+                               fun ("translate this", {"foo", "bar"}) ->
+                                       "got it"
+                               end}],
+        <<"got it">>},
+       {"blocktrans context (compile-time)",
+        <<"{% blocktrans context 'bar' %}translate this{% endblocktrans %}">>,
+        [], [{locale, "foo"}],
+        [{locale, "foo"}, {blocktrans_fun,
+                           fun ("translate this", {"foo", "bar"}) ->
+                                   "got it"
+                           end}],
+        <<"got it">>}
       ]},
      {"verbatim",
       [{"Plain verbatim",

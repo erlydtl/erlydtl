@@ -10,3 +10,5 @@ Standards](http://www.gnu.org/prep/standards/html_node/NEWS-File.html#NEWS-File)
 
 * The `vars` compile time option has been deprecated in favor of
   `default_vars`.
+
+* Support for translation contexts (#131)

@@ -6,8 +6,8 @@
 -type phrase() :: text() | {text(), {PluralPhrase::text(), non_neg_integer()}}.
 -type locale() :: term() | {Locale::term(), Context::binary()}.
 
--type old_translate_fun() :: fun((text()) -> text() | undefined).
--type new_translate_fun() :: fun((phrase(), locale()) -> text() | undefined).
+-type old_translate_fun() :: fun((text()) -> iodata() | default).
+-type new_translate_fun() :: fun((phrase(), locale()) -> iodata() | default).
 -type translate_fun() :: new_translate_fun() | old_translate_fun().
 
 -define(IFCHANGED_CONTEXT_VARIABLE, erlydtl_ifchanged_context).
@@ -136,17 +136,21 @@ regroup([Item|Rest], Attribute, [[{grouper, PrevGrouper}, {list, PrevList}]|Acc]
             regroup(Rest, Attribute, [[{grouper, Value}, {list, [Item]}], [{grouper, PrevGrouper}, {list, lists:reverse(PrevList)}]|Acc])
     end.
 
--spec translate(Phrase, Locale, Fun) -> text() | undefined when
+-spec translate(Phrase, Locale, Fun) -> iodata() | default when
       Phrase :: phrase(),
       Locale :: locale(),
       Fun :: none | translate_fun().
-translate(Phrase, _Locale, none) -> trans_text(Phrase);
 translate(Phrase, Locale, TranslationFun) ->
+    translate(Phrase, Locale, TranslationFun, trans_text(Phrase)).
+
+translate(_Phrase, _Locale, none, Default) -> Default;
+translate(Phrase, Locale, TranslationFun, Default) ->
     case do_translate(Phrase, Locale, TranslationFun) of
-        undefined -> trans_text(Phrase);
-        <<"">> -> trans_text(Phrase);
-        "" -> trans_text(Phrase);
-        Translated -> Translated
+        default -> Default;
+        <<"">> -> Default;
+        "" -> Default;
+        Translated ->
+            Translated
     end.
 
 trans_text({Text, _}) -> Text;
@@ -166,18 +170,15 @@ do_translate(Phrase, Locale, TranslationFun)
 %%  * Each interpolation variable should exist
 %%    (String="{{a}}", Variables=[{"b", "b-val"}] will fall)
 %%  * Orddict keys should be string(), not binary()
--spec translate_block(string() | binary(), translate_fun(), orddict:orddict()) -> iodata().
-translate_block(String, TranslationFun, Variables) ->
-    TransString = case TranslationFun(String) of
-                      No when (undefined == No)
-                              orelse (<<"">> == No)
-                              orelse ("" == No) -> String;
-                      Str -> Str
-                  end,
-    try interpolate_variables(TransString, Variables)
-    catch _:_ ->
-            %% Fallback to default language in case of errors (like Djando does)
-            interpolate_variables(String, Variables)
+-spec translate_block(phrase(), locale(), orddict:orddict(), none | translate_fun()) -> iodata().
+translate_block(Phrase, Locale, Variables, TranslationFun) ->
+    case translate(Phrase, Locale, TranslationFun, default) of
+        default -> default;
+        Translated ->
+            try interpolate_variables(Translated, Variables)
+            catch _:_ ->
+                    default
+            end
     end.
 
 interpolate_variables(Tpl, []) ->
