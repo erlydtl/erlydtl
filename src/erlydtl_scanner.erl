@@ -36,7 +36,7 @@
 %%%-------------------------------------------------------------------
 -module(erlydtl_scanner).
 
-%% This file was generated 2014-04-10 04:34:52 UTC by slex 0.2.1.
+%% This file was generated 2014-04-10 14:54:46 UTC by slex 0.2.1.
 %% http://github.com/erlydtl/slex
 -slex_source(["src/erlydtl_scanner.slex"]).
 
@@ -87,6 +87,7 @@ is_keyword(any, "as") -> true;
 is_keyword(any, "by") -> true;
 is_keyword(any, "with") -> true;
 is_keyword(any, "from") -> true;
+is_keyword(any, "count") -> true;
 is_keyword(any, "context") -> true;
 is_keyword(close, "only") -> true;
 is_keyword(close, "parsed") -> true;
@@ -139,6 +140,7 @@ is_keyword(open, "trans") -> true;
 is_keyword(open, "blocktrans") -> true;
 is_keyword(open, "endblocktrans") -> true;
 is_keyword(open, "load") -> true;
+is_keyword(open, "plural") -> true;
 is_keyword(_, _) -> false.
 
 format_error({illegal_char, C}) ->

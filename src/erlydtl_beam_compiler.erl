@@ -565,8 +565,8 @@ body_ast(DjangoParseTree, BodyScope, TreeWalker) ->
                             {Contents, empty_scope()}
                     end,
                 body_ast(Block, BlockScope, TW);
-            ({'blocktrans', Args, Contents}, TW) ->
-                blocktrans_ast(Args, Contents, TW);
+            ({'blocktrans', Args, Contents, PluralContents}, TW) ->
+                blocktrans_ast(Args, Contents, PluralContents, TW);
             ({'call', {identifier, _, Name}}, TW) ->
                 call_ast(Name, TW);
             ({'call', {identifier, _, Name}, With}, TW) ->
@@ -746,9 +746,12 @@ empty_ast(TreeWalker) ->
 
 %%% Note: Context here refers to the translation context, not the #dtl_context{} record
 
-blocktrans_ast(Args, Contents, TreeWalker) ->
-    %% get args and context
-    ArgList = proplists:get_value(args, Args, []),
+blocktrans_ast(Args, Contents, PluralContents, TreeWalker) ->
+    %% get args, count and context
+    ArgList = [{Name, Value}
+               || {{identifier, _, Name}, Value}
+                      <- proplists:get_value(args, Args, [])],
+    Count = proplists:get_value(count, Args),
     Context = case proplists:get_value(context, Args) of
                   undefined -> undefined;
                   {string_literal, _, S} ->
@@ -758,12 +761,16 @@ blocktrans_ast(Args, Contents, TreeWalker) ->
     %% add new scope using 'with' values
     {NewScope, {ArgInfo, TreeWalker1}} =
         lists:mapfoldl(
-          fun ({{identifier, _, LocalVarName}, Value}, {AstInfoAcc, TreeWalkerAcc}) ->
+          fun ({LocalVarName, Value}, {AstInfoAcc, TreeWalkerAcc}) ->
                   {{Ast, Info}, TW} = value_ast(Value, false, false, TreeWalkerAcc),
                   {{LocalVarName, Ast}, {merge_info(AstInfoAcc, Info), TW}}
           end,
           {#ast_info{}, TreeWalker},
-          ArgList),
+          if is_tuple(Count) ->
+                  [Count|ArgList];
+             true ->
+                  ArgList
+          end),
 
     TreeWalker2 = push_scope(NewScope, TreeWalker1),
 
@@ -775,11 +782,11 @@ blocktrans_ast(Args, Contents, TreeWalker) ->
     #dtl_context{
       trans_fun = TFun,
       trans_locales = TLocales } = TreeWalker3#treewalker.context,
-    if TFun =:= none ->
+    if TFun =:= none; PluralContents =/= undefined ->
             %% translate in runtime
             {FinalAst, FinalTW} = blocktrans_runtime_ast(
-                                    {DefaultAst, MergedInfo}, SourceText,
-                                    Contents, Context, TreeWalker3),
+                                    {DefaultAst, MergedInfo}, SourceText, Contents, Context,
+                                    plural_contents(PluralContents, Count, TreeWalker3)),
             {FinalAst, restore_scope(TreeWalker1, FinalTW)};
        is_function(TFun, 2) ->
             %% translate in compile-time
@@ -802,13 +809,14 @@ blocktrans_ast(Args, Contents, TreeWalker) ->
              restore_scope(TreeWalker1, FinalTreeWalker)}
     end.
 
-blocktrans_runtime_ast({DefaultAst, Info}, SourceText, Contents, Context, TreeWalker) ->
+blocktrans_runtime_ast({DefaultAst, Info}, SourceText, Contents, Context, {Plural, TreeWalker}) ->
     %% Contents is flat - only strings and '{{var}}' allowed.
     %% build sorted list (orddict) of pre-resolved variables to pass to runtime translation function
     USortedVariables = lists:usort(fun({variable, {identifier, _, A}},
                                        {variable, {identifier, _, B}}) ->
                                            A =< B
-                                   end, [Var || {variable, _}=Var <- Contents]),
+                                   end, [Var || {variable, _}=Var
+                                                    <- Contents ++ maybe_plural_contents(Plural)]),
     VarBuilder = fun({variable, {identifier, _, Name}}=Var, TW) ->
                          {{VarAst, _VarInfo}, VarTW}  = resolve_variable_ast(Var, false, TW),
                          {?Q("{_@name, _@VarAst}", [{name, merl:term(atom_to_list(Name))}]), VarTW}
@@ -817,28 +825,36 @@ blocktrans_runtime_ast({DefaultAst, Info}, SourceText, Contents, Context, TreeWa
     VarListAst = erl_syntax:list(VarAsts),
     BlockTransAst = ?Q(["begin",
                         "  case erlydtl_runtime:translate_block(",
-                        "         _@SourceText@, _@locale,",
+                        "         _@phrase, _@locale,",
                         "         _@VarListAst, _TranslationFun) of",
                         "    default -> _@DefaultAst;",
                         "    Text -> Text",
                         "  end",
                         "end"],
-                      [{locale, phrase_locale_ast(Context)}]),
-    {{BlockTransAst, Info}, TreeWalker1}.
+                       [{phrase, phrase_ast(SourceText, Plural)},
+                        {locale, phrase_locale_ast(Context)}]),
+    {{BlockTransAst, merge_count_info(Info, Plural)}, TreeWalker1}.
 
-%% extract_phrase({{string_literal, _, String}, {string_literal, _, Plural}}, TreeWalker) ->
-%%     {compiletime, {unescape_string_literal(String), unescape_string_literal(Plural)}, TreeWalker};
-%% extract_phrase({string_literal, _, String}, TreeWalker) ->
-%%     {compiletime, unescape_string_literal(String), TreeWalker};
-%% extract_phrase({Value, {string_literal, _, Plural}}, TreeWalker) ->
-%%     {{ValueAst, ValueInfo}, TreeWalker1} = value_ast(Value, true, false, TreeWalker),
-%%     ContextAst = string_ast(unescape_string_literal(Plural), TreeWalker1),
-%%     {runtime, {{erl_syntax:tuple([ValueAst, ContextAst]), ValueInfo}, TreeWalker1}};
-%% extract_phrase(Value, TreeWalker) ->
-%%     {runtime, value_ast(Value, true, false, TreeWalker)}.
+maybe_plural_contents(undefined) -> [];
+maybe_plural_contents({Contents, _}) -> Contents.
 
-%% phrase_ast({Text, _}, TreeWalker) -> string_ast(Text, TreeWalker);
-%% phrase_ast(Text, TreeWalker) -> string_ast(Text, TreeWalker).
+merge_count_info(Info, undefined) -> Info;
+merge_count_info(Info, {_Contents, {_CountAst, CountInfo}}) ->
+    merge_info(Info, CountInfo).
+
+plural_contents(undefined, _, TreeWalker) -> {undefined, TreeWalker};
+plural_contents(Contents, {_CountVarName, Value}, TreeWalker) ->
+    {CountAst, TW} = value_ast(Value, false, false, TreeWalker),
+    {{Contents, CountAst}, TW}.
+
+phrase_ast(Text, undefined) -> merl:term(Text);
+phrase_ast(Text, {Contents, {CountAst, _CountInfo}}) ->
+    erl_syntax:tuple(
+      [merl:term(Text),
+       erl_syntax:tuple(
+         [merl:term(erlydtl_unparser:unparse(Contents)),
+          CountAst])
+      ]).
 
 phrase_locale_ast(undefined) -> merl:var('_CurrentLocale');
 phrase_locale_ast(Context) -> erl_syntax:tuple([merl:var('_CurrentLocale'), merl:term(Context)]).

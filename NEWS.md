@@ -12,3 +12,10 @@ Standards](http://www.gnu.org/prep/standards/html_node/NEWS-File.html#NEWS-File)
   `default_vars`.
 
 * Support for translation contexts (#131)
+
+  `context` is now a reserved keyword.
+
+* Support for plural forms in `blocktrans` blocks (#131)
+
+  As a side effect of the this, `count` and `plural` are now reserved
+  keywords (the latter only as the tag name).

@@ -103,6 +103,7 @@ Nonterminals
 
     CustomTag
     CustomArgs
+    Arg
     Args
 
     RegroupTag
@@ -115,7 +116,9 @@ Nonterminals
     BlockTransBraced
     EndBlockTransBraced
     BlockTransArgs
-    BlockTransContent
+    BlockTransContents
+
+    PluralTag
 
     TransTag
     TransArgs
@@ -151,6 +154,7 @@ Terminals
     comment_tag
     comment_keyword
     context_keyword
+    count_keyword
     cycle_keyword
     elif_keyword
     else_keyword
@@ -190,6 +194,7 @@ Terminals
     open_tag
     open_var
     parsed_keyword
+    plural_keyword
     regroup_keyword
     reversed_keyword
     spaceless_keyword
@@ -389,18 +394,21 @@ SpacelessBlock -> open_tag spaceless_keyword close_tag Elements open_tag endspac
 SSITag -> open_tag ssi_keyword Value close_tag : {ssi, '$3'}.
 SSITag -> open_tag ssi_keyword string_literal parsed_keyword close_tag : {ssi_parsed, '$3'}.
 
-BlockTransBlock -> BlockTransBraced BlockTransContent EndBlockTransBraced : {blocktrans, '$1', '$2'}.
+BlockTransBlock -> BlockTransBraced BlockTransContents EndBlockTransBraced : {blocktrans, '$1', '$2', undefined}.
+BlockTransBlock -> BlockTransBraced BlockTransContents PluralTag BlockTransContents EndBlockTransBraced : {blocktrans, '$1', '$2', '$4'}.
 BlockTransBraced -> open_tag blocktrans_keyword BlockTransArgs close_tag : '$3'.
 EndBlockTransBraced -> open_tag endblocktrans_keyword close_tag.
 
 BlockTransArgs -> '$empty' : [].
+BlockTransArgs -> count_keyword Arg BlockTransArgs : [{count, '$2'}|'$3'].
 BlockTransArgs -> with_keyword Args BlockTransArgs : [{args, '$2'}|'$2'].
 BlockTransArgs -> context_keyword string_literal BlockTransArgs : [{context, '$2'}|'$3'].
 
-BlockTransContent -> '$empty' : [].
-BlockTransContent -> open_var identifier close_var BlockTransContent : [{variable, '$2'}|'$4'].
-BlockTransContent -> string BlockTransContent : ['$1'|'$2'].
-%% TODO: {% plural %}
+BlockTransContents -> '$empty' : [].
+BlockTransContents -> open_var identifier close_var BlockTransContents : [{variable, '$2'}|'$4'].
+BlockTransContents -> string BlockTransContents : ['$1'|'$2'].
+
+PluralTag -> open_tag plural_keyword close_tag.
 
 TemplatetagTag -> open_tag templatetag_keyword Templatetag close_tag : {templatetag, '$3'}.
 
@@ -436,7 +444,10 @@ CustomArgs -> identifier '=' Value CustomArgs : [{'$1', '$3'}|'$4'].
 CustomArgs -> Value CustomArgs : ['$1'|'$2'].
 
 Args -> '$empty' : [].
-Args -> Args identifier '=' Value : '$1' ++ [{'$2', '$4'}].
+Args -> Arg Args : ['$1'|'$2'].
+
+Arg -> identifier '=' Value : {'$1', '$3'}.
+%% Arg -> identifier : {'$1', true}.
 
 CallTag -> open_tag call_keyword identifier close_tag : {call, '$3'}.
 CallWithTag -> open_tag call_keyword identifier with_keyword Value close_tag : {call, '$3', '$5'}.

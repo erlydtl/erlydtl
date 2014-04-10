@@ -150,7 +150,7 @@ process_token(Fname, {trans,{string_literal,{Line,Col},String}}, #state{acc=Acc,
     St#state{acc=[Phrase | Acc], translators_comment=undefined};
 process_token(_Fname, {apply_filter, _Value, _Filter}, St) -> St;
 process_token(_Fname, {date, now, _Filter}, St) -> St;
-process_token(Fname, {blocktrans, Args, Contents}, #state{acc=Acc, translators_comment=Comment}=St) ->
+process_token(Fname, {blocktrans, Args, Contents, _PluralContents}, #state{acc=Acc, translators_comment=Comment}=St) ->
     {Fname, Line, Col} = guess_blocktrans_lc(Fname, Args, Contents),
     Phrase = #phrase{msgid=erlydtl_unparser:unparse(Contents),
                      comment=Comment,

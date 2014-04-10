@@ -309,6 +309,7 @@ form \
   is_keyword(any, "by") -> true; \
   is_keyword(any, "with") -> true; \
   is_keyword(any, "from") -> true; \
+  is_keyword(any, "count") -> true; \
   is_keyword(any, "context") -> true; \
   \
   is_keyword(close, "only") -> true; \
@@ -363,6 +364,7 @@ form \
   is_keyword(open, "blocktrans") -> true; \
   is_keyword(open, "endblocktrans") -> true; \
   is_keyword(open, "load") -> true; \
+  is_keyword(open, "plural") -> true; \
   is_keyword(_, _) -> false \
 end.
 

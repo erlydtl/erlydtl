@@ -322,8 +322,8 @@ Same as `render/1`, but with the following options:
   with a translation context in a tuple:
 
   ```erlang
-  fun (Val, {Locale, Context}) -> Translated_Val;
-      (Val, Locale) -> Translated_Val
+  fun (Val|{Val, {Plural_Val, Count}}, Locale|{Locale, Context}) ->
+      Translated_Val
   end
   ```
 
@@ -335,6 +335,17 @@ Same as `render/1`, but with the following options:
     or
   {% blocktrans context "another-context" %}
     Translate this for {{ name }}.
+  {% endblocktrans %}
+  ```
+
+  The plural form is present when using `count` and `plural` in a
+  `blocktrans` block:
+
+  ```django
+  {% blocktrans count counter=var|length %}
+    There is {{ counter }} element in the list.
+  {% plural %}
+    There are {{ counter }} elements in the list.
   {% endblocktrans %}
   ```
 

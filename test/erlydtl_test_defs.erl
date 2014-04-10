@@ -1354,7 +1354,19 @@ all_test_defs() ->
                            fun ("translate this", {"foo", "bar"}) ->
                                    "got it"
                            end}],
-        <<"got it">>}
+        <<"got it">>},
+       {"blocktrans plural",
+        <<"{% blocktrans count foo=bar %}",
+          "There is just one foo..",
+          "{% plural %}",
+          "There are many foo's..",
+          "{% endblocktrans %}">>,
+        [{bar, 2}], [{locale, "baz"},
+                     {translation_fun,
+                      fun ({"There is just one foo..", {"There are many foo's..", 2}}, "baz") ->
+                              "ok"
+                      end}],
+        <<"ok">>}
       ]},
      {"verbatim",
       [{"Plain verbatim",
