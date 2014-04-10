@@ -766,9 +766,10 @@ blocktrans_ast(Args, Contents, PluralContents, TreeWalker) ->
                   {{LocalVarName, Ast}, {merge_info(AstInfoAcc, Info), TW}}
           end,
           {#ast_info{}, TreeWalker},
-          if is_tuple(Count) ->
-                  [Count|ArgList];
-             true ->
+          case Count of
+              {{identifier, _, Name}, Value} ->
+                  [{Name, Value}|ArgList];
+              _ ->
                   ArgList
           end),
 

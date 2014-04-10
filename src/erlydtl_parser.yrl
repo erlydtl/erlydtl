@@ -401,7 +401,7 @@ EndBlockTransBraced -> open_tag endblocktrans_keyword close_tag.
 
 BlockTransArgs -> '$empty' : [].
 BlockTransArgs -> count_keyword Arg BlockTransArgs : [{count, '$2'}|'$3'].
-BlockTransArgs -> with_keyword Args BlockTransArgs : [{args, '$2'}|'$2'].
+BlockTransArgs -> with_keyword Args BlockTransArgs : [{args, '$2'}|'$3'].
 BlockTransArgs -> context_keyword string_literal BlockTransArgs : [{context, '$2'}|'$3'].
 
 BlockTransContents -> '$empty' : [].

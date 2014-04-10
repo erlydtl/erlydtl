@@ -1366,7 +1366,21 @@ all_test_defs() ->
                       fun ({"There is just one foo..", {"There are many foo's..", 2}}, "baz") ->
                               "ok"
                       end}],
-        <<"ok">>}
+        <<"ok">>},
+       {"blocktrans a lot of stuff",
+        <<"{% blocktrans with foo=a.b count c=a|length context 'quux' %}"
+          "foo={{ foo }};bar={{ bar }};c={{ c }}:"
+          "{% plural %}"
+          "FOO:{{ foo }},BAR:{{ bar }},C:{{ c }}."
+          "{% endblocktrans %}">>,
+        [{a, [{b, "B"}]}, {bar, "BAR"}],
+        [{locale, "rub"},
+         {translation_fun, fun ({Single, {Plural, "1"=_Count}}, {Locale, Context}) ->
+                                   [Single, Plural, Locale, Context]
+                           end}],
+        <<"foo=B;bar=BAR;c=1:"
+          "FOO:B,BAR:BAR,C:1."
+          "rub" "quux">>}
       ]},
      {"verbatim",
       [{"Plain verbatim",
