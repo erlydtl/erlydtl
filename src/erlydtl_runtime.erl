@@ -176,8 +176,14 @@ translate_block(Phrase, Locale, Variables, TranslationFun) ->
         default -> default;
         Translated ->
             try interpolate_variables(Translated, Variables)
-            catch _:_ ->
-                    default
+            catch
+                {no_close_var, T} ->
+                    io:format(
+                      standard_error,
+                      "Warning: template translation: variable not closed: \"~s\"~n",
+                      [T]),
+                    default;
+                _:_ -> default
             end
     end.
 
@@ -190,11 +196,10 @@ interpolate_variables(Tpl, Variables) ->
 interpolate_variables1(Tpl, Vars) ->
     %% pre-compile binary patterns?
     case binary:split(Tpl, <<"{{">>) of
-        [NotFound] ->
-            [NotFound];
+        [Tpl]=NoVars -> NoVars; %% need to enclose in list due to list tail call below..
         [Pre, Post] ->
             case binary:split(Post, <<"}}">>) of
-                [_] -> throw({no_close_var, Post});
+                [_] -> throw({no_close_var, Tpl});
                 [Var, Post1] ->
                     Var1 = string:strip(binary_to_list(Var)),
                     Value = orddict:fetch(Var1, Vars),

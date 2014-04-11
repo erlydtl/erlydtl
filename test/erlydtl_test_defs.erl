@@ -1273,7 +1273,7 @@ all_test_defs() ->
        },
        {"trans functional reverse locale",
         <<"Hello {% trans \"Hi\" %}">>, [], [{locale, "reverse"}],
-        [{blocktrans_locales, ["reverse"]}, {blocktrans_fun, fun("Hi"=Key, "reverse") -> list_to_binary(lists:reverse(Key)) end}],
+        [{locales, ["reverse"]}, {translation_fun, fun("Hi"=Key, "reverse") -> list_to_binary(lists:reverse(Key)) end}],
         <<"Hello iH">>
        },
        {"trans literal at run-time",
@@ -1292,7 +1292,7 @@ all_test_defs() ->
         <<"{% trans 'Hans' as name %}Hello {{ name }}">>, [],
         <<"Hello Hans">>},
        {"trans value",
-        <<"{{ _('foo') }}">>, [], [], [{locale, default}, {blocktrans_fun, fun ("foo") -> "bar" end}],
+        <<"{{ _('foo') }}">>, [], [], [{locale, default}, {translation_fun, fun ("foo") -> "bar" end}],
         <<"bar">>}
       ]},
      {"blocktrans",
@@ -1300,7 +1300,7 @@ all_test_defs() ->
         <<"{% blocktrans %}Hello{% endblocktrans %}">>, [], <<"Hello">>},
        {"blocktrans choose locale",
         <<"{% blocktrans %}Hello, {{ name }}{% endblocktrans %}">>, [{name, "Mr. President"}], [{locale, "de"}],
-        [{blocktrans_locales, ["de"]}, {blocktrans_fun, fun("Hello, {{ name }}", "de") -> <<"Guten tag, {{ name }}">> end}], <<"Guten tag, Mr. President">>},
+        [{locales, ["de"]}, {translation_fun, fun("Hello, {{ name }}", "de") -> <<"Guten tag, {{ name }}">> end}], <<"Guten tag, Mr. President">>},
        {"blocktrans with args",
         <<"{% blocktrans with var1=foo %}{{ var1 }}{% endblocktrans %}">>, [{foo, "Hello"}], <<"Hello">>},
        #test{
@@ -1335,8 +1335,8 @@ all_test_defs() ->
        {"trans context (compile-time)",
         <<"test {% trans 'message' context 'foo' %}">>,
         [], [{locale, "baz"}],
-        [{blocktrans_locales, ["bar", "baz"]},
-         {blocktrans_fun, fun ("message", {L, "foo"}) ->
+        [{locales, ["bar", "baz"]},
+         {translation_fun, fun ("message", {L, "foo"}) ->
                                   case L of
                                       "bar" -> "rab";
                                       "baz" -> "ok"
@@ -1353,7 +1353,7 @@ all_test_defs() ->
        {"blocktrans context (compile-time)",
         <<"{% blocktrans context 'bar' %}translate this{% endblocktrans %}">>,
         [], [{locale, "foo"}],
-        [{locale, "foo"}, {blocktrans_fun,
+        [{locale, "foo"}, {translation_fun,
                            fun ("translate this", {"foo", "bar"}) ->
                                    "got it"
                            end}],
@@ -1383,7 +1383,21 @@ all_test_defs() ->
                            end}],
         <<"foo=B;bar=BAR;c=1:"
           "FOO:B,BAR:BAR,C:1."
-          "rub" "quux">>}
+          "rub" "quux">>},
+       {"new translation options",
+        <<"{% trans foo %}{% blocktrans %}abc{% endblocktrans %}">>,
+        [{foo, "1234"}], [{locale, "test"}, {translation_fun, fun (Msg) -> lists:reverse(Msg) end}],
+        [{locale, "foo"}, {locale, "test"}, {locales, ["bar", "baz"]},
+         {translation_fun, fun (Msg, _) -> [Msg, lists:reverse(Msg)] end}],
+        <<"4321" "abccba">>}
+
+       %% This does work, but always prints a warning to std err.. :/
+       %% Warning: template translation: variable not closed: "bar {{ 123"
+
+       %% {"interpolate error",
+       %%  <<"{% blocktrans %}foo{{ bar }}{% endblocktrans %}">>,
+       %%  [], [{translation_fun, fun (_) -> "bar {{ 123" end}],
+       %%  <<"foo">>}
       ]},
      {"verbatim",
       [{"Plain verbatim",
@@ -1528,6 +1542,15 @@ all_test_defs() ->
        {"ssi file not found",
         <<"{% ssi 'foo' %}">>, [],
         {error, {read_file, <<"./foo">>, enoent}}
+       },
+       {"deprecated compile options",
+        <<"">>, [], [],
+        [{blocktrans_locales, []}, {blocktrans_fun, fun (_) -> [] end}],
+        <<"">>,
+        [error_info([{deprecated_option, O, N}
+                     || {O, N} <- [{blocktrans_locales, locales},
+                                   {blocktrans_fun, translation_fun}]],
+                    erlydtl_compiler)]
        }
       ]},
      {"load",

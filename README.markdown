@@ -99,24 +99,6 @@ Options is a proplist possibly containing:
 * `binary_strings` - Whether to compile strings as binary terms
   (rather than lists). Defaults to `true`.
 
-* `blocktrans_fun` - A two-argument fun to use for translating
-  `blocktrans` blocks, `trans` tags and `_(..)` expressions at compile
-  time. This will be called once for each pair of translated element
-  and locale specified in `blocktrans_locales`. The fun should take
-  the form:
-
-  ```erlang
-  fun (Block::string(), Locale|{Locale, Context}) ->
-      <<"ErlyDTL code">>::binary() | default
-    when Locale::string(), Context::string().
-  ```
-
-  See description of the `translation_fun` render option for more
-  details on the translation `context`.
-
-* `blocktrans_locales` - A list of locales to be passed to
-  `blocktrans_fun`.  Defaults to [].
-
 * `compiler_options` - Proplist with extra options passed directly to
   `compiler:forms/2`. This can prove useful when using extensions to
   add extra defines etc when compiling the generated code.
@@ -205,7 +187,12 @@ Options is a proplist possibly containing:
   decide until render time, using the render option
   `lists_0_based`. See also `tuples_0_based`.
 
-* `locale` **deprecated** - The same as {blocktrans_locales, [Val]}.
+* `locale` - Locale to translate to during compile time. May be
+  specified multiple times as well as together with the `locales`
+  option.
+
+* `locales` - A list of locales to be passed to `translation_fun`.
+  Defaults to [].
 
 * `no_env` - Do not read additional options from the OS environment
   variable `ERLYDTL_COMPILER_OPTIONS`.
@@ -241,6 +228,21 @@ Options is a proplist possibly containing:
 * `report_warnings` - Print warnings as they occur.
 
 * `report_errors` - Print errors as they occur.
+
+* `translation_fun` - A two-argument fun to use for translating
+  `blocktrans` blocks, `trans` tags and `_(..)` expressions at compile
+  time. This will be called once for each pair of translated element
+  and locale specified with `locales` and `locale` options. The fun
+  should take the form:
+
+  ```erlang
+  fun (Block::string(), Locale|{Locale, Context}) ->
+      <<"ErlyDTL code">>::binary() | default
+    when Locale::string(), Context::string().
+  ```
+
+  See description of the `translation_fun` render option for more
+  details on the translation `context`.
 
 * `tuples_0_based` - **Compatibility warning** Defaults to `false`,
   giving 1-based tuple access, as is common practice in Erlang. Set it
@@ -355,7 +357,7 @@ Same as `render/1`, but with the following options:
   template. See also `tuples_0_based`.
 
 * `locale` - A string specifying the current locale, for use with the
-  `blocktrans_fun` compile-time option.
+  `translation_fun` compile-time option.
 
 * `tuples_0_based` - If the compile option `tuples_0_based` was set to
   `defer`, pass this option (or set it to true, `{tuples_0_based,

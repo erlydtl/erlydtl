@@ -19,3 +19,6 @@ Standards](http://www.gnu.org/prep/standards/html_node/NEWS-File.html#NEWS-File)
 
   As a side effect of the this, `count` and `plural` are now reserved
   keywords (the latter only as the tag name).
+
+* Renamed compile options for `translation_fun` and `locales` to align
+  with the render options counter parts.

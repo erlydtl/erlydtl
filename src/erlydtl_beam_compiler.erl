@@ -104,6 +104,13 @@ format_error({load_code, Error}) ->
     io_lib:format("Failed to load BEAM code: ~p", [Error]);
 format_error({reserved_variable, ReservedName}) ->
     io_lib:format("Variable '~s' is reserved for internal use.", [ReservedName]);
+format_error({translation_fun, Fun}) ->
+    io_lib:format("Invalid translation function: ~s~n",
+                  [if is_function(Fun) ->
+                           Info = erlang:fun_info(Fun),
+                           io_lib:format("~s:~s/~p", [proplists:get_value(K, Info) || K <- [module, name, arity]]);
+                      true -> io_lib:format("~p", [Fun])
+                   end]);
 format_error(Error) ->
     erlydtl_compiler:format_error(Error).
 
@@ -807,7 +814,9 @@ blocktrans_ast(Args, Contents, PluralContents, TreeWalker) ->
                   {MergedInfo, TreeWalker3, []}, TLocales),
             FinalAst = ?Q("case _CurrentLocale of _@_Clauses -> _; _ -> _@DefaultAst end"),
             {{FinalAst, FinalAstInfo#ast_info{ translated_blocks = [SourceText] }},
-             restore_scope(TreeWalker1, FinalTreeWalker)}
+             restore_scope(TreeWalker1, FinalTreeWalker)};
+       true ->
+            empty_ast(?ERR({translation_fun, TFun}, TreeWalker3))
     end.
 
 blocktrans_runtime_ast({DefaultAst, Info}, SourceText, Contents, Context, {Plural, TreeWalker}) ->
