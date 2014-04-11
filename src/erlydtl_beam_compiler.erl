@@ -875,7 +875,10 @@ translated_ast({string_literal, _, String}, Context, TreeWalker) ->
             case TreeWalker#treewalker.context#dtl_context.trans_fun of
                 none -> runtime_trans_ast(Text, Context, TreeWalker);
                 Fun when is_function(Fun, 2) ->
-                    compiletime_trans_ast(Text, Context, TreeWalker)
+                    compiletime_trans_ast(Fun, Text, Context, TreeWalker);
+                Fun when is_function(Fun, 1) ->
+                    compiletime_trans_ast(fun (T, _) -> Fun(T) end,
+                                          Text, Context, TreeWalker)
             end;
         TranslatedAst ->
             TranslatedAst
@@ -894,10 +897,9 @@ runtime_trans_ast({{ValueAst, AstInfo}, TreeWalker}, Context) ->
     {{?Q("erlydtl_runtime:translate(_@ValueAst, {_CurrentLocale, _@Context@}, _TranslationFun)"),
       AstInfo}, TreeWalker}.
 
-compiletime_trans_ast(Text, LContext,
+compiletime_trans_ast(TFun, Text, LContext,
                       #treewalker{
                          context=#dtl_context{
-                                    trans_fun=TFun,
                                     trans_locales=TLocales
                                    }=Context
                         }=TreeWalker) ->

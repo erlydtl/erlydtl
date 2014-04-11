@@ -1290,7 +1290,10 @@ all_test_defs() ->
         <<"Hello Hi">>},
        {"trans as",
         <<"{% trans 'Hans' as name %}Hello {{ name }}">>, [],
-        <<"Hello Hans">>}
+        <<"Hello Hans">>},
+       {"trans value",
+        <<"{{ _('foo') }}">>, [], [], [{locale, none}, {blocktrans_fun, fun ("foo") -> "bar" end}],
+        <<"bar">>}
       ]},
      {"blocktrans",
       [{"blocktrans default locale",
