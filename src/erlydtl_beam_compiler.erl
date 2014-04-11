@@ -500,7 +500,7 @@ options_match_ast(Context) ->
 options_match_ast(Context, TreeWalker) ->
     [
      ?Q("_TranslationFun = proplists:get_value(translation_fun, RenderOptions, none)"),
-     ?Q("_CurrentLocale = proplists:get_value(locale, RenderOptions, none)"),
+     ?Q("_CurrentLocale = proplists:get_value(locale, RenderOptions, default)"),
      ?Q("_RecordInfo = _@info", [{info, merl:term(Context#dtl_context.record_info)}])
      | case call_extension(Context, setup_render_ast, [Context, TreeWalker]) of
            undefined -> [];
