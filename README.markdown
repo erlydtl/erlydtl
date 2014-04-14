@@ -244,6 +244,21 @@ Options is a proplist possibly containing:
   See description of the `translation_fun` render option for more
   details on the translation `context`.
 
+  Notice, you may instead pass a `fun/0`, `{Module, Function}` or
+  `{Module, Function, Args}` which will be called recursively until it
+  yields a valid translation function, at which time any needed
+  translation setup actions can be carried out prior to returning the
+  next step (either another setup function/tuple, or the translation
+  function).
+
+  ```erlang
+  %% sample translation setup
+  fun () ->
+      translation_engine:init(),
+      fun translation_engine:translate/2
+  end
+  ```
+
 * `tuples_0_based` - **Compatibility warning** Defaults to `false`,
   giving 1-based tuple access, as is common practice in Erlang. Set it
   to `true` to get 1-based access as in Django, or to `defer` to not
@@ -350,6 +365,10 @@ Same as `render/1`, but with the following options:
     There are {{ counter }} elements in the list.
   {% endblocktrans %}
   ```
+
+  Notice, the translation fun can also be a `fun/0` or a MFA-tuple to
+  setup the translation prior to rendering. See the `translation_fun`
+  compile option for more details.
 
 * `lists_0_based` - If the compile option `lists_0_based` was set to
   `defer`, pass this option (or set it to true, `{lists_0_based,

@@ -1393,11 +1393,20 @@ all_test_defs() ->
 
        %% This does work, but always prints a warning to std err.. :/
        %% Warning: template translation: variable not closed: "bar {{ 123"
-
-       %% {"interpolate error",
+       %% {"variable error",
        %%  <<"{% blocktrans %}foo{{ bar }}{% endblocktrans %}">>,
        %%  [], [{translation_fun, fun (_) -> "bar {{ 123" end}],
        %%  <<"foo">>}
+      ]},
+     {"i18n",
+      [{"setup translation context, using fun, at render time",
+        <<"{% trans 'foo' %}">>, [],
+        [{translation_fun, fun () -> fun (Msg) -> string:to_upper(Msg) end end}],
+        <<"FOO">>},
+       {"setup translation context, using fun, at compile time",
+        <<"{% trans 'foo' %}">>, [], [],
+        [{locale, default}, {translation_fun, fun () -> fun lists:reverse/1 end}],
+        <<"oof">>}
       ]},
      {"verbatim",
       [{"Plain verbatim",

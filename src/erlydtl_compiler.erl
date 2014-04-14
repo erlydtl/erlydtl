@@ -260,7 +260,8 @@ init_context(ParseTrail, DefDir, Module, Options) ->
            custom_tags_dir = proplists:get_value(
                                custom_tags_dir, Options,
                                filename:join([erlydtl_deps:get_base_dir(), "priv", "custom_tags"])),
-           trans_fun = proplists:get_value(translation_fun, Options, Ctx#dtl_context.trans_fun),
+           trans_fun = erlydtl_runtime:init_translation(
+                         proplists:get_value(translation_fun, Options, Ctx#dtl_context.trans_fun)),
            trans_locales = Locales,
            vars = proplists:get_value(default_vars, Options, Ctx#dtl_context.vars),
            const = proplists:get_value(constants, Options, Ctx#dtl_context.const),

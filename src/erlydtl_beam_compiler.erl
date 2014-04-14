@@ -506,7 +506,8 @@ options_match_ast(Context) ->
 
 options_match_ast(Context, TreeWalker) ->
     [
-     ?Q("_TranslationFun = proplists:get_value(translation_fun, RenderOptions, none)"),
+     ?Q(["_TranslationFun = erlydtl_runtime:init_translation(",
+         "  proplists:get_value(translation_fun, RenderOptions, none))"]),
      ?Q("_CurrentLocale = proplists:get_value(locale, RenderOptions, default)"),
      ?Q("_RecordInfo = _@info", [{info, merl:term(Context#dtl_context.record_info)}])
      | case call_extension(Context, setup_render_ast, [Context, TreeWalker]) of
@@ -887,7 +888,9 @@ translated_ast({string_literal, _, String}, Context, TreeWalker) ->
                     compiletime_trans_ast(Fun, Text, Context, TreeWalker);
                 Fun when is_function(Fun, 1) ->
                     compiletime_trans_ast(fun (T, _) -> Fun(T) end,
-                                          Text, Context, TreeWalker)
+                                          Text, Context, TreeWalker);
+                Fun ->
+                    empty_ast(?ERR({translation_fun, Fun}, TreeWalker))
             end;
         TranslatedAst ->
             TranslatedAst

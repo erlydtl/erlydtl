@@ -10,6 +10,12 @@
 -type new_translate_fun() :: fun((phrase(), locale()) -> iodata() | default).
 -type translate_fun() :: new_translate_fun() | old_translate_fun().
 
+-type init_translation() :: none
+                          | fun (() -> init_translation())
+                          | {M::atom(), F::atom()}
+                          | {M::atom(), F::atom(), A::list()}
+                          | translate_fun().
+
 -define(IFCHANGED_CONTEXT_VARIABLE, erlydtl_ifchanged_context).
 
 find_value(Key, Data, Options) when is_atom(Key), is_tuple(Data) ->
@@ -136,6 +142,19 @@ regroup([Item|Rest], Attribute, [[{grouper, PrevGrouper}, {list, PrevList}]|Acc]
             regroup(Rest, Attribute, [[{grouper, Value}, {list, [Item]}], [{grouper, PrevGrouper}, {list, lists:reverse(PrevList)}]|Acc])
     end.
 
+-spec init_translation(init_translation()) -> none | translate_fun().
+init_translation(none) -> none;
+init_translation(Fun) when is_function(Fun, 0) ->
+    init_translation(Fun());
+init_translation({M, F}) ->
+    init_translation({M, F, []});
+init_translation({M, F, A}) ->
+    init_translation(apply(M, F, A));
+init_translation(Fun)
+  when is_function(Fun, 1); is_function(Fun, 2) -> Fun;
+init_translation(Other) ->
+    throw({translation_fun, Other}).
+
 -spec translate(Phrase, Locale, Fun) -> iodata() | default when
       Phrase :: phrase(),
       Locale :: locale(),
@@ -163,7 +182,6 @@ do_translate(Phrase, Locale, TranslationFun)
   when is_function(TranslationFun, 2) ->
     TranslationFun(Phrase, Locale).
 
-
 %% @doc Translate and interpolate 'blocktrans' content.
 %% Pre-requisites:
 %%  * `Variables' should be sorted
@@ -178,10 +196,7 @@ translate_block(Phrase, Locale, Variables, TranslationFun) ->
             try interpolate_variables(Translated, Variables)
             catch
                 {no_close_var, T} ->
-                    io:format(
-                      standard_error,
-                      "Warning: template translation: variable not closed: \"~s\"~n",
-                      [T]),
+                    io:format(standard_error, "Warning: template translation: variable not closed: \"~s\"~n", [T]),
                     default;
                 _:_ -> default
             end
