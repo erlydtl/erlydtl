@@ -22,3 +22,6 @@ Standards](http://www.gnu.org/prep/standards/html_node/NEWS-File.html#NEWS-File)
 
 * Renamed compile options for `translation_fun` and `locales` to align
   with the render options counter parts.
+
+* Support `_` prefix on template variables to avoid unused variable
+  warnings, Erlang style (#164).

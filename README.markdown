@@ -504,6 +504,9 @@ Differences from standard Django Template Language
 * For an up-to-date list, see all
   [issues](https://github.com/erlydtl/erlydtl/issues) marked
   `dtl_compat`.
+* Erlang specifics: Template variables may be prefixed with underscore
+  (`_`) to avoid "unused variable" warnings (see
+  [#164](https://github.com/erlydtl/erlydtl/issues/164)).
 
 
 Tests
