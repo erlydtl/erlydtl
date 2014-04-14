@@ -1255,7 +1255,7 @@ with_ast(ArgList, Contents, TreeWalker) ->
 
     NewScope = lists:map(
                  fun ({{identifier, _, LocalVarName}, _Value}) ->
-                         {LocalVarName, varify(LocalVarName)}
+                         {LocalVarName, varname_ast(LocalVarName)}
                  end,
                  ArgList),
 
@@ -1271,7 +1271,7 @@ with_ast(ArgList, Contents, TreeWalker) ->
 
 scope_as(VarName, Contents, TreeWalker) ->
     {{ContentsAst, ContentsInfo}, TreeWalker1} = body_ast(Contents, TreeWalker),
-    VarAst = varify(VarName),
+    VarAst = varname_ast(VarName),
     {Id, TreeWalker2} = begin_scope(
                           {[{VarName, VarAst}],
                            [?Q("_@VarAst = _@ContentsAst")]},
@@ -1280,7 +1280,7 @@ scope_as(VarName, Contents, TreeWalker) ->
 
 regroup_ast(ListVariable, GrouperVariable, LocalVarName, TreeWalker) ->
     {{ListAst, ListInfo}, TreeWalker1} = value_ast(ListVariable, false, true, TreeWalker),
-    LocalVarAst = varify(LocalVarName),
+    LocalVarAst = varname_ast(LocalVarName),
 
     {Id, TreeWalker2} = begin_scope(
                           {[{LocalVarName, LocalVarAst}],
@@ -1319,7 +1319,7 @@ for_loop_ast(IteratorList, LoopValue, IsReversed, Contents,
     %% setup
     VarScope = lists:map(
                  fun({identifier, {R, C}, Iterator}) ->
-                         {Iterator, varify(lists:concat([
+                         {Iterator, varname_ast(lists:concat([
                                     Iterator,"/", Level, "_", R, ":", C]))}
                  end, IteratorList),
     {Iterators, IteratorVars} = lists:unzip(VarScope),
@@ -1519,7 +1519,7 @@ create_scope(Vars, VarScope) ->
     {Scope, Values} =
         lists:foldl(
           fun ({Name, Value}, {VarAcc, ValueAcc}) ->
-                  NameAst = merl:var(lists:concat(["_Var_", Name, VarScope])),
+                  NameAst = varname_ast(lists:concat(["_", Name, VarScope])),
                   {[{Name, NameAst}|VarAcc],
                    [?Q("_@NameAst = _@Value")|ValueAcc]
                   }
@@ -1532,7 +1532,7 @@ create_scope(Vars, {Row, Col}, #treewalker{ context=Context }) ->
     Level = length(Context#dtl_context.local_scopes),
     create_scope(Vars, lists:concat(["/", Level, "_", Row, ":", Col])).
 
-varify([$_|VarName]) ->
+varname_ast([$_|VarName]) ->
     merl:var(lists:concat(["_Var__", VarName]));
-varify(VarName) ->
+varname_ast(VarName) ->
     merl:var(lists:concat(["Var_", VarName])).
