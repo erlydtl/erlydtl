@@ -156,6 +156,16 @@ process_token(Fname, {trans,{string_literal,{Line,Col},String}}, #state{acc=Acc,
                      line=Line,
                      col=Col},
     St#state{acc=[Phrase | Acc], translators_comment=undefined};
+process_token(Fname,
+              {trans,{string_literal,{Line,Col}, String}, {string_literal, _, Context}},
+              #state{acc=Acc, translators_comment=Comment}=St) ->
+    Phrase = #phrase{msgid=unescape(String),
+                     context=unescape(Context),
+                     comment=Comment,
+                     file=Fname,
+                     line=Line,
+                     col=Col},
+    St#state{acc=[Phrase | Acc], translators_comment=undefined};
 process_token(Fname, {blocktrans, Args, Contents, PluralContents}, #state{acc=Acc, translators_comment=Comment}=St) ->
     {Fname, Line, Col} = guess_blocktrans_lc(Fname, Args, Contents),
     Phrase = #phrase{msgid=unparse(Contents),

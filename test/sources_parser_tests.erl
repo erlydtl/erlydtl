@@ -62,7 +62,13 @@ ext_test_defs() ->
       {[msgid, context], [["msg", "ctxt"]]}},
      {"blocktrans with plural form",
       <<"{%blocktrans%}msg{%plural%}msgs{%endblocktrans%}">>,
-      {[msgid, msgid_plural], [["msg", "msgs"]]}}
+      {[msgid, msgid_plural], [["msg", "msgs"]]}},
+     {"trans with context",
+      <<"{% trans 'msg' context 'ctxt' %}">>,
+      {[msgid, context], [["msg", "ctxt"]]}},
+     {"trans noop is empty",
+      <<"{% trans 'msg' noop %}">>,
+      {[msgid], []}}
     ].
 
 unparser_test_() ->
