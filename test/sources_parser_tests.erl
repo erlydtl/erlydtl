@@ -66,9 +66,12 @@ ext_test_defs() ->
      {"trans with context",
       <<"{% trans 'msg' context 'ctxt' %}">>,
       {[msgid, context], [["msg", "ctxt"]]}},
-     {"trans noop is empty",
+     {"trans noop",
       <<"{% trans 'msg' noop %}">>,
-      {[msgid], []}}
+      {[msgid], [["msg"]]}},
+     {"trans noop with context",
+      <<"{% trans 'msg' noop context 'ctxt' %}">>,
+      {[msgid, context], [["msg", "ctxt"]]}}
     ].
 
 unparser_test_() ->

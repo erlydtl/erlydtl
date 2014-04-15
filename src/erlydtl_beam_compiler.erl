@@ -876,6 +876,8 @@ phrase_locale(Locale, Context) -> {Locale, Context}.
 translated_ast(Text, TreeWalker) ->
     translated_ast(Text, undefined, TreeWalker).
 
+translated_ast({noop, Value}, _, TreeWalker) ->
+    value_ast(Value, true, true, TreeWalker);
 translated_ast(Text, {string_literal, _, Context}, TreeWalker) ->
     translated_ast(Text, unescape_string_literal(Context), TreeWalker);
 translated_ast({string_literal, _, String}, Context, TreeWalker) ->

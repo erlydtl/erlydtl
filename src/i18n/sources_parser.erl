@@ -149,7 +149,8 @@ process_ast(Fname, Token, State) ->
 
 %%Block are recursivelly processed, trans are accumulated and other tags are ignored
 process_token(Fname, {block,{identifier,{_Line,_Col},_Identifier},Children}, St) -> process_ast(Fname, Children, St);
-process_token(Fname, {trans,{string_literal,{Line,Col},String}}, #state{acc=Acc, translators_comment=Comment}=St) ->
+process_token(Fname, {trans,Text}, #state{acc=Acc, translators_comment=Comment}=St) ->
+    {{Line, Col}, String} = trans(Text),
     Phrase = #phrase{msgid=unescape(String),
                      comment=Comment,
                      file=Fname,
@@ -157,8 +158,9 @@ process_token(Fname, {trans,{string_literal,{Line,Col},String}}, #state{acc=Acc,
                      col=Col},
     St#state{acc=[Phrase | Acc], translators_comment=undefined};
 process_token(Fname,
-              {trans,{string_literal,{Line,Col}, String}, {string_literal, _, Context}},
+              {trans,Text,{string_literal, _, Context}},
               #state{acc=Acc, translators_comment=Comment}=St) ->
+    {{Line, Col}, String} = trans(Text),
     Phrase = #phrase{msgid=unescape(String),
                      context=unescape(Context),
                      comment=Comment,
@@ -189,6 +191,10 @@ process_token(Fname, {_Instr, _Cond, Children, Children2}, St) ->
     StModified = process_ast(Fname, Children, St),
     process_ast(Fname, Children2, StModified);
 process_token(_,_AST,St) -> St.
+
+trans({noop, Value}) ->
+    trans(Value);
+trans({string_literal,Pos,String}) -> {Pos, String}.
 
 unescape(String) -> string:sub_string(String, 2, string:len(String) -1).
 

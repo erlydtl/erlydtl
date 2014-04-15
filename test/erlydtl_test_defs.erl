@@ -1350,6 +1350,9 @@ all_test_defs() ->
                                   end
                           end}],
         <<"test ok">>},
+       {"trans context noop",
+        <<"{% trans 'message' noop context 'foo' %}">>, [], [],
+        <<"message">>},
        {"blocktrans context (run-time)",
         <<"{% blocktrans context 'bar' %}translate this{% endblocktrans %}">>,
         [], [{locale, "foo"}, {translation_fun,

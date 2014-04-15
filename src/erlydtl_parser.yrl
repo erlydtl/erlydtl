@@ -123,6 +123,7 @@ Nonterminals
     TransTag
     TransArgs
     TransText
+    TransValue
 
     TemplatetagTag
     Templatetag
@@ -423,13 +424,15 @@ Templatetag -> closecomment_keyword : '$1'.
 
 TransTag -> open_tag trans_keyword TransArgs close_tag : '$3'.
 TransTag -> open_tag trans_keyword TransArgs as_keyword identifier close_tag : {scope_as, '$5', ['$3']}.
-TransTag -> open_tag trans_keyword TransArgs noop_keyword close_tag : element(2, '$3').
 
 TransArgs -> TransText : {trans, '$1'}.
 TransArgs -> TransText context_keyword string_literal: {trans, '$1', '$3'}.
 
-TransText -> string_literal : '$1'.
-TransText -> Variable : '$1'.
+TransText -> TransValue : '$1'.
+TransText -> TransValue noop_keyword : {noop, '$1'}.
+
+TransValue -> string_literal : '$1'.
+TransValue -> Variable : '$1'.
 
 WidthRatioTag -> open_tag widthratio_keyword Value Value number_literal close_tag : {widthratio, '$3', '$4', '$5'}.
 
