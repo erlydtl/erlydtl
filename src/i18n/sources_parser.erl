@@ -38,8 +38,8 @@
 -include("include/erlydtl_ext.hrl").
 
 -record(phrase, {msgid :: string(),
-                 msgid_plural :: string() | undefined, %TODO
-                 context :: string() | undefined,      %TODO
+                 msgid_plural :: string() | undefined,
+                 context :: string() | undefined,
                  comment :: string() | undefined,
                  file :: string(),
                  line :: non_neg_integer(),
@@ -98,7 +98,7 @@ phrase_info(Fields, Phrase) when is_list(Fields) ->
 -spec parse_pattern([string()]) -> [phrase()].
 parse_pattern(Pattern) ->
     %%We assume a basedir
-    GetFiles = fun(Path,Acc) -> Acc ++ filelib:wildcard(Path) end,
+    GetFiles = fun(Path,Acc) -> Acc ++ [F || F <- filelib:wildcard(Path), filelib:is_regular(F)] end,
     Files = lists:foldl(GetFiles,[],Pattern),
     io:format("Parsing files ~p~n",[Files]),
     ParsedFiles = [parse_file(File) || File <- Files],
@@ -118,8 +118,13 @@ parse_file(Path) ->
 parse_content(Path,Content)->
     case erlydtl_compiler:do_parse_template(Content, #dtl_context{}) of
         {ok, Data} ->
-            {ok, Result} = process_ast(Path, Data),
-            Result;
+            try process_ast(Path, Data) of
+                {ok, Result} -> Result
+            catch
+                Error:Reason ->
+                    io:format("~s: Template processing failed~nData: ~p~n", [Path, Data]),
+                    erlang:raise(Error, Reason, erlang:get_stacktrace())
+            end;
         Error ->
             ?bail("Template parsing failed for template ~s, cause ~p~n", [Path, Error])
     end.
@@ -133,11 +138,14 @@ process_ast(Fname, Tokens) ->
     State = process_ast(Fname, Tokens, #state{}),
     {ok, State#state.acc}.
 
-process_ast(Fname, Tokens, State) ->
+process_ast(Fname, Tokens, State) when is_list(Tokens) ->
     lists:foldl(
       fun (Token, St) ->
               process_token(Fname, Token, St)
-      end, State, Tokens).
+      end, State, Tokens);
+process_ast(Fname, Token, State) ->
+    process_token(Fname, Token, State).
+
 
 %%Block are recursivelly processed, trans are accumulated and other tags are ignored
 process_token(Fname, {block,{identifier,{_Line,_Col},_Identifier},Children}, St) -> process_ast(Fname, Children, St);
@@ -148,11 +156,15 @@ process_token(Fname, {trans,{string_literal,{Line,Col},String}}, #state{acc=Acc,
                      line=Line,
                      col=Col},
     St#state{acc=[Phrase | Acc], translators_comment=undefined};
-process_token(_Fname, {apply_filter, _Value, _Filter}, St) -> St;
-process_token(_Fname, {date, now, _Filter}, St) -> St;
-process_token(Fname, {blocktrans, Args, Contents, _PluralContents}, #state{acc=Acc, translators_comment=Comment}=St) ->
+process_token(Fname, {blocktrans, Args, Contents, PluralContents}, #state{acc=Acc, translators_comment=Comment}=St) ->
     {Fname, Line, Col} = guess_blocktrans_lc(Fname, Args, Contents),
-    Phrase = #phrase{msgid=erlydtl_unparser:unparse(Contents),
+    Phrase = #phrase{msgid=unparse(Contents),
+                     msgid_plural=unparse(PluralContents),
+                     context=case proplists:get_value(context, Args) of
+                                 {string_literal, _, String} ->
+                                     erlydtl_compiler_utils:unescape_string_literal(String);
+                                 undefined -> undefined
+                             end,
                      comment=Comment,
                      file=Fname,
                      line=Line,
@@ -168,7 +180,10 @@ process_token(Fname, {_Instr, _Cond, Children, Children2}, St) ->
     process_ast(Fname, Children2, StModified);
 process_token(_,_AST,St) -> St.
 
-unescape(String) ->string:sub_string(String, 2, string:len(String) -1).
+unescape(String) -> string:sub_string(String, 2, string:len(String) -1).
+
+unparse(undefined) -> undefined;
+unparse(Contents) -> erlydtl_unparser:unparse(Contents).
 
 %% hack to guess ~position of blocktrans
 guess_blocktrans_lc(Fname, [{{identifier, {L, C}, _}, _} | _], _) ->

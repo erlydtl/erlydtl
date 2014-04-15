@@ -56,7 +56,13 @@ ext_test_defs() ->
       {[msgid, comment], [["phrase", "translators: com{{ me }}nt"]]}},
      {"blocktrans with comments",
       <<"{%comment%}translators: comment{%endcomment%}{%blocktrans with a=b%}B={{b}}{%endblocktrans%}">>,
-      {[msgid, comment], [["B={{ b }}", "translators: comment"]]}}
+      {[msgid, comment], [["B={{ b }}", "translators: comment"]]}},
+     {"blocktrans with context",
+      <<"{%blocktrans context 'ctxt'%}msg{%endblocktrans%}">>,
+      {[msgid, context], [["msg", "ctxt"]]}},
+     {"blocktrans with plural form",
+      <<"{%blocktrans%}msg{%plural%}msgs{%endblocktrans%}">>,
+      {[msgid, msgid_plural], [["msg", "msgs"]]}}
     ].
 
 unparser_test_() ->
