@@ -38,8 +38,8 @@
 -include("include/erlydtl_ext.hrl").
 
 -record(phrase, {msgid :: string(),
-                 msgid_plural :: string() | undefined, %TODO
-                 context :: string() | undefined,      %TODO
+                 msgid_plural :: string() | undefined,
+                 context :: string() | undefined,
                  comment :: string() | undefined,
                  file :: string(),
                  line :: non_neg_integer(),
@@ -53,7 +53,7 @@
 -define(bail(Fmt, Args),
         throw(lists:flatten(io_lib:format(Fmt, Args)))).
 
--define(GET_FIELD(Name), phrase_info(Name, P) -> P#phrase.Name).
+-define(GET_FIELD(Key), phrase_info(Key, #phrase{ Key = Value }) -> Value).
 
 %%
 %% API Functions
@@ -73,19 +73,17 @@ process_content(Path, Content) ->
 %% @doc convert new API output to old one.
 -spec to_compat([phrase()]) -> [compat_phrase()].
 to_compat(Phrases) ->
-    Convert = fun(#phrase{msgid=Str, file=File, line=Line, col=Col}) ->
-                      {Str, {File, Line, Col}}
-              end,
-    lists:map(Convert, Phrases).
+    [{Str, {File, Line, Col}}
+     || #phrase{msgid=Str, file=File, line=Line, col=Col}
+            <- Phrases].
 
 %% New API
 
 %% @doc extract info about phrase.
 %% See `field()' type for list of available info field names.
--spec phrase_info([field()] | field(), phrase()) -> [Info] | Info
-                                                        when
+-spec phrase_info([field()] | field(), phrase()) -> [Info] | Info when
       Info :: non_neg_integer() | string() | undefined.
-?GET_FIELD(msgid);                                  %little magick
+?GET_FIELD(msgid);
 ?GET_FIELD(msgid_plural);
 ?GET_FIELD(context);
 ?GET_FIELD(comment);
@@ -94,16 +92,16 @@ to_compat(Phrases) ->
 ?GET_FIELD(col);
 phrase_info(Fields, Phrase) when is_list(Fields) ->
     %% you may pass list of fields
-    lists:map(fun(Field) -> phrase_info(Field, Phrase) end, Fields).
+    [phrase_info(Field, Phrase) || Field <- Fields].
 
 %% @doc list files, using wildcard and extract phrases from them
 -spec parse_pattern([string()]) -> [phrase()].
 parse_pattern(Pattern) ->
     %%We assume a basedir
-    GetFiles = fun(Path,Acc) -> Acc ++ filelib:wildcard(Path) end,
+    GetFiles = fun(Path,Acc) -> Acc ++ [F || F <- filelib:wildcard(Path), filelib:is_regular(F)] end,
     Files = lists:foldl(GetFiles,[],Pattern),
     io:format("Parsing files ~p~n",[Files]),
-    ParsedFiles = lists:map(fun(File)-> parse_file(File) end, Files),
+    ParsedFiles = [parse_file(File) || File <- Files],
     lists:flatten(ParsedFiles).
 
 %% @doc extract phrases from single file
@@ -120,8 +118,13 @@ parse_file(Path) ->
 parse_content(Path,Content)->
     case erlydtl_compiler:do_parse_template(Content, #dtl_context{}) of
         {ok, Data} ->
-            {ok, Result} = process_ast(Path, Data),
-            Result;
+            try process_ast(Path, Data) of
+                {ok, Result} -> Result
+            catch
+                Error:Reason ->
+                    io:format("~s: Template processing failed~nData: ~p~n", [Path, Data]),
+                    erlang:raise(Error, Reason, erlang:get_stacktrace())
+            end;
         Error ->
             ?bail("Template parsing failed for template ~s, cause ~p~n", [Path, Error])
     end.
@@ -132,26 +135,48 @@ parse_content(Path,Content)->
 %%
 
 process_ast(Fname, Tokens) ->
-    {ok, (process_ast(Fname, Tokens, #state{}))#state.acc }.
-process_ast(_Fname, [], St) -> St;
-process_ast(Fname,[Head|Tail], St) ->
-    NewSt = process_token(Fname,Head,St),
-    process_ast(Fname, Tail, NewSt).
+    State = process_ast(Fname, Tokens, #state{}),
+    {ok, State#state.acc}.
+
+process_ast(Fname, Tokens, State) when is_list(Tokens) ->
+    lists:foldl(
+      fun (Token, St) ->
+              process_token(Fname, Token, St)
+      end, State, Tokens);
+process_ast(Fname, Token, State) ->
+    process_token(Fname, Token, State).
+
 
 %%Block are recursivelly processed, trans are accumulated and other tags are ignored
 process_token(Fname, {block,{identifier,{_Line,_Col},_Identifier},Children}, St) -> process_ast(Fname, Children, St);
-process_token(Fname, {trans,{string_literal,{Line,Col},String}}, #state{acc=Acc, translators_comment=Comment}=St) ->
+process_token(Fname, {trans,Text}, #state{acc=Acc, translators_comment=Comment}=St) ->
+    {{Line, Col}, String} = trans(Text),
     Phrase = #phrase{msgid=unescape(String),
                      comment=Comment,
                      file=Fname,
                      line=Line,
                      col=Col},
     St#state{acc=[Phrase | Acc], translators_comment=undefined};
-process_token(_Fname, {apply_filter, _Value, _Filter}, St) -> St;
-process_token(_Fname, {date, now, _Filter}, St) -> St;
-process_token(Fname, {blocktrans, Args, Contents}, #state{acc=Acc, translators_comment=Comment}=St) ->
+process_token(Fname,
+              {trans,Text,{string_literal, _, Context}},
+              #state{acc=Acc, translators_comment=Comment}=St) ->
+    {{Line, Col}, String} = trans(Text),
+    Phrase = #phrase{msgid=unescape(String),
+                     context=unescape(Context),
+                     comment=Comment,
+                     file=Fname,
+                     line=Line,
+                     col=Col},
+    St#state{acc=[Phrase | Acc], translators_comment=undefined};
+process_token(Fname, {blocktrans, Args, Contents, PluralContents}, #state{acc=Acc, translators_comment=Comment}=St) ->
     {Fname, Line, Col} = guess_blocktrans_lc(Fname, Args, Contents),
-    Phrase = #phrase{msgid=lists:flatten(erlydtl_unparser:unparse(Contents)),
+    Phrase = #phrase{msgid=unparse(Contents),
+                     msgid_plural=unparse(PluralContents),
+                     context=case proplists:get_value(context, Args) of
+                                 {string_literal, _, String} ->
+                                     erlydtl_compiler_utils:unescape_string_literal(String);
+                                 undefined -> undefined
+                             end,
                      comment=Comment,
                      file=Fname,
                      line=Line,
@@ -159,13 +184,22 @@ process_token(Fname, {blocktrans, Args, Contents}, #state{acc=Acc, translators_c
     St#state{acc=[Phrase | Acc], translators_comment=undefined};
 process_token(_, {comment, Comment}, St) ->
     St#state{translators_comment=maybe_translators_comment(Comment)};
+process_token(_Fname, {comment_tag, _Pos, Comment}, St) ->
+    St#state{translators_comment=translators_comment_text(Comment)};
 process_token(Fname, {_Instr, _Cond, Children}, St) -> process_ast(Fname, Children, St);
 process_token(Fname, {_Instr, _Cond, Children, Children2}, St) ->
     StModified = process_ast(Fname, Children, St),
     process_ast(Fname, Children2, StModified);
 process_token(_,_AST,St) -> St.
 
-unescape(String) ->string:sub_string(String, 2, string:len(String) -1).
+trans({noop, Value}) ->
+    trans(Value);
+trans({string_literal,Pos,String}) -> {Pos, String}.
+
+unescape(String) -> string:sub_string(String, 2, string:len(String) -1).
+
+unparse(undefined) -> undefined;
+unparse(Contents) -> erlydtl_unparser:unparse(Contents).
 
 %% hack to guess ~position of blocktrans
 guess_blocktrans_lc(Fname, [{{identifier, {L, C}, _}, _} | _], _) ->
@@ -182,19 +216,15 @@ guess_blocktrans_lc(Fname, _, _) ->
 
 
 maybe_translators_comment([{string, _Pos, S}]) ->
-    %% fast path
-    case is_translators(S) of
-        true -> S;
-        false -> undefined
-    end;
+    translators_comment_text(S);
 maybe_translators_comment(Other) ->
     %% smth like "{%comment%}Translators: Hey, {{var}} is variable substitution{%endcomment%}"
-    Unparsed = lists:flatten(erlydtl_unparser:unparse(Other)),
-    case is_translators(Unparsed) of
-        true -> Unparsed;
+    Unparsed = erlydtl_unparser:unparse(Other),
+    translators_comment_text(Unparsed).
+
+translators_comment_text(S) ->
+    Stripped = string:strip(S, left),
+    case "translators:" == string:to_lower(string:substr(Stripped, 1, 12)) of
+        true -> S;
         false -> undefined
     end.
-
-is_translators(S) ->
-    Stripped = string:strip(S, left),
-    "translators:" == string:to_lower(string:substr(Stripped, 1, 12)).

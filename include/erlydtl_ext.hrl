@@ -14,6 +14,7 @@
           doc_root = "", 
           parse_trail = [],
           vars = [],
+          const = [],
           record_info = [],
           filters = [],
           tags = [],
@@ -37,13 +38,16 @@
           tuples_0_based = false
          }).
 
+%% ALL fields of ast_info{} must be lists (see erlydtl_compiler_utils:merge_info/2)
 -record(ast_info, {
           dependencies = [],
           translatable_strings = [],
           translated_blocks= [],
           custom_tags = [],
           var_names = [],
-          pre_render_asts = []}).
+          def_names = [],
+          const_names = []
+         }).
 
 -record(treewalker, {
           counter = 0,

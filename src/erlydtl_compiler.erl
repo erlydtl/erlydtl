@@ -92,6 +92,10 @@ format_error({read_file, File, Error}) ->
     io_lib:format(
       "Failed to include file ~s: ~s",
       [File, file:format_error(Error)]);
+format_error({deprecated_option, Opt, NewOpt}) ->
+    io_lib:format(
+      "Compile option '~s' has been deprecated. Use '~s' instead.",
+      [Opt, NewOpt]);
 format_error(Error) ->
     erlydtl_compiler_utils:format_error(Error).
 
@@ -103,7 +107,7 @@ format_error(Error) ->
 process_opts(File, Module, Options0) ->
     Options1 = proplists:normalize(
                  update_defaults(Options0),
-                 [{aliases, [{outdir, out_dir}]}
+                 [{aliases, deprecated_opts()}
                  ]),
     Source0 = filename:absname(
                 case File of
@@ -122,12 +126,32 @@ process_opts(File, Module, Options0) ->
     Source = shorten_filename(Source0),
     Options = [{compiler_options, [{source, Source}]}
                |compiler_opts(Options1, [])],
-    case File of
-        {dir, _} ->
-            init_context([], Source, Module, Options);
-        _ ->
-            init_context([Source], filename:dirname(Source), Module, Options)
-    end.
+    Context =
+        case File of
+            {dir, _} ->
+                init_context([], Source, Module, Options);
+            _ ->
+                init_context([Source], filename:dirname(Source), Module, Options)
+        end,
+
+    %% check original options here now that we have a context to
+    %% process any warnings/errors generated.
+    check_opts(Options0, Context).
+
+deprecated_opts() ->
+    [{outdir, out_dir},
+     {vars, default_vars},
+     {blocktrans_fun, translation_fun},
+     {blocktrans_locales, locales}].
+
+check_opts(Options, Context) ->
+    lists:foldl(
+      fun ({Opt, NewOpt}, Ctx) ->
+              case proplists:get_value(Opt, Options) of
+                  undefined -> Ctx;
+                  _ -> ?WARN({deprecated_option, Opt, NewOpt}, Ctx)
+              end
+      end, Context, deprecated_opts()).
 
 compiler_opts([CompilerOption|Os], Acc)
   when
@@ -217,14 +241,11 @@ init_context(ParseTrail, DefDir, Module, Options) when is_list(Module) ->
     init_context(ParseTrail, DefDir, list_to_atom(Module), Options);
 init_context(ParseTrail, DefDir, Module, Options) ->
     Ctx = #dtl_context{},
-    Locale = proplists:get_value(locale, Options),
-    BlocktransLocales = proplists:get_value(blocktrans_locales, Options),
-    TransLocales = case {Locale, BlocktransLocales} of
-                       {undefined, undefined} -> Ctx#dtl_context.trans_locales;
-                       {undefined, Val} -> Val;
-                       {Val, undefined} -> [Val];
-                       _ -> lists:usort([Locale | BlocktransLocales])
-                   end,
+    Locales = lists:usort(
+                lists:concat(
+                  [proplists:get_all_values(locale, Options),
+                   proplists:get_value(locales, Options, Ctx#dtl_context.trans_locales)]
+                 )),
     Context0 =
         #dtl_context{
            all_options = Options,
@@ -239,9 +260,11 @@ init_context(ParseTrail, DefDir, Module, Options) ->
            custom_tags_dir = proplists:get_value(
                                custom_tags_dir, Options,
                                filename:join([erlydtl_deps:get_base_dir(), "priv", "custom_tags"])),
-           trans_fun = proplists:get_value(blocktrans_fun, Options, Ctx#dtl_context.trans_fun),
-           trans_locales = TransLocales,
-           vars = proplists:get_value(vars, Options, Ctx#dtl_context.vars),
+           trans_fun = erlydtl_runtime:init_translation(
+                         proplists:get_value(translation_fun, Options, Ctx#dtl_context.trans_fun)),
+           trans_locales = Locales,
+           vars = proplists:get_value(default_vars, Options, Ctx#dtl_context.vars),
+           const = proplists:get_value(constants, Options, Ctx#dtl_context.const),
            reader = proplists:get_value(reader, Options, Ctx#dtl_context.reader),
            compiler_options = proplists:append_values(compiler_options, Options),
            binary_strings = proplists:get_value(binary_strings, Options, Ctx#dtl_context.binary_strings),

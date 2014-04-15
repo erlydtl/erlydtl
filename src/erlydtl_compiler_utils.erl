@@ -187,38 +187,25 @@ call_extension(#dtl_context{ extension_module=Mod }, Fun, Args)
             undefined
     end.
 
-merge_info(Info1, Info2) ->
-    #ast_info{
-       dependencies =
-           lists:merge(
-             lists:sort(Info1#ast_info.dependencies),
-             lists:sort(Info2#ast_info.dependencies)),
-       var_names =
-           lists:merge(
-             lists:sort(Info1#ast_info.var_names),
-             lists:sort(Info2#ast_info.var_names)),
-       translatable_strings =
-           lists:merge(
-             lists:sort(Info1#ast_info.translatable_strings),
-             lists:sort(Info2#ast_info.translatable_strings)),
-       translated_blocks =
-           lists:merge(
-             lists:sort(Info1#ast_info.translated_blocks),
-             lists:sort(Info2#ast_info.translated_blocks)),
-       custom_tags =
-           lists:merge(
-             lists:sort(Info1#ast_info.custom_tags),
-             lists:sort(Info2#ast_info.custom_tags)),
-       pre_render_asts =
-           lists:merge(
-             Info1#ast_info.pre_render_asts,
-             Info2#ast_info.pre_render_asts)}.
+merge_info(Info1, Info2) when is_record(Info1, ast_info), is_record(Info2, ast_info) ->
+    merge_info1(record_info(size, ast_info), Info1, Info2, #ast_info{}).
 
 resolve_variable(VarName, TreeWalker) ->
     resolve_variable(VarName, undefined, TreeWalker).
 
 resolve_variable(VarName, Default, #treewalker{ context=Context }) ->
-    resolve_variable1(Context#dtl_context.local_scopes, VarName, Default).
+    case resolve_variable1(Context#dtl_context.local_scopes, VarName) of
+        undefined ->
+            case proplists:get_value(VarName, Context#dtl_context.const) of
+                undefined ->
+                    case proplists:get_value(VarName, Context#dtl_context.vars) of
+                        undefined -> {default, Default};
+                        Value -> {default_vars, Value}
+                    end;
+                Value -> {constant, Value}
+            end;
+        Value -> {scope, Value}
+    end.
 
 push_scope(Scope, #treewalker{ context=Context }=TreeWalker) ->
     TreeWalker#treewalker{ context=push_scope(Scope, Context) };
@@ -397,13 +384,20 @@ pos_info(Line) when is_integer(Line) ->
 pos_info({Line, Col}) when is_integer(Line), is_integer(Col) ->
     io_lib:format("~b:~b ", [Line, Col]).
 
-resolve_variable1([], _VarName, Default) -> Default;
-resolve_variable1([Scope|Scopes], VarName, Default) ->
-    case proplists:get_value(VarName, get_scope(Scope), Default) of
-        Default ->
-            resolve_variable1(Scopes, VarName, Default);
+resolve_variable1([], _VarName) -> undefined;
+resolve_variable1([Scope|Scopes], VarName) ->
+    case proplists:get_value(VarName, get_scope(Scope)) of
+        undefined ->
+            resolve_variable1(Scopes, VarName);
         Value -> Value
     end.
+
+merge_info1(1, _, _, Info) -> Info;
+merge_info1(FieldIdx, Info1, Info2, Info) ->
+    Value = lists:merge(
+              lists:sort(element(FieldIdx, Info1)),
+              lists:sort(element(FieldIdx, Info2))),
+    merge_info1(FieldIdx - 1, Info1, Info2, setelement(FieldIdx, Info, Value)).
 
 get_scope({_Id, Scope, _Values}) -> Scope;
 get_scope(Scope) -> Scope.

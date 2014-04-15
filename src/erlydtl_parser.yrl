@@ -52,7 +52,7 @@ Nonterminals
     BlockBraced
     EndBlockBraced
 
-    CommentInline
+    CommentTag
     CommentBlock
     CommentBraced
     EndCommentBraced
@@ -103,6 +103,7 @@ Nonterminals
 
     CustomTag
     CustomArgs
+    Arg
     Args
 
     RegroupTag
@@ -112,9 +113,17 @@ Nonterminals
     SSITag
 
     BlockTransBlock
-    BlockTransContent
-    TransTag    
+    BlockTransBraced
+    EndBlockTransBraced
+    BlockTransArgs
+    BlockTransContents
+
+    PluralTag
+
+    TransTag
+    TransArgs
     TransText
+    TransValue
 
     TemplatetagTag
     Templatetag
@@ -143,8 +152,10 @@ Terminals
     call_keyword
     close_tag
     close_var
-    comment_inline
+    comment_tag
     comment_keyword
+    context_keyword
+    count_keyword
     cycle_keyword
     elif_keyword
     else_keyword
@@ -184,6 +195,7 @@ Terminals
     open_tag
     open_var
     parsed_keyword
+    plural_keyword
     regroup_keyword
     reversed_keyword
     spaceless_keyword
@@ -226,7 +238,7 @@ Elements -> Elements BlockTransBlock : '$1' ++ ['$2'].
 Elements -> Elements CallTag : '$1' ++ ['$2'].
 Elements -> Elements CallWithTag : '$1' ++ ['$2'].
 Elements -> Elements CommentBlock : '$1' ++ ['$2'].
-Elements -> Elements CommentInline : '$1' ++ ['$2'].
+Elements -> Elements CommentTag : '$1' ++ ['$2'].
 Elements -> Elements CustomTag : '$1' ++ ['$2'].
 Elements -> Elements CycleTag : '$1' ++ ['$2'].
 Elements -> Elements ExtendsTag : '$1' ++ ['$2'].
@@ -299,7 +311,7 @@ CommentBlock -> CommentBraced Elements EndCommentBraced : {comment, '$2'}.
 CommentBraced -> open_tag comment_keyword close_tag.
 EndCommentBraced -> open_tag endcomment_keyword close_tag.
 
-CommentInline -> comment_inline : {comment, inline_comment_to_string('$1')}.
+CommentTag -> comment_tag : '$1'.
 
 CycleTag -> open_tag cycle_keyword CycleNamesCompat close_tag : {cycle_compat, '$3'}.
 CycleTag -> open_tag cycle_keyword CycleNames close_tag : {cycle, '$3'}.
@@ -383,12 +395,21 @@ SpacelessBlock -> open_tag spaceless_keyword close_tag Elements open_tag endspac
 SSITag -> open_tag ssi_keyword Value close_tag : {ssi, '$3'}.
 SSITag -> open_tag ssi_keyword string_literal parsed_keyword close_tag : {ssi_parsed, '$3'}.
 
-BlockTransBlock -> open_tag blocktrans_keyword close_tag BlockTransContent open_tag endblocktrans_keyword close_tag : {blocktrans, [], '$4'}.
-BlockTransBlock -> open_tag blocktrans_keyword with_keyword Args close_tag BlockTransContent open_tag endblocktrans_keyword close_tag : {blocktrans, '$4', '$6'}.
-BlockTransContent -> '$empty' : [].
-BlockTransContent -> BlockTransContent open_var identifier close_var : '$1' ++ [{variable, '$3'}].
-BlockTransContent -> BlockTransContent string : '$1' ++ ['$2'].
-%% TODO: {% plural %}
+BlockTransBlock -> BlockTransBraced BlockTransContents EndBlockTransBraced : {blocktrans, '$1', '$2', undefined}.
+BlockTransBlock -> BlockTransBraced BlockTransContents PluralTag BlockTransContents EndBlockTransBraced : {blocktrans, '$1', '$2', '$4'}.
+BlockTransBraced -> open_tag blocktrans_keyword BlockTransArgs close_tag : '$3'.
+EndBlockTransBraced -> open_tag endblocktrans_keyword close_tag.
+
+BlockTransArgs -> '$empty' : [].
+BlockTransArgs -> count_keyword Arg BlockTransArgs : [{count, '$2'}|'$3'].
+BlockTransArgs -> with_keyword Args BlockTransArgs : [{args, '$2'}|'$3'].
+BlockTransArgs -> context_keyword string_literal BlockTransArgs : [{context, '$2'}|'$3'].
+
+BlockTransContents -> '$empty' : [].
+BlockTransContents -> open_var identifier close_var BlockTransContents : [{variable, '$2'}|'$4'].
+BlockTransContents -> string BlockTransContents : ['$1'|'$2'].
+
+PluralTag -> open_tag plural_keyword close_tag.
 
 TemplatetagTag -> open_tag templatetag_keyword Templatetag close_tag : {templatetag, '$3'}.
 
@@ -401,12 +422,17 @@ Templatetag -> closebrace_keyword : '$1'.
 Templatetag -> opencomment_keyword : '$1'.
 Templatetag -> closecomment_keyword : '$1'.
 
-TransTag -> open_tag trans_keyword TransText close_tag : {trans, '$3'}.
-TransTag -> open_tag trans_keyword TransText as_keyword identifier close_tag : {scope_as, '$5', [{trans, '$3'}]}.
-TransTag -> open_tag trans_keyword TransText noop_keyword close_tag : '$3'.
+TransTag -> open_tag trans_keyword TransArgs close_tag : '$3'.
+TransTag -> open_tag trans_keyword TransArgs as_keyword identifier close_tag : {scope_as, '$5', ['$3']}.
 
-TransText -> string_literal : '$1'.
-TransText -> Variable : '$1'.
+TransArgs -> TransText : {trans, '$1'}.
+TransArgs -> TransText context_keyword string_literal: {trans, '$1', '$3'}.
+
+TransText -> TransValue : '$1'.
+TransText -> TransValue noop_keyword : {noop, '$1'}.
+
+TransValue -> string_literal : '$1'.
+TransValue -> Variable : '$1'.
 
 WidthRatioTag -> open_tag widthratio_keyword Value Value number_literal close_tag : {widthratio, '$3', '$4', '$5'}.
 
@@ -421,15 +447,14 @@ CustomArgs -> identifier '=' Value CustomArgs : [{'$1', '$3'}|'$4'].
 CustomArgs -> Value CustomArgs : ['$1'|'$2'].
 
 Args -> '$empty' : [].
-Args -> Args identifier '=' Value : '$1' ++ [{'$2', '$4'}].
+Args -> Arg Args : ['$1'|'$2'].
+
+Arg -> identifier '=' Value : {'$1', '$3'}.
+%% Arg -> identifier : {'$1', true}.
 
 CallTag -> open_tag call_keyword identifier close_tag : {call, '$3'}.
 CallWithTag -> open_tag call_keyword identifier with_keyword Value close_tag : {call, '$3', '$5'}.
 
 Erlang code.
-
-inline_comment_to_string({comment_inline, Pos, S}) ->
-    %% inline comment converted to block comment for simplicity
-    [{string, Pos, S}].
 
 %% vim: syntax=erlang

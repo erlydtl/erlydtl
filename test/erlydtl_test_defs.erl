@@ -311,6 +311,13 @@ all_test_defs() ->
         <<"{% for outer in list %}{% for inner in outer %}{{ inner }}\n{% endfor %}{% endfor %}">>,
         [{'list', [["Al", "Albert"], ["Jo", "Joseph"]]}],
         <<"Al\nAlbert\nJo\nJoseph\n">>},
+       {"Unused variable in foreach proplist",
+        <<"{% for k,v in plist %}{{v}}{% endfor %}">>,
+        [{'plist',[{1,"one"},{2,"two"}]}], [], [], <<"onetwo">>,
+        [error_info([{0, erl_lint, {unused_var, 'Var_k/1_1:8'}}])]},
+       {"Unused variable in foreach proplist, prefixed with underscore",
+        <<"{% for _k,v in plist %}{{v}}{% endfor %}">>,
+        [{'plist',[{1,"one"},{2,"two"}]}], [], [], <<"onetwo">>},
        {"Access parent loop counters",
         <<"{% for outer in list %}{% for inner in outer %}({{ forloop.parentloop.counter0 }}, {{ forloop.counter0 }})\n{% endfor %}{% endfor %}">>,
         [{'list', [["One", "two"], ["One", "two"]]}], [], [], <<"(0, 0)\n(0, 1)\n(1, 0)\n(1, 1)\n">>,
@@ -1273,7 +1280,7 @@ all_test_defs() ->
        },
        {"trans functional reverse locale",
         <<"Hello {% trans \"Hi\" %}">>, [], [{locale, "reverse"}],
-        [{blocktrans_locales, ["reverse"]}, {blocktrans_fun, fun("Hi"=Key, "reverse") -> list_to_binary(lists:reverse(Key)) end}],
+        [{locales, ["reverse"]}, {translation_fun, fun("Hi"=Key, "reverse") -> list_to_binary(lists:reverse(Key)) end}],
         <<"Hello iH">>
        },
        {"trans literal at run-time",
@@ -1289,15 +1296,18 @@ all_test_defs() ->
         <<"Hello {% trans var1 noop %}">>, [{var1, <<"Hi">>}], [{translation_fun, fun(<<"Hi">>) -> <<"Konichiwa">> end}], [],
         <<"Hello Hi">>},
        {"trans as",
-        <<"{% trans 'Hans' as name %}Hello {{ name }}">>, [], <<"Hello Hans">>
-       }
+        <<"{% trans 'Hans' as name %}Hello {{ name }}">>, [],
+        <<"Hello Hans">>},
+       {"trans value",
+        <<"{{ _('foo') }}">>, [], [], [{locale, default}, {translation_fun, fun ("foo") -> "bar" end}],
+        <<"bar">>}
       ]},
      {"blocktrans",
       [{"blocktrans default locale",
         <<"{% blocktrans %}Hello{% endblocktrans %}">>, [], <<"Hello">>},
        {"blocktrans choose locale",
         <<"{% blocktrans %}Hello, {{ name }}{% endblocktrans %}">>, [{name, "Mr. President"}], [{locale, "de"}],
-        [{blocktrans_locales, ["de"]}, {blocktrans_fun, fun("Hello, {{ name }}", "de") -> <<"Guten tag, {{ name }}">> end}], <<"Guten tag, Mr. President">>},
+        [{locales, ["de"]}, {translation_fun, fun("Hello, {{ name }}", "de") -> <<"Guten tag, {{ name }}">> end}], <<"Guten tag, Mr. President">>},
        {"blocktrans with args",
         <<"{% blocktrans with var1=foo %}{{ var1 }}{% endblocktrans %}">>, [{foo, "Hello"}], <<"Hello">>},
        #test{
@@ -1315,6 +1325,98 @@ all_test_defs() ->
         [{name, "Mr. President"}, {foo, <<"rubber-duck">>}],
         [{translation_fun, fun("Hello, {{ name }}! See {{ v1 }}.") -> <<"Guten tag, {{name}}! Sehen {{    v1   }}.">> end}],
         [], <<"Guten tag, Mr. President! Sehen rubber-duck.">>}
+      ]},
+     {"extended translation features (#131)",
+      [{"trans default locale",
+        <<"test {% trans 'message' %}">>,
+        [], [{translation_fun, fun ("message", default) -> "ok" end}],
+        <<"test ok">>},
+       {"trans foo locale",
+        <<"test {% trans 'message' %}">>,
+        [], [{locale, "foo"}, {translation_fun, fun ("message", "foo") -> "ok" end}],
+        <<"test ok">>},
+       {"trans context (run-time)",
+        <<"test {% trans 'message' context 'foo' %}">>,
+        [], [{translation_fun, fun ("message", {default, "foo"}) -> "ok" end}],
+        <<"test ok">>},
+       {"trans context (compile-time)",
+        <<"test {% trans 'message' context 'foo' %}">>,
+        [], [{locale, "baz"}],
+        [{locales, ["bar", "baz"]},
+         {translation_fun, fun ("message", {L, "foo"}) ->
+                                  case L of
+                                      "bar" -> "rab";
+                                      "baz" -> "ok"
+                                  end
+                          end}],
+        <<"test ok">>},
+       {"trans context noop",
+        <<"{% trans 'message' noop context 'foo' %}">>, [], [],
+        <<"message">>},
+       {"blocktrans context (run-time)",
+        <<"{% blocktrans context 'bar' %}translate this{% endblocktrans %}">>,
+        [], [{locale, "foo"}, {translation_fun,
+                               fun ("translate this", {"foo", "bar"}) ->
+                                       "got it"
+                               end}],
+        <<"got it">>},
+       {"blocktrans context (compile-time)",
+        <<"{% blocktrans context 'bar' %}translate this{% endblocktrans %}">>,
+        [], [{locale, "foo"}],
+        [{locale, "foo"}, {translation_fun,
+                           fun ("translate this", {"foo", "bar"}) ->
+                                   "got it"
+                           end}],
+        <<"got it">>},
+       {"blocktrans plural",
+        <<"{% blocktrans count foo=bar %}",
+          "There is just one foo..",
+          "{% plural %}",
+          "There are many foo's..",
+          "{% endblocktrans %}">>,
+        [{bar, 2}], [{locale, "baz"},
+                     {translation_fun,
+                      fun ({"There is just one foo..", {"There are many foo's..", 2}}, "baz") ->
+                              "ok"
+                      end}],
+        <<"ok">>},
+       {"blocktrans a lot of stuff",
+        <<"{% blocktrans with foo=a.b count c=a|length context 'quux' %}"
+          "foo={{ foo }};bar={{ bar }};c={{ c }}:"
+          "{% plural %}"
+          "FOO:{{ foo }},BAR:{{ bar }},C:{{ c }}."
+          "{% endblocktrans %}">>,
+        [{a, [{b, "B"}]}, {bar, "BAR"}],
+        [{locale, "rub"},
+         {translation_fun, fun ({Single, {Plural, "1"=_Count}}, {Locale, Context}) ->
+                                   [Single, Plural, Locale, Context]
+                           end}],
+        <<"foo=B;bar=BAR;c=1:"
+          "FOO:B,BAR:BAR,C:1."
+          "rub" "quux">>},
+       {"new translation options",
+        <<"{% trans foo %}{% blocktrans %}abc{% endblocktrans %}">>,
+        [{foo, "1234"}], [{locale, "test"}, {translation_fun, fun (Msg) -> lists:reverse(Msg) end}],
+        [{locale, "foo"}, {locale, "test"}, {locales, ["bar", "baz"]},
+         {translation_fun, fun (Msg, _) -> [Msg, lists:reverse(Msg)] end}],
+        <<"4321" "abccba">>}
+
+       %% This does work, but always prints a warning to std err.. :/
+       %% Warning: template translation: variable not closed: "bar {{ 123"
+       %% {"variable error",
+       %%  <<"{% blocktrans %}foo{{ bar }}{% endblocktrans %}">>,
+       %%  [], [{translation_fun, fun (_) -> "bar {{ 123" end}],
+       %%  <<"foo">>}
+      ]},
+     {"i18n",
+      [{"setup translation context, using fun, at render time",
+        <<"{% trans 'foo' %}">>, [],
+        [{translation_fun, fun () -> fun (Msg) -> string:to_upper(Msg) end end}],
+        <<"FOO">>},
+       {"setup translation context, using fun, at compile time",
+        <<"{% trans 'foo' %}">>, [], [],
+        [{locale, default}, {translation_fun, fun () -> fun lists:reverse/1 end}],
+        <<"oof">>}
       ]},
      {"verbatim",
       [{"Plain verbatim",
@@ -1459,6 +1561,15 @@ all_test_defs() ->
        {"ssi file not found",
         <<"{% ssi 'foo' %}">>, [],
         {error, {read_file, <<"./foo">>, enoent}}
+       },
+       {"deprecated compile options",
+        <<"">>, [], [],
+        [{blocktrans_locales, []}, {blocktrans_fun, fun (_) -> [] end}],
+        <<"">>,
+        [error_info([{deprecated_option, O, N}
+                     || {O, N} <- [{blocktrans_locales, locales},
+                                   {blocktrans_fun, translation_fun}]],
+                    erlydtl_compiler)]
        }
       ]},
      {"load",
@@ -1479,6 +1590,62 @@ all_test_defs() ->
         <<"ytrewQ">>
        }
       ]},
+     {"compile time default vars/constants",
+      begin
+          Tpl = <<"Test {{ var1 }}:{{ var2 }}.">>,
+          Txt = <<"Test 123:abc.">>,
+          Fun = fun (F) ->
+                        fun (#test{ module=M }) ->
+                                M:F()
+                        end
+                end,
+          [{"default vars",
+            Tpl, [], [],
+            [{default_vars, [{var1, 123}, {var2, abc}]}], Txt},
+           {"default vars (using fun)",
+            Tpl, [], [],
+            [{default_vars, [{var1, 123}, {var2, fun () -> abc end}]}], Txt},
+           {"override default vars",
+            Tpl, [{var2, abc}], [],
+            [{default_vars, [{var1, 123}, {var2, 456}]}], Txt},
+           {"constants",
+            Tpl, [], [],
+            [{constants, [{var1, 123}, {var2, abc}]}], Txt},
+           {"constants (using fun)",
+            Tpl, [], [],
+            [{constants, [{var1, 123}, {var2, fun () -> abc end}]}], Txt},
+           {"constants non-overridable",
+            Tpl, [{var1, ohno}, {var2, noway}], [],
+            [{constants, [{var1, 123}, {var2, "abc"}]}], Txt}
+           |[#test{ title = T,
+                    source = Tpl,
+                    compile_vars = undefined,
+                    compile_opts = CO ++ (#test{})#test.compile_opts,
+                    renderer = Fun(F),
+                    output = O
+                  }
+             || {T, F, O, CO} <-
+                    [{"variables/0",
+                      variables, [var1, var2], []},
+                     {"variables/0 w. defaults",
+                      variables, [var1, var2], [{default_vars, [{var1, aaa}]}]},
+                     {"variables/0 w. constants",
+                      variables, [var2], [{constants, [{var1, bbb}]}]},
+                     {"default_variables/0",
+                      default_variables, [], []},
+                     {"default_variables/0 w. defaults",
+                      default_variables, [var1], [{default_vars, [{var1, aaa}]}]},
+                     {"default_variables/0 w. constants",
+                      default_variables, [], [{constants, [{var1, bbb}]}]},
+                     {"constants/0",
+                      constants, [], []},
+                     {"constants/0 w. defaults",
+                      constants, [], [{default_vars, [{var1, aaa}]}]},
+                     {"constants/0 w. constants",
+                      constants, [var1], [{constants, [{var1, bbb}]}]}
+                    ]
+            ]]
+      end},
      {"functional",
       [functional_test(F)
        %% order is important.
@@ -1507,7 +1674,8 @@ all_test_defs() ->
                    renderer = fun(#test{ module=M, render_vars=V, render_opts=O }) ->
                                       M:render(base1, V, O)
                               end
-                  }]
+                  }
+               ]
       ]}
     ].
 
@@ -1530,6 +1698,7 @@ def_to_test(Group, {Name, DTL, Vars, RenderOpts, CompilerOpts, Output, Warnings}
        source = {template, DTL},
        render_vars = Vars,
        render_opts = RenderOpts,
+       compile_vars = undefined,
        compile_opts = CompilerOpts ++ (#test{})#test.compile_opts,
        output = Output,
        warnings = Warnings

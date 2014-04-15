@@ -47,10 +47,17 @@ run_test(T) ->
         error_ok -> ok
     end.
 
+compile_opts(#test{ compile_vars = undefined, compile_opts = Opts }) ->
+    Opts;
+compile_opts(#test{ compile_vars = Vars, compile_opts = Opts }) ->
+    [{default_vars, Vars}|Opts].
+
 run_compile(T) ->
     case erlydtl:compile(
-           T#test.source, T#test.module,
-           [{vars, T#test.compile_vars}|T#test.compile_opts]) of
+           T#test.source,
+           T#test.module,
+           compile_opts(T))
+    of
         {ok, M, W} ->
             ?assertEqual(T#test.module, M),
             ?assertEqual(T#test.warnings, W);

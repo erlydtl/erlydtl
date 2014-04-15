@@ -72,7 +72,7 @@ end.
 30 #} any+: skip, in_text-.
 
 %% must come before the `space any' rule
-40 any in_comment: +comment_inline.
+40 any in_comment: +comment_tag.
 %% end comment rules
 
 %% The rest is "just" text..
@@ -257,7 +257,7 @@ end.
 
 string: lists reverse.
 string_literal: lists reverse.
-comment_inline: lists reverse.
+comment_tag: lists reverse.
 number_literal: lists reverse, list_to_integer.
 open_var: to_atom.
 close_var: to_atom.
@@ -309,10 +309,12 @@ form \
   is_keyword(any, "by") -> true; \
   is_keyword(any, "with") -> true; \
   is_keyword(any, "from") -> true; \
+  is_keyword(any, "count") -> true; \
+  is_keyword(any, "context") -> true; \
+  is_keyword(any, "noop") -> true; \
   \
   is_keyword(close, "only") -> true; \
   is_keyword(close, "parsed") -> true; \
-  is_keyword(close, "noop") -> true; \
   is_keyword(close, "reversed") -> true; \
   is_keyword(close, "openblock") -> true; \
   is_keyword(close, "closeblock") -> true; \
@@ -362,6 +364,7 @@ form \
   is_keyword(open, "blocktrans") -> true; \
   is_keyword(open, "endblocktrans") -> true; \
   is_keyword(open, "load") -> true; \
+  is_keyword(open, "plural") -> true; \
   is_keyword(_, _) -> false \
 end.
 

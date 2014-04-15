@@ -5,23 +5,29 @@ unparse(DjangoParseTree) ->
     unparse(DjangoParseTree, []).
 
 unparse([], Acc) ->
-    lists:reverse(Acc);
+    lists:flatten(lists:reverse(Acc));
 unparse([{'extends', Value}|Rest], Acc) ->
     unparse(Rest, [["{% extends ", unparse_value(Value), " %}"]|Acc]);
 unparse([{'autoescape', OnOrOff, Contents}|Rest], Acc) ->
     unparse(Rest, [["{% autoescape ", unparse_identifier(OnOrOff), " %}", unparse(Contents), "{% endautoescape %}"]|Acc]);
 unparse([{'block', Identifier, Contents}|Rest], Acc) ->
     unparse(Rest, [["{% block ", unparse_identifier(Identifier), " %}", unparse(Contents), "{% endblock %}"]|Acc]);
-unparse([{'blocktrans', [], Contents}|Rest], Acc) ->
-    unparse(Rest, [["{% blocktrans %}", unparse(Contents), "{% endblocktrans %}"]|Acc]);
-unparse([{'blocktrans', Args, Contents}|Rest], Acc) ->
-    unparse(Rest, [["{% blocktrans ", unparse_args(Args), " %}", unparse(Contents), "{% endblocktrans %}"]|Acc]);
+unparse([{'blocktrans', Args, Contents, undefined}|Rest], Acc) ->
+    unparse(Rest, [["{% blocktrans ", unparse_blocktrans_args(Args), "%}", unparse(Contents), "{% endblocktrans %}"]|Acc]);
+unparse([{'blocktrans', Args, Contents, PluralContents}|Rest], Acc) ->
+    unparse(Rest, [["{% blocktrans ", unparse_args(Args), " %}",
+                    unparse(Contents),
+                    "{% plural %}",
+                    unparse(PluralContents),
+                    "{% endblocktrans %}"]|Acc]);
 unparse([{'call', Identifier}|Rest], Acc) ->
     unparse(Rest, [["{% call ", unparse_identifier(Identifier), " %}"]|Acc]);
 unparse([{'call', Identifier, With}|Rest], Acc) ->
     unparse(Rest, [["{% call ", unparse_identifier(Identifier), " with ", unparse_args(With), " %}"]|Acc]);
 unparse([{'comment', Contents}|Rest], Acc) ->
     unparse(Rest, [["{% comment %}", unparse(Contents), "{% endcomment %}"]|Acc]);
+unparse([{'comment_tag', _Pos, Text}|Rest], Acc) ->
+    unparse(Rest, [["{#", Text, "#}"]|Acc]);
 unparse([{'cycle', Names}|Rest], Acc) ->
     unparse(Rest, [["{% cycle ", unparse(Names), " %}"]|Acc]);
 unparse([{'cycle_compat', Names}|Rest], Acc) ->
@@ -193,3 +199,18 @@ unparse_cycle_compat_names([{identifier, _, Name}], Acc) ->
     unparse_cycle_compat_names([], [atom_to_list(Name)|Acc]);
 unparse_cycle_compat_names([{identifier, _, Name}|Rest], Acc) ->
     unparse_cycle_compat_names(Rest, lists:reverse([atom_to_list(Name), ", "], Acc)).
+
+unparse_blocktrans_args(Args) ->
+    unparse_blocktrans_args(Args, []).
+
+unparse_blocktrans_args([{args, WithArgs}|Args], Acc) ->
+    unparse_blocktrans_args(
+      Args, [["with ", unparse_args(WithArgs)]|Acc]);
+unparse_blocktrans_args([{count, Count}|Args], Acc) ->
+    unparse_blocktrans_args(
+      Args, [["count ", unparse_args([Count])]|Acc]);
+unparse_blocktrans_args([{context, Context}|Args], Acc) ->
+    unparse_blocktrans_args(
+      Args, [["context ", unparse_value(Context)]|Acc]);
+unparse_blocktrans_args([], Acc) ->
+    lists:reverse(Acc).

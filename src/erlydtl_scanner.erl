@@ -36,7 +36,7 @@
 %%%-------------------------------------------------------------------
 -module(erlydtl_scanner).
 
-%% This file was generated 2014-03-21 23:07:32 UTC by slex 0.2.1.
+%% This file was generated 2014-04-15 19:15:09 UTC by slex 0.2.1.
 %% http://github.com/erlydtl/slex
 -slex_source(["src/erlydtl_scanner.slex"]).
 
@@ -87,9 +87,11 @@ is_keyword(any, "as") -> true;
 is_keyword(any, "by") -> true;
 is_keyword(any, "with") -> true;
 is_keyword(any, "from") -> true;
+is_keyword(any, "count") -> true;
+is_keyword(any, "context") -> true;
+is_keyword(any, "noop") -> true;
 is_keyword(close, "only") -> true;
 is_keyword(close, "parsed") -> true;
-is_keyword(close, "noop") -> true;
 is_keyword(close, "reversed") -> true;
 is_keyword(close, "openblock") -> true;
 is_keyword(close, "closeblock") -> true;
@@ -138,6 +140,7 @@ is_keyword(open, "trans") -> true;
 is_keyword(open, "blocktrans") -> true;
 is_keyword(open, "endblocktrans") -> true;
 is_keyword(open, "load") -> true;
+is_keyword(open, "plural") -> true;
 is_keyword(_, _) -> false.
 
 format_error({illegal_char, C}) ->
@@ -181,11 +184,10 @@ scan("#}" ++ T, S, {R, C}, {_, "#}"}) ->
 scan([H | T], S, {R, C} = P, {in_comment, E} = St) ->
     scan(T,
 	 case S of
-	   [{comment_inline, _, L} = M | Ss] ->
+	   [{comment_tag, _, L} = M | Ss] ->
 	       [setelement(3, M, [H | L]) | Ss];
 	   _ ->
-	       [{comment_inline, P, [H]} | post_process(S,
-							comment_inline)]
+	       [{comment_tag, P, [H]} | post_process(S, comment_tag)]
 	 end,
 	 case H of
 	   $\n -> {R + 1, 1};
@@ -540,7 +542,7 @@ post_process(_, {string, _, L} = T, _) ->
     setelement(3, T, begin L1 = lists:reverse(L), L1 end);
 post_process(_, {string_literal, _, L} = T, _) ->
     setelement(3, T, begin L1 = lists:reverse(L), L1 end);
-post_process(_, {comment_inline, _, L} = T, _) ->
+post_process(_, {comment_tag, _, L} = T, _) ->
     setelement(3, T, begin L1 = lists:reverse(L), L1 end);
 post_process(_, {number_literal, _, L} = T, _) ->
     setelement(3, T,

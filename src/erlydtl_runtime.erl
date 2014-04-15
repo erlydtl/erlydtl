@@ -2,7 +2,19 @@
 
 -compile(export_all).
 
--type translate_fun() :: fun((string() | binary()) -> string() | binary() | undefined).
+-type text() :: string() | binary().
+-type phrase() :: text() | {text(), {PluralPhrase::text(), non_neg_integer()}}.
+-type locale() :: term() | {Locale::term(), Context::binary()}.
+
+-type old_translate_fun() :: fun((text()) -> iodata() | default).
+-type new_translate_fun() :: fun((phrase(), locale()) -> iodata() | default).
+-type translate_fun() :: new_translate_fun() | old_translate_fun().
+
+-type init_translation() :: none
+                          | fun (() -> init_translation())
+                          | {M::atom(), F::atom()}
+                          | {M::atom(), F::atom(), A::list()}
+                          | translate_fun().
 
 -define(IFCHANGED_CONTEXT_VARIABLE, erlydtl_ifchanged_context).
 
@@ -98,8 +110,11 @@ find_value(Key, Tuple) when is_tuple(Tuple) ->
     end.
 
 fetch_value(Key, Data, Options) ->
+    fetch_value(Key, Data, Options, []).
+
+fetch_value(Key, Data, Options, Default) ->
     case find_value(Key, Data, Options) of
-        undefined -> [];
+        undefined -> Default;
         Val -> Val
     end.
 
@@ -127,17 +142,45 @@ regroup([Item|Rest], Attribute, [[{grouper, PrevGrouper}, {list, PrevList}]|Acc]
             regroup(Rest, Attribute, [[{grouper, Value}, {list, [Item]}], [{grouper, PrevGrouper}, {list, lists:reverse(PrevList)}]|Acc])
     end.
 
--spec translate(Str, none | translate_fun()) -> Str when
-      Str :: string() | binary().
-translate(String, none) -> String;
-translate(String, TranslationFun)
-  when is_function(TranslationFun) ->
-    case TranslationFun(String) of
-        undefined -> String;
-        <<"">> -> String;
-        "" -> String;
-        Str -> Str
+-spec init_translation(init_translation()) -> none | translate_fun().
+init_translation(none) -> none;
+init_translation(Fun) when is_function(Fun, 0) ->
+    init_translation(Fun());
+init_translation({M, F}) ->
+    init_translation({M, F, []});
+init_translation({M, F, A}) ->
+    init_translation(apply(M, F, A));
+init_translation(Fun)
+  when is_function(Fun, 1); is_function(Fun, 2) -> Fun;
+init_translation(Other) ->
+    throw({translation_fun, Other}).
+
+-spec translate(Phrase, Locale, Fun) -> iodata() | default when
+      Phrase :: phrase(),
+      Locale :: locale(),
+      Fun :: none | translate_fun().
+translate(Phrase, Locale, TranslationFun) ->
+    translate(Phrase, Locale, TranslationFun, trans_text(Phrase)).
+
+translate(_Phrase, _Locale, none, Default) -> Default;
+translate(Phrase, Locale, TranslationFun, Default) ->
+    case do_translate(Phrase, Locale, TranslationFun) of
+        default -> Default;
+        <<"">> -> Default;
+        "" -> Default;
+        Translated ->
+            Translated
     end.
+
+trans_text({Text, _}) -> Text;
+trans_text(Text) -> Text.
+
+do_translate(Phrase, _Locale, TranslationFun)
+  when is_function(TranslationFun, 1) ->
+    TranslationFun(trans_text(Phrase));
+do_translate(Phrase, Locale, TranslationFun)
+  when is_function(TranslationFun, 2) ->
+    TranslationFun(Phrase, Locale).
 
 %% @doc Translate and interpolate 'blocktrans' content.
 %% Pre-requisites:
@@ -145,18 +188,18 @@ translate(String, TranslationFun)
 %%  * Each interpolation variable should exist
 %%    (String="{{a}}", Variables=[{"b", "b-val"}] will fall)
 %%  * Orddict keys should be string(), not binary()
--spec translate_block(string() | binary(), translate_fun(), orddict:orddict()) -> iodata().
-translate_block(String, TranslationFun, Variables) ->
-    TransString = case TranslationFun(String) of
-                      No when (undefined == No)
-                              orelse (<<"">> == No)
-                              orelse ("" == No) -> String;
-                      Str -> Str
-                  end,
-    try interpolate_variables(TransString, Variables)
-    catch _:_ ->
-            %% Fallback to default language in case of errors (like Djando does)
-            interpolate_variables(String, Variables)
+-spec translate_block(phrase(), locale(), orddict:orddict(), none | translate_fun()) -> iodata().
+translate_block(Phrase, Locale, Variables, TranslationFun) ->
+    case translate(Phrase, Locale, TranslationFun, default) of
+        default -> default;
+        Translated ->
+            try interpolate_variables(Translated, Variables)
+            catch
+                {no_close_var, T} ->
+                    io:format(standard_error, "Warning: template translation: variable not closed: \"~s\"~n", [T]),
+                    default;
+                _:_ -> default
+            end
     end.
 
 interpolate_variables(Tpl, []) ->
@@ -168,11 +211,10 @@ interpolate_variables(Tpl, Variables) ->
 interpolate_variables1(Tpl, Vars) ->
     %% pre-compile binary patterns?
     case binary:split(Tpl, <<"{{">>) of
-        [NotFound] ->
-            [NotFound];
+        [Tpl]=NoVars -> NoVars; %% need to enclose in list due to list tail call below..
         [Pre, Post] ->
             case binary:split(Post, <<"}}">>) of
-                [_] -> throw({no_close_var, Post});
+                [_] -> throw({no_close_var, Tpl});
                 [Var, Post1] ->
                     Var1 = string:strip(binary_to_list(Var)),
                     Value = orddict:fetch(Var1, Vars),

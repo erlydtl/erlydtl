@@ -52,6 +52,12 @@ To compile ErlyDTL, run
 in this directory.
 
 
+#### Do not use Erlang R16B03
+
+The erl syntax tools is broken in Erlang R16B03, use R16B03-1 or any
+other supported version instead.
+
+
 Template compilation
 --------------------
 
@@ -93,21 +99,13 @@ Options is a proplist possibly containing:
 * `binary_strings` - Whether to compile strings as binary terms
   (rather than lists). Defaults to `true`.
 
-* `blocktrans_fun` - A two-argument fun to use for translating
-  `blocktrans` blocks, `trans` tags and `_(..)` expressions. This will
-  be called once for each pair of translated element and locale
-  specified in `blocktrans_locales`. The fun should take the form:
-
-  ```erlang
-  Fun(Block::string(), Locale::string()) -> <<"ErlyDTL code">>::binary() | default
-  ```
-
-* `blocktrans_locales` - A list of locales to be passed to
-  `blocktrans_fun`.  Defaults to [].
-
 * `compiler_options` - Proplist with extra options passed directly to
   `compiler:forms/2`. This can prove useful when using extensions to
   add extra defines etc when compiling the generated code.
+
+* `constants` - Replace template variables with a constant value when
+  compiling the template. This can _not_ be overridden when rendering
+  the template. See also `default_vars`.
 
 * `custom_filters_modules` **deprecated** - A list of modules to be
   used for handling custom filters. The modules will be searched in
@@ -165,6 +163,11 @@ Options is a proplist possibly containing:
   by name (when there is a name to module mapping also provided in the
   `libraries` option) or by module.
 
+* `default_vars` - Provide default values for variables. Any value
+  from the render variables takes precedence. Notice: in case the
+  value is a `fun/0`, it will be called at compile time. See also
+  `constants`.
+
 * `doc_root` - Included template paths will be relative to this
   directory; defaults to the compiled template's directory.
 
@@ -184,7 +187,12 @@ Options is a proplist possibly containing:
   decide until render time, using the render option
   `lists_0_based`. See also `tuples_0_based`.
 
-* `locale` **deprecated** - The same as {blocktrans_locales, [Val]}.
+* `locale` - Locale to translate to during compile time. May be
+  specified multiple times as well as together with the `locales`
+  option.
+
+* `locales` - A list of locales to be passed to `translation_fun`.
+  Defaults to [].
 
 * `no_env` - Do not read additional options from the OS environment
   variable `ERLYDTL_COMPILER_OPTIONS`.
@@ -221,6 +229,36 @@ Options is a proplist possibly containing:
 
 * `report_errors` - Print errors as they occur.
 
+* `translation_fun` - A two-argument fun to use for translating
+  `blocktrans` blocks, `trans` tags and `_(..)` expressions at compile
+  time. This will be called once for each pair of translated element
+  and locale specified with `locales` and `locale` options. The fun
+  should take the form:
+
+  ```erlang
+  fun (Block::string(), Locale|{Locale, Context}) ->
+      <<"ErlyDTL code">>::binary() | default
+    when Locale::string(), Context::string().
+  ```
+
+  See description of the `translation_fun` render option for more
+  details on the translation `context`.
+
+  Notice, you may instead pass a `fun/0`, `{Module, Function}` or
+  `{Module, Function, Args}` which will be called recursively until it
+  yields a valid translation function, at which time any needed
+  translation setup actions can be carried out prior to returning the
+  next step (either another setup function/tuple, or the translation
+  function).
+
+  ```erlang
+  %% sample translation setup
+  fun () ->
+      translation_engine:init(),
+      fun translation_engine:translate/2
+  end
+  ```
+
 * `tuples_0_based` - **Compatibility warning** Defaults to `false`,
   giving 1-based tuple access, as is common practice in Erlang. Set it
   to `true` to get 1-based access as in Django, or to `defer` to not
@@ -228,9 +266,10 @@ Options is a proplist possibly containing:
   `tuples_0_based`. See also `lists_0_based`.
 
 
-* `vars` - Variables (and their values) to evaluate at compile-time
-  rather than render-time. (Currently not strictly true, see
-  [#61](https://github.com/erlydtl/erlydtl/issues/61))
+* `vars` **deprecated** - Use `default_vars` instead. Variables (and
+  their values) to evaluate at compile-time rather than
+  render-time.
+
 
 * `verbose` - Enable verbose printing of compilation progress. Add
   several for even more verbose (e.g. debug) output.
@@ -291,11 +330,45 @@ my_compiled_template:render(Variables, Options) -> {ok, IOList} | {error, Err}
 
 Same as `render/1`, but with the following options:
 
-* `translation_fun` - A fun/1 that will be used to translate strings
-  appearing inside `{% trans %}` and `{% blocktrans %}` tags. The
-  simplest TranslationFun would be `fun(Val) -> Val end`. Placeholders
-  for blocktrans variable interpolation should be wrapped to `{{` and
-  `}}`.
+* `translation_fun` - A `fun/1` or `fun/2` that will be used to
+  translate strings appearing inside `{% trans %}` and `{% blocktrans
+  %}` tags at render-time. The simplest TranslationFun would be
+  `fun(Val) -> Val end`. Placeholders for blocktrans variable
+  interpolation should be wrapped in `{{` and `}}`. In case of
+  `fun/2`, the extra argument is the current locale, possibly together
+  with a translation context in a tuple:
+
+  ```erlang
+  fun (Val|{Val, {Plural_Val, Count}}, Locale|{Locale, Context}) ->
+      Translated_Val
+  end
+  ```
+
+  The context is present when specified in the translation
+  tag. Example:
+
+  ```django
+  {% trans "Some text to translate" context "app-specific" %}
+    or
+  {% blocktrans context "another-context" %}
+    Translate this for {{ name }}.
+  {% endblocktrans %}
+  ```
+
+  The plural form is present when using `count` and `plural` in a
+  `blocktrans` block:
+
+  ```django
+  {% blocktrans count counter=var|length %}
+    There is {{ counter }} element in the list.
+  {% plural %}
+    There are {{ counter }} elements in the list.
+  {% endblocktrans %}
+  ```
+
+  Notice, the translation fun can also be a `fun/0` or a MFA-tuple to
+  setup the translation prior to rendering. See the `translation_fun`
+  compile option for more details.
 
 * `lists_0_based` - If the compile option `lists_0_based` was set to
   `defer`, pass this option (or set it to true, `{lists_0_based,
@@ -303,7 +376,7 @@ Same as `render/1`, but with the following options:
   template. See also `tuples_0_based`.
 
 * `locale` - A string specifying the current locale, for use with the
-  `blocktrans_fun` compile-time option.
+  `translation_fun` compile-time option.
 
 * `tuples_0_based` - If the compile option `tuples_0_based` was set to
   `defer`, pass this option (or set it to true, `{tuples_0_based,
@@ -364,6 +437,27 @@ can be used for determining which variable bindings need to be passed
 to the `render/3` function.
 
 
+### default_variables/0
+
+```erlang
+my_compiled_template:default_variables() -> [Variable::atom()]
+```
+
+Like `variables/0`, but for any variable which have a default value
+provided at compile time.
+
+
+### constants/0
+
+```erlang
+my_compiled_template:constants() -> [Variable::atom()]
+```
+
+Like `default_variables/0`, but these template variables has been
+replaced with a fixed value at compile time and can not be changed
+when rendering the template.
+
+
 Custom tags and filters
 -----------------------
 
@@ -410,6 +504,9 @@ Differences from standard Django Template Language
 * For an up-to-date list, see all
   [issues](https://github.com/erlydtl/erlydtl/issues) marked
   `dtl_compat`.
+* Erlang specifics: Template variables may be prefixed with underscore
+  (`_`) to avoid "unused variable" warnings (see
+  [#164](https://github.com/erlydtl/erlydtl/issues/164)).
 
 
 Tests
@@ -420,6 +517,3 @@ From a Unix shell, run:
     make tests
 
 Note that the tests will create some output in tests/output in case of regressions.
-
-
-[![Bitdeli Badge](https://d2weczhvl823v0.cloudfront.net/erlydtl/erlydtl/trend.png)](https://bitdeli.com/free "Bitdeli Badge")

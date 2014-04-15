@@ -5,6 +5,33 @@ suggested by the [GNU Coding
 Standards](http://www.gnu.org/prep/standards/html_node/NEWS-File.html#NEWS-File).
 
 
+## 0.9.4 (2014-04-15)
+
+* Fix compile time variables and constants (#61)
+
+* The `vars` compile time option has been deprecated in favor of
+  `default_vars`.
+
+* Support for translation contexts (#131)
+
+  `context` is now a reserved keyword.
+
+* Support for plural forms in `blocktrans` blocks (#131)
+
+  As a side effect of the this, `count` and `plural` are now reserved
+  keywords (the latter only as the tag name).
+
+* Renamed compile options for `translation_fun` and `locales` to align
+  with the render options counter parts.
+
+* Support `_` prefix on template variables to avoid unused variable
+  warnings, Erlang style (#164).
+
+* Switched to `eunit_formatters` by @seancribbs for improved eunit reporting.
+
+* All tests pass on Erlang 17.0! :)
+
+
 ## 0.9.3 (2014-03-27)
 
 * Fix release process to work for non-git installations (#154).
