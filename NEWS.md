@@ -25,3 +25,5 @@ Standards](http://www.gnu.org/prep/standards/html_node/NEWS-File.html#NEWS-File)
 
 * Support `_` prefix on template variables to avoid unused variable
   warnings, Erlang style (#164).
+
+* Switched to `eunit_formatters` by @seancribbs for improved eunit reporting.
