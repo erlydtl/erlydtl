@@ -27,3 +27,5 @@ Standards](http://www.gnu.org/prep/standards/html_node/NEWS-File.html#NEWS-File)
   warnings, Erlang style (#164).
 
 * Switched to `eunit_formatters` by @seancribbs for improved eunit reporting.
+
+* All tests pass on Erlang 17.0! :)
