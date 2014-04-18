@@ -289,17 +289,13 @@ maybe_debug_template(Forms, Context) ->
                                    SourceFile,
                                    Context#dtl_context.doc_root),
                                        Dir),
-                               case filelib:is_dir(Dir) of
-                                   true -> Abs;
-                                   false ->
-                                       case filelib:ensure_dir(Abs) of
-                                           ok -> Abs;
-                                           {error, Reason} ->
-                                               io:format(
-                                                 "Failed to ensure directories for file '~s': ~p~n",
-                                                 [Abs, Reason]),
-                                               undefined
-                                       end
+                               case filelib:ensure_dir(Abs) of
+                                   ok -> Abs;
+                                   {error, Reason} ->
+                                       io:format(
+                                         "Failed to ensure directories for file '~s': ~p~n",
+                                         [Abs, Reason]),
+                                       undefined
                                end
                        end,
                 if File =/= undefined ->
