@@ -1656,7 +1656,7 @@ all_test_defs() ->
                 "var", "var_preset", "cycle", "custom_tag", "custom_tag1",
                 "custom_tag2", "custom_tag3", "custom_tag4", "custom_call",
                 "include_template", "include_path", "ssi", "extends_path",
-                "extends_path2", "trans", "extends2", "extends3",
+                "extends_path2", "trans", "extends_for", "extends2", "extends3",
                 "recursive_block", "extend_recursive_block", "missing",
                 "block_super"]
       ]},
@@ -1801,6 +1801,9 @@ setup_compile("ifnotequal_preset") ->
 setup_compile("var_preset") ->
     CompileVars = [{preset_var1, "preset-var1"}, {preset_var2, "preset-var2"}],
     {ok, [CompileVars]};
+setup_compile("extends_for") ->
+	CompileVars = [{veggie_list, ["broccoli", "beans", "peas", "carrots"]}],
+	{ok, [CompileVars]};
 setup_compile("extends2") ->
     File = template_file(input, "extends2"),
     Error = {none, erlydtl_beam_compiler, unexpected_extends_tag},
