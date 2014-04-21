@@ -6,3 +6,4 @@ Standards](http://www.gnu.org/prep/standards/html_node/NEWS-File.html#NEWS-File)
 
 ## master (upcoming release)
 
+* Fixed issue with generated code for `for` loops (#167).

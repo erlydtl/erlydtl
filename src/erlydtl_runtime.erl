@@ -361,12 +361,17 @@ increment_counter_stats([{counter, Counter}, {counter0, Counter0}, {revcounter, 
      {first, false}, {last, RevCounter0 =:= 1},
      {parentloop, Parent}].
 
-forloop(_Fun, [], _Parent) -> empty;
-forloop(Fun, Values, Parent) ->
+forloop(_Fun, [], _Parent, Default) -> Default;
+forloop(Fun, Values, Parent, _Default) ->
     push_ifchanged_context(),
-    Result = lists:mapfoldl(Fun, init_counter_stats(Values, Parent), Values),
+    {Result, _Acc} = lists:mapfoldl(Fun, init_counter_stats(Values, Parent), Values),
     pop_ifchanged_context(),
     Result.
+
+%% keep old version for backwards compatibility..
+forloop(_Fun, [], _Parent) -> empty;
+forloop(Fun, Values, Parent) ->
+    {forloop(Fun, Values, Parent, undefined), undefined}.
 
 push_ifchanged_context() ->
     IfChangedContextStack = case get(?IFCHANGED_CONTEXT_VARIABLE) of
