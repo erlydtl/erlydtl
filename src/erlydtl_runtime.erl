@@ -51,6 +51,11 @@ adjust_index(Key, _Off, _Opt, _Options) -> Key.
 
 find_value(_, undefined) ->
     undefined;
+find_value(Key, Map) when is_map(Map) ->
+    case maps:find(Key, Map) of
+        error           -> undefined;
+        {ok, Value}     -> Value
+    end;
 find_value(Key, Fun) when is_function(Fun, 1) ->
     Fun(Key);
 find_value(Key, L) when is_atom(Key), is_list(L) ->
