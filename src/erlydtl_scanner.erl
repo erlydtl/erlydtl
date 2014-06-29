@@ -36,7 +36,7 @@
 %%%-------------------------------------------------------------------
 -module(erlydtl_scanner).
 
-%% This file was generated 2014-04-15 19:15:09 UTC by slex 0.2.1.
+%% This file was generated 2014-06-29 19:46:00 UTC by slex 0.2.1-2-g7814678.
 %% http://github.com/erlydtl/slex
 -slex_source(["src/erlydtl_scanner.slex"]).
 
@@ -563,6 +563,10 @@ post_process([{open_tag, _, _} | _],
 post_process([{open_tag, _, _} | _],
 	     {identifier, _, L} = T, _) ->
     is_keyword(open_tag, T);
+post_process([{'.', _} | _], {identifier, _, L} = T,
+	     _) ->
+    setelement(3, T,
+	       begin L1 = lists:reverse(L), L2 = to_atom(L1), L2 end);
 post_process(_, {identifier, _, L} = T, close_tag) ->
     is_keyword(close_tag, T);
 post_process(_, {identifier, _, L} = T, _) ->

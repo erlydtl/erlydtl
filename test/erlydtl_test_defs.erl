@@ -139,7 +139,11 @@ all_test_defs() ->
        {"Index all tuple elements 1-based (selected at render time)",
         <<"{{ var1.1 }},{{ var1.2 }},{{ var1.3 }}.">>,
         [{var1, {a, b, c}}], [], [{tuples_0_based, defer}],
-        <<"a,b,c.">>}
+        <<"a,b,c.">>},
+       {"Index tuple using a \"reserved\" keyword",
+        <<"{{ list.count }}">>,
+        [{list, [{count, 123}]}],
+        <<"123">>}
       ]},
      {"now",
       [{"now functional",
