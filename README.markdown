@@ -52,10 +52,22 @@ To compile ErlyDTL, run
 in this directory.
 
 
+
 #### Do not use Erlang R16B03
 
 The erl syntax tools is broken in Erlang R16B03, use R16B03-1 or any
 other supported version instead.
+
+#### Merl Compalation Error
+If you get an error message like this when you try to include erlydtl with rebar then you probably need to update to the most recent version of rebar. Older versions of rebar don't know how to handle the [raw] includes that merl needs
+
+````
+ERROR: Invalid dependency specification {merl,".*",
+                                         {git,
+                                          "git://github.com/erlydtl/merl.git",
+                                          "28e5b3829168199e8475fa91b997e0c03b90d280"},
+                                         [raw]} 
+````
 
 
 Template compilation
