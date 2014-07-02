@@ -289,6 +289,12 @@ Options is a proplist possibly containing:
 * `verbose` - Enable verbose printing of compilation progress. Add
   several for even more verbose (e.g. debug) output.
 
+* `w` - Enable/Disable compile time checks.
+
+  Available checks:
+  - `non_block_tag` indicated that there is other data than `block` tags in an extends-template
+    (e.g. a template that begins with the `extends` tag).
+
 * `warnings_as_errors` - Treat warnings as errors.
 
 

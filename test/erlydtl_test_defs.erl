@@ -1662,7 +1662,7 @@ all_test_defs() ->
                 "include_template", "include_path", "ssi", "extends_path",
                 "extends_path2", "trans", "extends_for", "extends2", "extends3",
                 "recursive_block", "extend_recursive_block", "missing",
-                "block_super", "wrapper"]
+                "block_super", "wrapper", "extends4"]
       ]},
      {"compile_dir",
       [setup_compile(T)
@@ -1769,10 +1769,13 @@ functional_test(F) ->
 setup_compile(#test{ title=F, compile_opts=Opts }=T) ->
     CompileOpts = [{doc_root, "../test/files/input"}|Opts],
     case setup_compile(F) of
-        {ok, [CV|CO]} ->
+        {ok, [CV|Other]} ->
+            CO = proplists:get_value(compile_opts, Other, []),
+            Ws = proplists:get_value(warnings, Other, []),
             setup(T#test{
                     compile_vars = CV,
-                    compile_opts = CO ++ CompileOpts
+                    compile_opts = CO ++ CompileOpts,
+                    warnings = Ws
                    });
         {error, Es, Ws} ->
             T#test{
@@ -1817,12 +1820,16 @@ setup_compile("extends3") ->
     Include = template_file(input, "imaginary"),
     Error = {none, erlydtl_beam_compiler, {read_file, Include, enoent}},
     {error, [{File, [Error]}], []};
+setup_compile("extends4") ->
+    File = template_file(input, "extends4"),
+    Warning = {{1,21}, erlydtl_beam_compiler, non_block_tag},
+    {ok, [[]|[{warnings, [{File, [Warning]}]}]]};
 setup_compile("missing") ->
     File = template_file(input, "missing"),
     Error = {none, erlydtl_compiler, {read_file, File, enoent}},
     {error, [{File, [Error]}], []};
 setup_compile("custom_tag") ->
-    {ok, [[]|[{custom_tags_modules, [erlydtl_custom_tags]}]]};
+    {ok, [[]|[{compile_opts, [{custom_tags_modules, [erlydtl_custom_tags]}]}]]};
 setup_compile("custom_tag1") -> setup_compile("custom_tag");
 setup_compile("custom_tag2") -> setup_compile("custom_tag");
 setup_compile("custom_tag3") -> setup_compile("custom_tag");

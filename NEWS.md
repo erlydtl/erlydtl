@@ -11,3 +11,6 @@ Standards](http://www.gnu.org/prep/standards/html_node/NEWS-File.html#NEWS-File)
 * Fix issue with using keywords as attributes (#177).
 
 * Fix issue when including multiple templates extending a common base template (#176).
+
+* New `w` option for toggling compile time warnings. Currently, there is only one, `non_block_tag`,
+  which is triggered on any non-block data in an extends-template.

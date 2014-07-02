@@ -59,6 +59,7 @@
          full_path/2,
          get_current_file/1,
          init_treewalker/1,
+         is_stripped_token_empty/1,
          load_library/2, load_library/3, load_library/4,
          merge_info/2,
          print/3, print/4,
@@ -71,7 +72,8 @@
          to_string/2,
          unescape_string_literal/1,
          push_auto_escape/2,
-         pop_auto_escape/1
+         pop_auto_escape/1,
+         token_pos/1
         ]).
 
 -include("erlydtl_ext.hrl").
@@ -302,6 +304,25 @@ pop_auto_escape(#dtl_context{ auto_escape=[_|AutoEscape] }=Context)
   when length(AutoEscape) > 0 ->
     Context#dtl_context{ auto_escape=AutoEscape };
 pop_auto_escape(Context) -> Context.
+
+
+token_pos(Token) when is_tuple(Token) ->
+    token_pos(tuple_to_list(Token));
+token_pos([T|Ts]) when is_tuple(T) ->
+    case T of
+        {R, C}=P when is_integer(R), is_integer(C) -> P;
+        _ -> token_pos(tuple_to_list(T) ++ Ts)
+    end;
+token_pos([T|Ts]) when is_list(T) -> token_pos(T ++ Ts);
+token_pos([_|Ts]) -> token_pos(Ts);
+token_pos([]) -> none.
+
+is_stripped_token_empty({string, _, S}) ->
+    [] == [C || C <- S, C /= 32, C /= $\r, C /= $\n, C /= $\t];
+is_stripped_token_empty({comment, _}) -> true;
+is_stripped_token_empty({comment_tag, _, _}) -> true;
+is_stripped_token_empty(_) -> false.
+
 
 format_error({load_library, Name, Mod, Reason}) ->
     io_lib:format("Failed to load library '~p' (~p): ~p", [Name, Mod, Reason]);

@@ -1,0 +1,3 @@
+{% extends "base" %}
+
+bad, only block level tags should be here..

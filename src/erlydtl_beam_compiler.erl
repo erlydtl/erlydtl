@@ -65,7 +65,7 @@
          init_treewalker/1, resolve_variable/2, resolve_variable/3,
          reset_block_dict/2, reset_parse_trail/2, load_library/3,
          load_library/4, shorten_filename/2, push_auto_escape/2,
-         pop_auto_escape/1]).
+         pop_auto_escape/1, token_pos/1, is_stripped_token_empty/1]).
 
 -include_lib("merl/include/merl.hrl").
 -include("erlydtl_ext.hrl").
@@ -112,6 +112,8 @@ format_error({translation_fun, Fun}) ->
                            io_lib:format("~s:~s/~p", [proplists:get_value(K, Info) || K <- [module, name, arity]]);
                       true -> io_lib:format("~p", [Fun])
                    end]);
+format_error(non_block_tag) ->
+    "Non-block tag in extends-template.";
 format_error(Error) ->
     erlydtl_compiler:format_error(Error).
 
@@ -523,29 +525,40 @@ body_ast([{'extends', {string_literal, _Pos, String}} | ThisParseTree], #treewal
         _ ->
             case parse_file(File, Context) of
                 {ok, ParentParseTree, CheckSum} ->
-                    BlockDict = lists:foldl(
-                                  fun ({block, {identifier, _, Name}, Contents}, Dict) ->
-                                          dict:store(Name, Contents, Dict);
-                                      (_, Dict) -> Dict
-                                  end,
-                                  dict:new(),
-                                  ThisParseTree),
+                    {BlockDict, Context1} = lists:foldl(
+                                              fun ({block, {identifier, _, Name}, Contents}, {Dict, Ctx}) ->
+                                                      {dict:store(Name, Contents, Dict), Ctx};
+                                                  (Token, {Dict, Ctx}) ->
+                                                      case proplists:get_bool(non_block_tag, Ctx#dtl_context.checks) of
+                                                          true ->
+                                                              case is_stripped_token_empty(Token) of
+                                                                  false ->
+                                                                      {Dict, ?WARN({token_pos(Token), non_block_tag}, Ctx)};
+                                                                  true ->
+                                                                      {Dict, Ctx}
+                                                              end;
+                                                          false ->
+                                                              {Dict, Ctx}
+                                                      end
+                                              end,
+                                              {dict:new(), Context},
+                                              ThisParseTree),
                     {Info, TreeWalker1} = with_dependency(
                                             {File, CheckSum},
                                             body_ast(
                                               ParentParseTree,
                                               TreeWalker#treewalker{
-                                                context=Context#dtl_context{
+                                                context=Context1#dtl_context{
                                                           block_dict = dict:merge(
                                                                          fun(_Key, _ParentVal, ChildVal) -> ChildVal end,
                                                                          BlockDict, Context#dtl_context.block_dict),
-                                                          parse_trail = [File | Context#dtl_context.parse_trail]
+                                                          parse_trail = [File | Context1#dtl_context.parse_trail]
                                                          }
                                                })),
                     {Info, reset_parse_trail(
-                             Context#dtl_context.parse_trail,
+                             Context1#dtl_context.parse_trail,
                              reset_block_dict(
-                               Context#dtl_context.block_dict,
+                               Context1#dtl_context.block_dict,
                                TreeWalker1))};
                 {error, Reason} ->
                     empty_ast(?ERR(Reason, TreeWalker))
