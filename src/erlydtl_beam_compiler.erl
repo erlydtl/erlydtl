@@ -276,7 +276,9 @@ maybe_debug_template(Forms, Context) ->
             Options = Context#dtl_context.compiler_options,
             ?LOG_DEBUG("Compiler options: ~p~n", [Options], Context),
             try
-                Source = erl_prettypr:format(erl_syntax:form_list(Forms)),
+                Source = erl_prettypr:format(
+                           erl_syntax:form_list(Forms),
+                           [{ribbon, 100}, {paper, 200}]),
                 SourceFile = lists:concat(
                                [proplists:get_value(source, Options),".erl"]),
                 File = case proplists:get_value(
@@ -740,13 +742,13 @@ extension_ast(Tag, TreeWalker) ->
     end.
 
 
-with_dependencies([], Args) ->
-    Args;
-with_dependencies([Dependency | Rest], Args) ->
-    with_dependencies(Rest, with_dependency(Dependency, Args)).
+with_dependencies([], Ast) -> Ast;
+with_dependencies([Dependency | Rest], Ast) ->
+    with_dependencies(Rest, with_dependency(Dependency, Ast)).
 
 with_dependency(FilePath, {{Ast, Info}, TreeWalker}) ->
-    {{Ast, Info#ast_info{dependencies = [FilePath | Info#ast_info.dependencies]}}, TreeWalker}.
+    Dependencies = [FilePath | Info#ast_info.dependencies],
+    {{Ast, Info#ast_info{ dependencies = Dependencies }}, TreeWalker}.
 
 
 empty_ast(TreeWalker) ->
@@ -975,6 +977,7 @@ string_ast(Arg, Context) ->
 
 include_ast(File, ArgList, Scopes, #treewalker{ context=Context }=TreeWalker) ->
     FilePath = full_path(File, Context#dtl_context.doc_root),
+    ?LOG_TRACE("include file: ~s~n", [FilePath], Context),
     case parse_file(FilePath, Context) of
         {ok, InclusionParseTree, CheckSum} ->
             {NewScope, {ArgInfo, TreeWalker1}}

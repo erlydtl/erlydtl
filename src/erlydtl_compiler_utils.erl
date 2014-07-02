@@ -400,9 +400,9 @@ resolve_variable1([Scope|Scopes], VarName) ->
 
 merge_info1(1, _, _, Info) -> Info;
 merge_info1(FieldIdx, Info1, Info2, Info) ->
-    Value = lists:merge(
-              lists:sort(element(FieldIdx, Info1)),
-              lists:sort(element(FieldIdx, Info2))),
+    Value = lists:umerge(
+              lists:usort(element(FieldIdx, Info1)),
+              lists:usort(element(FieldIdx, Info2))),
     merge_info1(FieldIdx - 1, Info1, Info2, setelement(FieldIdx, Info, Value)).
 
 get_scope({_Id, Scope, _Values}) -> Scope;
