@@ -63,6 +63,7 @@
          merge_info/2,
          print/3, print/4,
          push_scope/2,
+         reset_block_dict/2,
          reset_parse_trail/2,
          resolve_variable/2, resolve_variable/3,
          restore_scope/2,
@@ -229,6 +230,11 @@ end_scope(Fun, Id, AstList, TreeWalker) ->
     close_scope(Fun, Id, AstList, TreeWalker).
 
 empty_scope() -> {[], []}.
+
+reset_block_dict(BlockDict, #treewalker{ context=Context }=TreeWalker) ->
+    TreeWalker#treewalker{ context=reset_block_dict(BlockDict, Context) };
+reset_block_dict(BlockDict, Context) ->
+    Context#dtl_context{ block_dict=BlockDict }.
 
 reset_parse_trail(ParseTrail, #treewalker{ context=Context }=TreeWalker) ->
     TreeWalker#treewalker{ context=reset_parse_trail(ParseTrail, Context) };

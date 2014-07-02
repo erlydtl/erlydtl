@@ -9,3 +9,5 @@ Standards](http://www.gnu.org/prep/standards/html_node/NEWS-File.html#NEWS-File)
 * Fix issue with generated code for `for` loops (#167).
 
 * Fix issue with using keywords as attributes (#177).
+
+* Fix issue when including multiple templates extending a common base template (#176).

@@ -63,8 +63,9 @@
          empty_scope/0, get_current_file/1, add_errors/2,
          add_warnings/2, merge_info/2, call_extension/3,
          init_treewalker/1, resolve_variable/2, resolve_variable/3,
-         reset_parse_trail/2, load_library/3, load_library/4,
-         shorten_filename/2, push_auto_escape/2, pop_auto_escape/1]).
+         reset_block_dict/2, reset_parse_trail/2, load_library/3,
+         load_library/4, shorten_filename/2, push_auto_escape/2,
+         pop_auto_escape/1]).
 
 -include_lib("merl/include/merl.hrl").
 -include("erlydtl_ext.hrl").
@@ -539,7 +540,11 @@ body_ast([{'extends', {string_literal, _Pos, String}} | ThisParseTree], #treewal
                                                           parse_trail = [File | Context#dtl_context.parse_trail]
                                                          }
                                                })),
-                    {Info, reset_parse_trail(Context#dtl_context.parse_trail, TreeWalker1)};
+                    {Info, reset_parse_trail(
+                             Context#dtl_context.parse_trail,
+                             reset_block_dict(
+                               Context#dtl_context.block_dict,
+                               TreeWalker1))};
                 {error, Reason} ->
                     empty_ast(?ERR(Reason, TreeWalker))
             end

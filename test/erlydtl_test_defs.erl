@@ -1652,7 +1652,7 @@ all_test_defs() ->
       end},
      {"functional",
       [functional_test(F)
-       %% order is important.
+       %% order is important for a few of these tests, unfortunately.
        || F <- ["autoescape", "comment", "extends", "filters", "for", "for_list",
                 "for_tuple", "for_list_preset", "for_preset", "for_records",
                 "for_records_preset", "include", "if", "if_preset", "ifequal",
@@ -1662,7 +1662,7 @@ all_test_defs() ->
                 "include_template", "include_path", "ssi", "extends_path",
                 "extends_path2", "trans", "extends_for", "extends2", "extends3",
                 "recursive_block", "extend_recursive_block", "missing",
-                "block_super"]
+                "block_super", "wrapper"]
       ]},
      {"compile_dir",
       [setup_compile(T)
@@ -1943,6 +1943,10 @@ setup("custom_tag4") ->
 setup("ssi") ->
     RenderVars = [{path, "ssi_include.html"}],
     {ok, RenderVars};
+setup("wrapper") ->
+    RenderVars = [{types, ["b", "a", "c"]}],
+    {ok, RenderVars};
+
 %%--------------------------------------------------------------------
 %% Custom tags
 %%--------------------------------------------------------------------

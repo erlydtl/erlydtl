@@ -1,0 +1,12 @@
+{% for type in types %}
+    {% if type=="a" %}
+        including base a now
+        {% include "base_a" %}
+    {% elif type=="b" %}
+        including base b now
+        {% include "base_b" %}
+    {% else %}
+        including base c now
+        {% include "base_c" %}
+    {% endif %}
+{% endfor %}
