@@ -1668,7 +1668,7 @@ all_test_defs() ->
                 "include_template", "include_path", "ssi", "extends_path",
                 "extends_path2", "trans", "extends_for", "extends2", "extends3",
                 "recursive_block", "extend_recursive_block", "missing",
-                "block_super", "wrapper", "extends4"]
+                "block_super", "wrapper", "extends4", "super_escaped"]
       ]},
      {"compile_dir",
       [setup_compile(T)
@@ -1840,6 +1840,8 @@ setup_compile("custom_tag1") -> setup_compile("custom_tag");
 setup_compile("custom_tag2") -> setup_compile("custom_tag");
 setup_compile("custom_tag3") -> setup_compile("custom_tag");
 setup_compile("custom_tag4") -> setup_compile("custom_tag");
+setup_compile("super_escaped") ->
+    {ok, [[]|[{compile_opts, [auto_escape]}]]};
 setup_compile(_) ->
     {ok, [[]]}.
 
