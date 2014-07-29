@@ -202,12 +202,12 @@ resolve_variable(VarName, Default, #treewalker{ context=Context }) ->
             case proplists:get_value(VarName, Context#dtl_context.const) of
                 undefined ->
                     case proplists:get_value(VarName, Context#dtl_context.vars) of
-                        undefined -> {default, Default};
-                        Value -> {default_vars, Value}
+                        undefined -> {default, Default, []};
+                        Value -> {default_vars, Value, []}
                     end;
-                Value -> {constant, Value}
+                Value -> {constant, Value, []}
             end;
-        Value -> {scope, Value}
+        {Value, Filters} -> {scope, Value, Filters}
     end.
 
 push_scope(Scope, #treewalker{ context=Context }=TreeWalker) ->
@@ -413,11 +413,17 @@ pos_info({Line, Col}) when is_integer(Line), is_integer(Col) ->
 
 resolve_variable1([], _VarName) -> undefined;
 resolve_variable1([Scope|Scopes], VarName) ->
-    case proplists:get_value(VarName, get_scope(Scope)) of
-        undefined ->
+    case lists:keyfind(VarName, 1, get_scope(Scope)) of
+        false ->
             resolve_variable1(Scopes, VarName);
-        Value -> Value
+        {_, Value} -> {Value, []};
+        {_, Value, Filters} when is_list(Filters) -> {Value, Filters};
+        {_, Value, Filter} when is_atom(Filter) -> {Value, [{Filter, []}]};
+        {_, Value, Filter} -> {Value, [Filter]}
     end.
+
+get_scope({_Id, Scope, _Values}) -> Scope;
+get_scope(Scope) -> Scope.
 
 merge_info1(1, _, _, Info) -> Info;
 merge_info1(FieldIdx, Info1, Info2, Info) ->
@@ -425,9 +431,6 @@ merge_info1(FieldIdx, Info1, Info2, Info) ->
               lists:usort(element(FieldIdx, Info1)),
               lists:usort(element(FieldIdx, Info2))),
     merge_info1(FieldIdx - 1, Info1, Info2, setelement(FieldIdx, Info, Value)).
-
-get_scope({_Id, Scope, _Values}) -> Scope;
-get_scope(Scope) -> Scope.
 
 close_scope(Fun, Id, AstList, TreeWalker) ->
     case merge_scopes(Id, TreeWalker) of

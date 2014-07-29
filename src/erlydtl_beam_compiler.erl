@@ -582,7 +582,7 @@ body_ast(DjangoParseTree, BodyScope, TreeWalker) ->
                             {{ContentsAst, _ContentsInfo}, _ContentsTW} = body_ast(Contents, TW),
                             {ChildBlock,
                              create_scope(
-                               [{block, ?Q("[{super, _@ContentsAst}]")}],
+                               [{block, ?Q("[{super, _@ContentsAst}]"), safe}],
                                Pos, TW)
                             };
                         _ ->
@@ -1179,7 +1179,8 @@ resolve_variable_ast1({attribute, {{_, Pos, Attr}, Variable}}, {Runtime, Finder}
      TreeWalker1};
 
 resolve_variable_ast1({variable, {identifier, Pos, VarName}}, {Runtime, Finder}, TreeWalker) ->
-    Ast = case resolve_variable(VarName, TreeWalker) of
+    {Source, Value, Filters} = resolve_variable(VarName, TreeWalker),
+    Ast = case {Source, Value} of
               {_, undefined} ->
                   FileName = get_current_file(TreeWalker),
                   {?Q(["'@Runtime@':'@Finder@'(",
@@ -1208,14 +1209,30 @@ resolve_variable_ast1({variable, {identifier, Pos, VarName}}, {Runtime, Finder},
               {scope, Val} ->
                   {Val, #ast_info{}}
           end,
-    {Ast, TreeWalker}.
+    lists:foldr(
+      fun ({escape, []}, {{AccAst, AccInfo}, TW}) ->
+              {{?Q("erlydtl_filters:force_escape(_@AccAst)"), AccInfo}, TW#treewalker{ safe = true }};
+          ({Safe, []}, {Acc, TW}) when Safe == safe; Safe == safeseq ->
+              {Acc, TW#treewalker{ safe = true }};
+          ({Filter, Args}, {{AccAst, AccInfo}, TW})
+            when is_atom(Filter), is_list(Args) ->
+              case filter_ast2(Filter, [AccAst|Args], TW#treewalker.context) of
+                  {ok, FilteredAst} ->
+                      {{FilteredAst, AccInfo}, TW};
+                  Error ->
+                      empty_ast(?WARN({Pos, Error}, TW))
+              end
+      end,
+      {Ast, TreeWalker},
+      Filters
+     ).
 
 resolve_reserved_variable(ReservedName, TreeWalker) ->
     resolve_reserved_variable(ReservedName, merl:term(undefined), TreeWalker).
 
 resolve_reserved_variable(ReservedName, Default, TreeWalker) ->
     case resolve_variable(ReservedName, Default, TreeWalker) of
-        {Src, Value} when Src =:= scope; Value =:= Default ->
+        {Src, Value, []} when Src =:= scope; Value =:= Default ->
             {Value, TreeWalker};
         _ ->
             {Default, ?ERR({reserved_variable, ReservedName}, TreeWalker)}
@@ -1532,9 +1549,14 @@ call_ast(Module, Variable, AstInfo, TreeWalker) ->
 create_scope(Vars, VarScope) ->
     {Scope, Values} =
         lists:foldl(
-          fun ({Name, Value}, {VarAcc, ValueAcc}) ->
+          fun (Var, {VarAcc, ValueAcc}) ->
+                  {Name, Value, Filters} =
+                      case Var of
+                          {N, V} -> {N, V, []};
+                          {_, _, _} -> Var
+                      end,
                   NameAst = varname_ast(lists:concat(["_", Name, VarScope])),
-                  {[{Name, NameAst}|VarAcc],
+                  {[{Name, NameAst, Filters}|VarAcc],
                    [?Q("_@NameAst = _@Value")|ValueAcc]
                   }
           end,
