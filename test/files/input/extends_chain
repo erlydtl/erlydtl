@@ -1,0 +1,6 @@
+{% extends "super_escaped" %}
+
+{% block my_block %}
+    {{ block.super }}
+    <p>C</p>
+{% endblock %}

@@ -518,6 +518,7 @@ options_match_ast(Context, TreeWalker) ->
 
 %% child templates should only consist of blocks at the top level
 body_ast([{'extends', {string_literal, _Pos, String}} | ThisParseTree], #treewalker{ context=Context }=TreeWalker) ->
+    ThisFile = get_current_file(Context),
     File = full_path(unescape_string_literal(String), Context#dtl_context.doc_root),
     case lists:member(File, Context#dtl_context.parse_trail) of
         true ->
@@ -526,8 +527,8 @@ body_ast([{'extends', {string_literal, _Pos, String}} | ThisParseTree], #treewal
             case parse_file(File, Context) of
                 {ok, ParentParseTree, CheckSum} ->
                     {BlockDict, Context1} = lists:foldl(
-                                              fun ({block, {identifier, _, Name}, Contents}, {Dict, Ctx}) ->
-                                                      {dict:store(Name, Contents, Dict), Ctx};
+                                              fun ({block, {identifier, Pos, Name}, Contents}, {Dict, Ctx}) ->
+                                                      {dict:store(Name, [{ThisFile, Pos, Contents}], Dict), Ctx};
                                                   (Token, {Dict, Ctx}) ->
                                                       case proplists:get_bool(non_block_tag, Ctx#dtl_context.checks) of
                                                           true ->
@@ -550,7 +551,9 @@ body_ast([{'extends', {string_literal, _Pos, String}} | ThisParseTree], #treewal
                                               TreeWalker#treewalker{
                                                 context=Context1#dtl_context{
                                                           block_dict = dict:merge(
-                                                                         fun(_Key, _ParentVal, ChildVal) -> ChildVal end,
+                                                                         fun(_Key, ParentVal, ChildVal) ->
+                                                                                 ChildVal ++ ParentVal
+                                                                         end,
                                                                          BlockDict, Context#dtl_context.block_dict),
                                                           parse_trail = [File | Context1#dtl_context.parse_trail]
                                                          }
@@ -565,7 +568,6 @@ body_ast([{'extends', {string_literal, _Pos, String}} | ThisParseTree], #treewal
             end
     end;
 
-
 body_ast(DjangoParseTree, TreeWalker) ->
     body_ast(DjangoParseTree, empty_scope(), TreeWalker).
 
@@ -575,20 +577,22 @@ body_ast(DjangoParseTree, BodyScope, TreeWalker) ->
         fun ({'autoescape', {identifier, _, OnOrOff}, Contents}, TW) ->
                 {Info, BodyTW} = body_ast(Contents, push_auto_escape(OnOrOff, TW)),
                 {Info, pop_auto_escape(BodyTW)};
-            ({'block', {identifier, Pos, Name}, Contents}, #treewalker{ context=Context }=TW) ->
-                {Block, BlockScope} =
-                    case dict:find(Name, Context#dtl_context.block_dict) of
-                        {ok, ChildBlock} ->
-                            {{ContentsAst, _ContentsInfo}, _ContentsTW} = body_ast(Contents, TW),
-                            {ChildBlock,
-                             create_scope(
-                               [{block, ?Q("[{super, _@ContentsAst}]"), safe}],
-                               Pos, TW)
-                            };
-                        _ ->
-                            {Contents, empty_scope()}
-                    end,
-                body_ast(Block, BlockScope, TW);
+            ({'block', {identifier, _Pos, Name}, Contents}, #treewalker{ context=Context }=TW) ->
+                ContentsAst = body_ast(Contents, TW),
+                case dict:find(Name, Context#dtl_context.block_dict) of
+                    {ok, ChildBlocks} ->
+                        lists:foldr(
+                          fun ({ChildFile, ChildPos, ChildBlock}, {{SuperAst, SuperInfo}, AccTW}) ->
+                                  BlockScope = create_scope(
+                                                 [{block, ?Q("[{super, _@SuperAst}]"), safe}],
+                                                 ChildPos, ChildFile, AccTW),
+                                  {{BlockAst, BlockInfo}, BlockTW} = body_ast(ChildBlock, BlockScope, AccTW),
+                                  {{BlockAst, merge_info(SuperInfo, BlockInfo)}, BlockTW}
+                          end,
+                          ContentsAst, ChildBlocks);
+                    _ ->
+                        ContentsAst
+                end;
             ({'blocktrans', Args, Contents, PluralContents}, TW) ->
                 blocktrans_ast(Args, Contents, PluralContents, TW);
             ({'call', {identifier, _, Name}}, TW) ->
@@ -1564,9 +1568,12 @@ create_scope(Vars, VarScope) ->
           Vars),
     {Scope, [Values]}.
 
-create_scope(Vars, {Row, Col}, #treewalker{ context=Context }) ->
+create_scope(Vars, Pos, TreeWalker) ->
+    create_scope(Vars, Pos, get_current_file(TreeWalker), TreeWalker).
+
+create_scope(Vars, {Row, Col}, FileName, #treewalker{ context=Context }) ->
     Level = length(Context#dtl_context.local_scopes),
-    create_scope(Vars, lists:concat(["/", Level, "_", Row, ":", Col])).
+    create_scope(Vars, lists:concat(["::", FileName, "[", Level, ",", Row, ":", Col, "]"])).
 
 varname_ast([$_|VarName]) ->
     merl:var(lists:concat(["_Var__", VarName]));
