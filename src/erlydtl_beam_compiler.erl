@@ -63,8 +63,9 @@
          empty_scope/0, get_current_file/1, add_errors/2,
          add_warnings/2, merge_info/2, call_extension/3,
          init_treewalker/1, resolve_variable/2, resolve_variable/3,
-         reset_parse_trail/2, load_library/3, load_library/4,
-         shorten_filename/2, push_auto_escape/2, pop_auto_escape/1]).
+         reset_block_dict/2, reset_parse_trail/2, load_library/3,
+         load_library/4, shorten_filename/2, push_auto_escape/2,
+         pop_auto_escape/1, token_pos/1, is_stripped_token_empty/1]).
 
 -include_lib("merl/include/merl.hrl").
 -include("erlydtl_ext.hrl").
@@ -111,6 +112,8 @@ format_error({translation_fun, Fun}) ->
                            io_lib:format("~s:~s/~p", [proplists:get_value(K, Info) || K <- [module, name, arity]]);
                       true -> io_lib:format("~p", [Fun])
                    end]);
+format_error(non_block_tag) ->
+    "Non-block tag in extends-template.";
 format_error(Error) ->
     erlydtl_compiler:format_error(Error).
 
@@ -275,7 +278,9 @@ maybe_debug_template(Forms, Context) ->
             Options = Context#dtl_context.compiler_options,
             ?LOG_DEBUG("Compiler options: ~p~n", [Options], Context),
             try
-                Source = erl_prettypr:format(erl_syntax:form_list(Forms)),
+                Source = erl_prettypr:format(
+                           erl_syntax:form_list(Forms),
+                           [{ribbon, 100}, {paper, 200}]),
                 SourceFile = lists:concat(
                                [proplists:get_value(source, Options),".erl"]),
                 File = case proplists:get_value(
@@ -513,6 +518,7 @@ options_match_ast(Context, TreeWalker) ->
 
 %% child templates should only consist of blocks at the top level
 body_ast([{'extends', {string_literal, _Pos, String}} | ThisParseTree], #treewalker{ context=Context }=TreeWalker) ->
+    ThisFile = get_current_file(Context),
     File = full_path(unescape_string_literal(String), Context#dtl_context.doc_root),
     case lists:member(File, Context#dtl_context.parse_trail) of
         true ->
@@ -520,31 +526,47 @@ body_ast([{'extends', {string_literal, _Pos, String}} | ThisParseTree], #treewal
         _ ->
             case parse_file(File, Context) of
                 {ok, ParentParseTree, CheckSum} ->
-                    BlockDict = lists:foldl(
-                                  fun ({block, {identifier, _, Name}, Contents}, Dict) ->
-                                          dict:store(Name, Contents, Dict);
-                                      (_, Dict) -> Dict
-                                  end,
-                                  dict:new(),
-                                  ThisParseTree),
+                    {BlockDict, Context1} = lists:foldl(
+                                              fun ({block, {identifier, Pos, Name}, Contents}, {Dict, Ctx}) ->
+                                                      {dict:store(Name, [{ThisFile, Pos, Contents}], Dict), Ctx};
+                                                  (Token, {Dict, Ctx}) ->
+                                                      case proplists:get_bool(non_block_tag, Ctx#dtl_context.checks) of
+                                                          true ->
+                                                              case is_stripped_token_empty(Token) of
+                                                                  false ->
+                                                                      {Dict, ?WARN({token_pos(Token), non_block_tag}, Ctx)};
+                                                                  true ->
+                                                                      {Dict, Ctx}
+                                                              end;
+                                                          false ->
+                                                              {Dict, Ctx}
+                                                      end
+                                              end,
+                                              {dict:new(), Context},
+                                              ThisParseTree),
                     {Info, TreeWalker1} = with_dependency(
                                             {File, CheckSum},
                                             body_ast(
                                               ParentParseTree,
                                               TreeWalker#treewalker{
-                                                context=Context#dtl_context{
+                                                context=Context1#dtl_context{
                                                           block_dict = dict:merge(
-                                                                         fun(_Key, _ParentVal, ChildVal) -> ChildVal end,
+                                                                         fun(_Key, ParentVal, ChildVal) ->
+                                                                                 ChildVal ++ ParentVal
+                                                                         end,
                                                                          BlockDict, Context#dtl_context.block_dict),
-                                                          parse_trail = [File | Context#dtl_context.parse_trail]
+                                                          parse_trail = [File | Context1#dtl_context.parse_trail]
                                                          }
                                                })),
-                    {Info, reset_parse_trail(Context#dtl_context.parse_trail, TreeWalker1)};
+                    {Info, reset_parse_trail(
+                             Context1#dtl_context.parse_trail,
+                             reset_block_dict(
+                               Context1#dtl_context.block_dict,
+                               TreeWalker1))};
                 {error, Reason} ->
                     empty_ast(?ERR(Reason, TreeWalker))
             end
     end;
-
 
 body_ast(DjangoParseTree, TreeWalker) ->
     body_ast(DjangoParseTree, empty_scope(), TreeWalker).
@@ -555,20 +577,22 @@ body_ast(DjangoParseTree, BodyScope, TreeWalker) ->
         fun ({'autoescape', {identifier, _, OnOrOff}, Contents}, TW) ->
                 {Info, BodyTW} = body_ast(Contents, push_auto_escape(OnOrOff, TW)),
                 {Info, pop_auto_escape(BodyTW)};
-            ({'block', {identifier, Pos, Name}, Contents}, #treewalker{ context=Context }=TW) ->
-                {Block, BlockScope} =
-                    case dict:find(Name, Context#dtl_context.block_dict) of
-                        {ok, ChildBlock} ->
-                            {{ContentsAst, _ContentsInfo}, _ContentsTW} = body_ast(Contents, TW),
-                            {ChildBlock,
-                             create_scope(
-                               [{block, ?Q("[{super, _@ContentsAst}]")}],
-                               Pos, TW)
-                            };
-                        _ ->
-                            {Contents, empty_scope()}
-                    end,
-                body_ast(Block, BlockScope, TW);
+            ({'block', {identifier, _Pos, Name}, Contents}, #treewalker{ context=Context }=TW) ->
+                ContentsAst = body_ast(Contents, TW),
+                case dict:find(Name, Context#dtl_context.block_dict) of
+                    {ok, ChildBlocks} ->
+                        lists:foldr(
+                          fun ({ChildFile, ChildPos, ChildBlock}, {{SuperAst, SuperInfo}, AccTW}) ->
+                                  BlockScope = create_scope(
+                                                 [{block, ?Q("[{super, _@SuperAst}]"), safe}],
+                                                 ChildPos, ChildFile, AccTW),
+                                  {{BlockAst, BlockInfo}, BlockTW} = body_ast(ChildBlock, BlockScope, AccTW),
+                                  {{BlockAst, merge_info(SuperInfo, BlockInfo)}, BlockTW}
+                          end,
+                          ContentsAst, ChildBlocks);
+                    _ ->
+                        ContentsAst
+                end;
             ({'blocktrans', Args, Contents, PluralContents}, TW) ->
                 blocktrans_ast(Args, Contents, PluralContents, TW);
             ({'call', {identifier, _, Name}}, TW) ->
@@ -735,13 +759,13 @@ extension_ast(Tag, TreeWalker) ->
     end.
 
 
-with_dependencies([], Args) ->
-    Args;
-with_dependencies([Dependency | Rest], Args) ->
-    with_dependencies(Rest, with_dependency(Dependency, Args)).
+with_dependencies([], Ast) -> Ast;
+with_dependencies([Dependency | Rest], Ast) ->
+    with_dependencies(Rest, with_dependency(Dependency, Ast)).
 
 with_dependency(FilePath, {{Ast, Info}, TreeWalker}) ->
-    {{Ast, Info#ast_info{dependencies = [FilePath | Info#ast_info.dependencies]}}, TreeWalker}.
+    Dependencies = [FilePath | Info#ast_info.dependencies],
+    {{Ast, Info#ast_info{ dependencies = Dependencies }}, TreeWalker}.
 
 
 empty_ast(TreeWalker) ->
@@ -970,6 +994,7 @@ string_ast(Arg, Context) ->
 
 include_ast(File, ArgList, Scopes, #treewalker{ context=Context }=TreeWalker) ->
     FilePath = full_path(File, Context#dtl_context.doc_root),
+    ?LOG_TRACE("include file: ~s~n", [FilePath], Context),
     case parse_file(FilePath, Context) of
         {ok, InclusionParseTree, CheckSum} ->
             {NewScope, {ArgInfo, TreeWalker1}}
@@ -1158,7 +1183,8 @@ resolve_variable_ast1({attribute, {{_, Pos, Attr}, Variable}}, {Runtime, Finder}
      TreeWalker1};
 
 resolve_variable_ast1({variable, {identifier, Pos, VarName}}, {Runtime, Finder}, TreeWalker) ->
-    Ast = case resolve_variable(VarName, TreeWalker) of
+    {Source, Value, Filters} = resolve_variable(VarName, TreeWalker),
+    Ast = case {Source, Value} of
               {_, undefined} ->
                   FileName = get_current_file(TreeWalker),
                   {?Q(["'@Runtime@':'@Finder@'(",
@@ -1187,14 +1213,30 @@ resolve_variable_ast1({variable, {identifier, Pos, VarName}}, {Runtime, Finder},
               {scope, Val} ->
                   {Val, #ast_info{}}
           end,
-    {Ast, TreeWalker}.
+    lists:foldr(
+      fun ({escape, []}, {{AccAst, AccInfo}, TW}) ->
+              {{?Q("erlydtl_filters:force_escape(_@AccAst)"), AccInfo}, TW#treewalker{ safe = true }};
+          ({Safe, []}, {Acc, TW}) when Safe == safe; Safe == safeseq ->
+              {Acc, TW#treewalker{ safe = true }};
+          ({Filter, Args}, {{AccAst, AccInfo}, TW})
+            when is_atom(Filter), is_list(Args) ->
+              case filter_ast2(Filter, [AccAst|Args], TW#treewalker.context) of
+                  {ok, FilteredAst} ->
+                      {{FilteredAst, AccInfo}, TW};
+                  Error ->
+                      empty_ast(?WARN({Pos, Error}, TW))
+              end
+      end,
+      {Ast, TreeWalker},
+      Filters
+     ).
 
 resolve_reserved_variable(ReservedName, TreeWalker) ->
     resolve_reserved_variable(ReservedName, merl:term(undefined), TreeWalker).
 
 resolve_reserved_variable(ReservedName, Default, TreeWalker) ->
     case resolve_variable(ReservedName, Default, TreeWalker) of
-        {Src, Value} when Src =:= scope; Value =:= Default ->
+        {Src, Value, []} when Src =:= scope; Value =:= Default ->
             {Value, TreeWalker};
         _ ->
             {Default, ?ERR({reserved_variable, ReservedName}, TreeWalker)}
@@ -1511,9 +1553,14 @@ call_ast(Module, Variable, AstInfo, TreeWalker) ->
 create_scope(Vars, VarScope) ->
     {Scope, Values} =
         lists:foldl(
-          fun ({Name, Value}, {VarAcc, ValueAcc}) ->
+          fun (Var, {VarAcc, ValueAcc}) ->
+                  {Name, Value, Filters} =
+                      case Var of
+                          {N, V} -> {N, V, []};
+                          {_, _, _} -> Var
+                      end,
                   NameAst = varname_ast(lists:concat(["_", Name, VarScope])),
-                  {[{Name, NameAst}|VarAcc],
+                  {[{Name, NameAst, Filters}|VarAcc],
                    [?Q("_@NameAst = _@Value")|ValueAcc]
                   }
           end,
@@ -1521,9 +1568,12 @@ create_scope(Vars, VarScope) ->
           Vars),
     {Scope, [Values]}.
 
-create_scope(Vars, {Row, Col}, #treewalker{ context=Context }) ->
+create_scope(Vars, Pos, TreeWalker) ->
+    create_scope(Vars, Pos, get_current_file(TreeWalker), TreeWalker).
+
+create_scope(Vars, {Row, Col}, FileName, #treewalker{ context=Context }) ->
     Level = length(Context#dtl_context.local_scopes),
-    create_scope(Vars, lists:concat(["/", Level, "_", Row, ":", Col])).
+    create_scope(Vars, lists:concat(["::", FileName, "[", Level, ",", Row, ":", Col, "]"])).
 
 varname_ast([$_|VarName]) ->
     merl:var(lists:concat(["_Var__", VarName]));

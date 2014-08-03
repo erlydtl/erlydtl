@@ -57,6 +57,21 @@ in this directory.
 The erl syntax tools is broken in Erlang R16B03, use R16B03-1 or any
 other supported version instead.
 
+#### Do use a recent version of rebar
+
+In case of compilation issues, make sure your version of rebar is up-to-date.
+
+Older versions of rebar does not support the `raw` option for dependencies, and may produce an error
+message like this:
+
+```
+ERROR: Invalid dependency specification {merl,".*",
+                                         {git,
+                                          "git://github.com/erlydtl/merl.git",
+                                          "28e5b3829168199e8475fa91b997e0c03b90d280"},
+                                         [raw]} 
+```
+
 
 Template compilation
 --------------------
@@ -273,6 +288,12 @@ Options is a proplist possibly containing:
 
 * `verbose` - Enable verbose printing of compilation progress. Add
   several for even more verbose (e.g. debug) output.
+
+* `w` - Enable/Disable compile time checks.
+
+  Available checks:
+  - `non_block_tag` indicated that there is other data than `block` tags in an extends-template
+    (e.g. a template that begins with the `extends` tag).
 
 * `warnings_as_errors` - Treat warnings as errors.
 

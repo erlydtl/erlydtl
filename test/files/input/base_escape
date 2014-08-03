@@ -1,0 +1,9 @@
+<html>
+<head>
+</head>
+<body>
+{% block my_block %}
+    <p>A</p>
+{% endblock %}
+</body>
+</html>

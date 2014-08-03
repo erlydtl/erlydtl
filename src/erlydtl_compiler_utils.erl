@@ -59,10 +59,12 @@
          full_path/2,
          get_current_file/1,
          init_treewalker/1,
+         is_stripped_token_empty/1,
          load_library/2, load_library/3, load_library/4,
          merge_info/2,
          print/3, print/4,
          push_scope/2,
+         reset_block_dict/2,
          reset_parse_trail/2,
          resolve_variable/2, resolve_variable/3,
          restore_scope/2,
@@ -70,7 +72,8 @@
          to_string/2,
          unescape_string_literal/1,
          push_auto_escape/2,
-         pop_auto_escape/1
+         pop_auto_escape/1,
+         token_pos/1
         ]).
 
 -include("erlydtl_ext.hrl").
@@ -199,12 +202,12 @@ resolve_variable(VarName, Default, #treewalker{ context=Context }) ->
             case proplists:get_value(VarName, Context#dtl_context.const) of
                 undefined ->
                     case proplists:get_value(VarName, Context#dtl_context.vars) of
-                        undefined -> {default, Default};
-                        Value -> {default_vars, Value}
+                        undefined -> {default, Default, []};
+                        Value -> {default_vars, Value, []}
                     end;
-                Value -> {constant, Value}
+                Value -> {constant, Value, []}
             end;
-        Value -> {scope, Value}
+        {Value, Filters} -> {scope, Value, Filters}
     end.
 
 push_scope(Scope, #treewalker{ context=Context }=TreeWalker) ->
@@ -229,6 +232,11 @@ end_scope(Fun, Id, AstList, TreeWalker) ->
     close_scope(Fun, Id, AstList, TreeWalker).
 
 empty_scope() -> {[], []}.
+
+reset_block_dict(BlockDict, #treewalker{ context=Context }=TreeWalker) ->
+    TreeWalker#treewalker{ context=reset_block_dict(BlockDict, Context) };
+reset_block_dict(BlockDict, Context) ->
+    Context#dtl_context{ block_dict=BlockDict }.
 
 reset_parse_trail(ParseTrail, #treewalker{ context=Context }=TreeWalker) ->
     TreeWalker#treewalker{ context=reset_parse_trail(ParseTrail, Context) };
@@ -296,6 +304,25 @@ pop_auto_escape(#dtl_context{ auto_escape=[_|AutoEscape] }=Context)
   when length(AutoEscape) > 0 ->
     Context#dtl_context{ auto_escape=AutoEscape };
 pop_auto_escape(Context) -> Context.
+
+
+token_pos(Token) when is_tuple(Token) ->
+    token_pos(tuple_to_list(Token));
+token_pos([T|Ts]) when is_tuple(T) ->
+    case T of
+        {R, C}=P when is_integer(R), is_integer(C) -> P;
+        _ -> token_pos(tuple_to_list(T) ++ Ts)
+    end;
+token_pos([T|Ts]) when is_list(T) -> token_pos(T ++ Ts);
+token_pos([_|Ts]) -> token_pos(Ts);
+token_pos([]) -> none.
+
+is_stripped_token_empty({string, _, S}) ->
+    [] == [C || C <- S, C /= 32, C /= $\r, C /= $\n, C /= $\t];
+is_stripped_token_empty({comment, _}) -> true;
+is_stripped_token_empty({comment_tag, _, _}) -> true;
+is_stripped_token_empty(_) -> false.
+
 
 format_error({load_library, Name, Mod, Reason}) ->
     io_lib:format("Failed to load library '~p' (~p): ~p", [Name, Mod, Reason]);
@@ -386,21 +413,24 @@ pos_info({Line, Col}) when is_integer(Line), is_integer(Col) ->
 
 resolve_variable1([], _VarName) -> undefined;
 resolve_variable1([Scope|Scopes], VarName) ->
-    case proplists:get_value(VarName, get_scope(Scope)) of
-        undefined ->
+    case lists:keyfind(VarName, 1, get_scope(Scope)) of
+        false ->
             resolve_variable1(Scopes, VarName);
-        Value -> Value
+        {_, Value} -> {Value, []};
+        {_, Value, Filters} when is_list(Filters) -> {Value, Filters};
+        {_, Value, Filter} when is_atom(Filter) -> {Value, [{Filter, []}]};
+        {_, Value, Filter} -> {Value, [Filter]}
     end.
-
-merge_info1(1, _, _, Info) -> Info;
-merge_info1(FieldIdx, Info1, Info2, Info) ->
-    Value = lists:merge(
-              lists:sort(element(FieldIdx, Info1)),
-              lists:sort(element(FieldIdx, Info2))),
-    merge_info1(FieldIdx - 1, Info1, Info2, setelement(FieldIdx, Info, Value)).
 
 get_scope({_Id, Scope, _Values}) -> Scope;
 get_scope(Scope) -> Scope.
+
+merge_info1(1, _, _, Info) -> Info;
+merge_info1(FieldIdx, Info1, Info2, Info) ->
+    Value = lists:umerge(
+              lists:usort(element(FieldIdx, Info1)),
+              lists:usort(element(FieldIdx, Info2))),
+    merge_info1(FieldIdx - 1, Info1, Info2, setelement(FieldIdx, Info, Value)).
 
 close_scope(Fun, Id, AstList, TreeWalker) ->
     case merge_scopes(Id, TreeWalker) of
