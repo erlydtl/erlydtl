@@ -1568,9 +1568,6 @@ create_scope(Vars, VarScope) ->
           Vars),
     {Scope, [Values]}.
 
-create_scope(Vars, Pos, TreeWalker) ->
-    create_scope(Vars, Pos, get_current_file(TreeWalker), TreeWalker).
-
 create_scope(Vars, {Row, Col}, FileName, #treewalker{ context=Context }) ->
     Level = length(Context#dtl_context.local_scopes),
     create_scope(Vars, lists:concat(["::", FileName, "[", Level, ",", Row, ":", Col, "]"])).
