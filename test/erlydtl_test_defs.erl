@@ -28,7 +28,13 @@ all_test_defs() ->
         [{var1, "foo"}], <<"foo">>},
        {"Variable name is a tag name",
         <<"{{ comment }}">>,
-        [{comment, "Nice work!"}], <<"Nice work!">>}
+        [{comment, "Nice work!"}], <<"Nice work!">>},
+       {"list no the attr",
+        <<"{{ content.description }}">>,
+        [{content, "test"}], <<"">>},
+       {"binary no the attr",
+        <<"{{ content.description }}">>,
+        [{content, <<"test">>}], <<"">>}
       ]},
      {"comment",
       [{"comment block is excised",
