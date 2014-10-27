@@ -143,7 +143,13 @@ all_test_defs() ->
        {"Index tuple using a \"reserved\" keyword",
         <<"{{ list.count }}">>,
         [{list, [{count, 123}]}],
-        <<"123">>}
+        <<"123">>},
+       {"Index list value",
+        <<"{{ content.description }}">>,
+        [{content, "test"}], <<"">>},
+       {"Index binary value",
+        <<"{{ content.description }}">>,
+        [{content, <<"test">>}], <<"">>}
       ]},
      {"now",
       [{"now functional",

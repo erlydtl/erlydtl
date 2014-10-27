@@ -107,7 +107,9 @@ find_value(Key, Tuple) when is_tuple(Tuple) ->
                 _ ->
                     undefined
             end
-    end.
+    end;
+find_value(_, _) ->
+    undefined.
 
 fetch_value(Key, Data, Options) ->
     fetch_value(Key, Data, Options, []).
