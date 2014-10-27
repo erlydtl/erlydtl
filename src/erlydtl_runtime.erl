@@ -72,8 +72,6 @@ find_value(Key, L) when is_integer(Key), is_list(L) ->
     if Key =< length(L) -> lists:nth(Key, L);
        true -> undefined
     end;
-find_value(Key, L) when is_atom(Key), is_binary(L) ->
-    undefined;
 find_value(Key, {GBSize, GBData}) when is_integer(GBSize) ->
     case gb_trees:lookup(Key, {GBSize, GBData}) of
         {value, Val} ->
@@ -109,7 +107,9 @@ find_value(Key, Tuple) when is_tuple(Tuple) ->
                 _ ->
                     undefined
             end
-    end.
+    end;
+find_value(_, _) ->
+    undefined.
 
 fetch_value(Key, Data, Options) ->
     fetch_value(Key, Data, Options, []).
