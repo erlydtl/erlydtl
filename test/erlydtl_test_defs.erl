@@ -12,30 +12,39 @@
 tests() ->
     [def_to_test(G, D) || {G, Ds} <- all_test_defs(), D <- Ds].
 
+-define(IF_MAPS(Then, Else),
+        case erlang:is_builtin(erlang, is_map, 1) of
+            true -> Then;
+            false -> Else
+        end).
+
 all_test_defs() ->
-    [{"vars",
-      [{"string",
-        <<"String value is: {{ var1 }}">>,
-        [{var1, "foo"}], <<"String value is: foo">>},
-       {"int",
-        <<"The magic number is: {{ var1 }}">>,
-        [{var1, 42}], <<"The magic number is: 42">>},
-       {"float",
-        <<"The price of milk is: {{ var1 }}">>,
-        [{var1, 0.42}], <<"The price of milk is: 0.42">>},
-       {"No spaces",
-        <<"{{var1}}">>,
-        [{var1, "foo"}], <<"foo">>},
-       {"Variable name is a tag name",
-        <<"{{ comment }}">>,
-        [{comment, "Nice work!"}], <<"Nice work!">>},
-       {"list no the attr",
-        <<"{{ content.description }}">>,
-        [{content, "test"}], <<"">>},
-       {"binary no the attr",
-        <<"{{ content.description }}">>,
-        [{content, <<"test">>}], <<"">>}
-      ]},
+    Vars = [{"string",
+             <<"String value is: {{ var1 }}">>,
+             [{var1, "foo"}], <<"String value is: foo">>},
+            {"int",
+             <<"The magic number is: {{ var1 }}">>,
+             [{var1, 42}], <<"The magic number is: 42">>},
+            {"float",
+             <<"The price of milk is: {{ var1 }}">>,
+             [{var1, 0.42}], <<"The price of milk is: 0.42">>},
+            {"No spaces",
+             <<"{{var1}}">>,
+             [{var1, "foo"}], <<"foo">>},
+            {"Variable name is a tag name",
+             <<"{{ comment }}">>,
+             [{comment, "Nice work!"}], <<"Nice work!">>},
+            {"list no the attr",
+             <<"{{ content.description }}">>,
+             [{content, "test"}], <<"">>},
+            {"binary no the attr",
+             <<"{{ content.description }}">>,
+             [{content, <<"test">>}], <<"">>}],
+    MapsTests = ?IF_MAPS([{"maps", <<"{{ my_maps.hello }}">>,
+                           [{ my_maps, maps:put(hello, "world", maps:new())}],
+                           <<"world">>
+                          }], []),
+    [{"vars", MapsTests ++ Vars},
      {"comment",
       [{"comment block is excised",
         <<"bob {% comment %}(moron){% endcomment %} loblaw">>,
