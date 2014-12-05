@@ -109,7 +109,7 @@ find_value(Key, Tuple) when is_tuple(Tuple) ->
             end
     end;
 find_value(Key, Map) when is_atom(Key) ->
-    case erlang:is_builtin(erlang, is_map, 1) andalso is_map(Map) of
+    case erlang:is_builtin(erlang, is_map, 1) andalso erlang:is_map(Map) of
         true ->
             case maps:find(Key, Map) of
                 error           -> find_value(atom_to_list(Key), Map);
@@ -119,7 +119,7 @@ find_value(Key, Map) when is_atom(Key) ->
             undefined
     end;
 find_value(Key, Map) when is_list(Key) ->
-    case erlang:is_builtin(erlang, is_map, 1) andalso is_map(Map) of
+    case erlang:is_builtin(erlang, is_map, 1) andalso erlang:is_map(Map) of
         true ->
             case maps:find(Key, Map) of
                 error           -> find_value(list_to_binary(Key), Map);
@@ -129,7 +129,7 @@ find_value(Key, Map) when is_list(Key) ->
             undefined
     end;
 find_value(Key, Map) when is_binary(Key) ->
-    case erlang:is_builtin(erlang, is_map, 1) andalso is_map(Map) of
+    case erlang:is_builtin(erlang, is_map, 1) andalso erlang:is_map(Map) of
         true ->
             case maps:find(Key, Map) of
                 error           -> undefined;
