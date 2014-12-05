@@ -49,84 +49,6 @@ adjust_index(Key, Off, Opt, Options) when is_list(Options) ->
     end;
 adjust_index(Key, _Off, _Opt, _Options) -> Key.
 
--ifdef(maps_available).
-find_value(_, undefined) ->
-    undefined;
-find_value(Key, Fun) when is_function(Fun, 1) ->
-    Fun(Key);
-find_value(Key, Map) when is_atom(Key), is_map(Map) ->
-    case maps:find(Key, Map) of
-        error           -> find_value(atom_to_list(Key), Map);
-        {ok, Value}     -> Value
-    end;
-find_value(Key, Map) when is_list(Key), is_map(Map) ->
-    case maps:find(Key, Map) of
-        error           -> find_value(list_to_binary(Key), Map);
-        {ok, Value}     -> Value
-    end;
-find_value(Key, Map) when is_binary(Key), is_map(Map) ->
-    case maps:find(Key, Map) of
-        error           -> undefined;
-        {ok, Value}     -> Value
-    end;
-find_value(Key, L) when is_atom(Key), is_list(L) ->
-    case lists:keyfind(Key, 1, L) of
-        false           -> find_value(atom_to_list(Key), L);
-        {Key, Value}    -> Value
-    end;
-find_value(Key, L) when is_list(Key), is_list(L) ->
-    case lists:keyfind(Key, 1, L) of
-        false           -> find_value(list_to_binary(Key), L);
-        {Key, Value}    -> Value
-    end;
-find_value(Key, L) when is_binary(Key), is_list(L) ->
-    case lists:keyfind(Key, 1, L) of
-        false           -> undefined;
-        {Key, Value}    -> Value
-    end;
-find_value(Key, L) when is_integer(Key), is_list(L) ->
-    if Key =< length(L) -> lists:nth(Key, L);
-       true -> undefined
-    end;
-find_value(Key, {GBSize, GBData}) when is_integer(GBSize) ->
-    case gb_trees:lookup(Key, {GBSize, GBData}) of
-        {value, Val} ->
-            Val;
-        _ ->
-            undefined
-    end;
-find_value(Key, Tuple) when is_tuple(Tuple) ->
-    case element(1, Tuple) of
-        dict ->
-            case dict:find(Key, Tuple) of
-                {ok, Val} ->
-                    Val;
-                _ ->
-                    undefined
-            end;
-        _ when is_integer(Key) ->
-            if Key =< size(Tuple) -> element(Key, Tuple);
-               true -> undefined
-            end;
-        Module ->
-            case lists:member({Key, 1}, Module:module_info(exports)) of
-                true ->
-                    case Tuple:Key() of
-                        Val when is_tuple(Val) ->
-                            case element(1, Val) of
-                                'Elixir.Ecto.Associations.BelongsTo' -> Val:get();
-                                'Elixir.Ecto.Associations.HasOne' -> Val:get();
-                                _ -> Val
-                            end;
-                        Val -> Val
-                    end;
-                _ ->
-                    undefined
-            end
-    end;
-find_value(_, _) ->
-    undefined.
--else.
 find_value(_, undefined) ->
     undefined;
 find_value(Key, Fun) when is_function(Fun, 1) ->
@@ -186,9 +108,38 @@ find_value(Key, Tuple) when is_tuple(Tuple) ->
                     undefined
             end
     end;
+find_value(Key, Map) when is_atom(Key) ->
+    case erlang:is_builtin(erlang, is_map, 1) andalso is_map(Map) of
+        true ->
+            case maps:find(Key, Map) of
+                error           -> find_value(atom_to_list(Key), Map);
+                {ok, Value}     -> Value
+            end;
+        false ->
+            undefined
+    end;
+find_value(Key, Map) when is_list(Key) ->
+    case erlang:is_builtin(erlang, is_map, 1) andalso is_map(Map) of
+        true ->
+            case maps:find(Key, Map) of
+                error           -> find_value(list_to_binary(Key), Map);
+                {ok, Value}     -> Value
+            end;
+        false ->
+            undefined
+    end;
+find_value(Key, Map) when is_binary(Key) ->
+    case erlang:is_builtin(erlang, is_map, 1) andalso is_map(Map) of
+        true ->
+            case maps:find(Key, Map) of
+                error           -> undefined;
+                {ok, Value}     -> Value
+            end;
+        false ->
+            undefined
+    end;
 find_value(_, _) ->
     undefined.
--endif.
 
 fetch_value(Key, Data, Options) ->
     fetch_value(Key, Data, Options, []).
