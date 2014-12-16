@@ -20,7 +20,7 @@
 
 find_value(Key, Data, Options) when is_atom(Key), is_tuple(Data) ->
     Rec = element(1, Data),
-    Info = proplists:get_value(record_info, Options),
+    Info = proplists:get_value(record_info, Options, []),
     case proplists:get_value(Rec, Info) of
         Fields when is_list(Fields), length(Fields) == size(Data) - 1 ->
             case proplists:get_value(Key, Fields) of
@@ -120,28 +120,33 @@ fetch_value(Key, Data, Options, Default) ->
         Val -> Val
     end.
 
-find_deep_value([Key|Rest],Item) ->
-    case find_value(Key,Item) of
+find_deep_value(Key, Data) ->
+    find_deep_value(Key, Data, []).
+
+find_deep_value([Key|Rest], Item, Opts) ->
+    case find_value(Key, Item, Opts) of
         undefined -> undefined;
-        NewItem -> find_deep_value(Rest,NewItem)
+        NewItem -> find_deep_value(Rest, NewItem, Opts)
     end;
-find_deep_value([],Item) -> Item.
+find_deep_value([], Item, _Opts) -> Item.
 
 regroup(List, Attribute) ->
-    regroup(List, Attribute, []).
+    do_regroup(List, Attribute, [], []).
 
-regroup([], _, []) ->
-    [];
-regroup([], _, [[{grouper, LastGrouper}, {list, LastList}]|Acc]) ->
+regroup(List, Attribute, Options) ->
+    do_regroup(List, Attribute, Options, []).
+
+do_regroup([], _, _, []) -> [];
+do_regroup([], _, _, [[{grouper, LastGrouper}, {list, LastList}]|Acc]) ->
     lists:reverse([[{grouper, LastGrouper}, {list, lists:reverse(LastList)}]|Acc]);
-regroup([Item|Rest], Attribute, []) ->
-    regroup(Rest, Attribute, [[{grouper, find_deep_value(Attribute, Item)}, {list, [Item]}]]);
-regroup([Item|Rest], Attribute, [[{grouper, PrevGrouper}, {list, PrevList}]|Acc]) ->
-    case find_deep_value(Attribute, Item) of
+do_regroup([Item|Rest], Attribute, Options, []) ->
+    do_regroup(Rest, Attribute, Options, [[{grouper, find_deep_value(Attribute, Item, Options)}, {list, [Item]}]]);
+do_regroup([Item|Rest], Attribute, Options, [[{grouper, PrevGrouper}, {list, PrevList}]|Acc]) ->
+    case find_deep_value(Attribute, Item, Options) of
         Value when Value =:= PrevGrouper ->
-            regroup(Rest, Attribute, [[{grouper, PrevGrouper}, {list, [Item|PrevList]}]|Acc]);
+            do_regroup(Rest, Attribute, Options, [[{grouper, PrevGrouper}, {list, [Item|PrevList]}]|Acc]);
         Value ->
-            regroup(Rest, Attribute, [[{grouper, Value}, {list, [Item]}], [{grouper, PrevGrouper}, {list, lists:reverse(PrevList)}]|Acc])
+            do_regroup(Rest, Attribute, Options, [[{grouper, Value}, {list, [Item]}], [{grouper, PrevGrouper}, {list, lists:reverse(PrevList)}]|Acc])
     end.
 
 -spec init_translation(init_translation()) -> none | translate_fun().

@@ -1324,7 +1324,10 @@ regroup_ast(ListVariable, GrouperVariable, LocalVarName, TreeWalker) ->
 
     {Id, TreeWalker2} = begin_scope(
                           {[{LocalVarName, LocalVarAst}],
-                           [?Q("_@LocalVarAst = erlydtl_runtime:regroup(_@ListAst, _@regroup)",
+                           [?Q(["_@LocalVarAst = erlydtl_runtime:regroup(",
+                                "  _@ListAst, _@regroup,",
+                                "  [{record_info, _RecordInfo}]",
+                                ")"],
                                [{regroup, regroup_filter(GrouperVariable, [])}])
                            ]},
                           TreeWalker1),

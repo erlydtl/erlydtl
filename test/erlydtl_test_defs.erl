@@ -3,6 +3,7 @@
 -export([tests/0]).
 -include("testrunner.hrl").
 -record(testrec, {foo, bar, baz}).
+-record(person, {first_name, gender}).
 
 %% {Name, DTL, Vars, Output}
 %% {Name, DTL, Vars, RenderOpts, Output}
@@ -1302,7 +1303,19 @@ all_test_defs() ->
         <<"People: {% regroup people by gender as gender_list %}{% for gender in gender_list %}{{ gender.grouper }}\n{% for item in gender.list %}{{ item.first_name }}\n{% endfor %}{% endfor %}Done.">>,
         [{people, [[{first_name, "George"}, {gender, "Male"}], [{first_name, "Bill"}, {gender, "Male"}],
                    [{first_name, "Margaret"}, {gender, "Female"}], [{first_name, "Condi"}, {gender, "Female"}]]}],
-        <<"People: Male\nGeorge\nBill\nFemale\nMargaret\nCondi\nDone.">>}
+        <<"People: Male\nGeorge\nBill\nFemale\nMargaret\nCondi\nDone.">>},
+       #test{
+          title = "regroup record",
+          source = <<"{% regroup people by gender as gender_list %}{% for gender in gender_list %}{{ gender.grouper }}:\n{% for person in gender.list %} - {{ person.first_name }}\n{% endfor %}{% endfor %}">>,
+          compile_opts = [{record_info, [{person, record_info(fields, person)}]} | (#test{})#test.compile_opts],
+          render_vars = [{people, [#person{ first_name = "George", gender = "Male" },
+                                   #person{ first_name = "Bill", gender = "Male" },
+                                   #person{ first_name = "Margaret", gender = "Female" },
+                                   #person{ first_name = "Condi", gender = "Female" }
+                                  ]}
+                        ],
+          output = <<"Male:\n - George\n - Bill\nFemale:\n - Margaret\n - Condi\n">>
+         }
       ]},
      {"spaceless",
       [{"Beginning", <<"{% spaceless %}    <b>foo</b>{% endspaceless %}">>, [], <<"<b>foo</b>">>},

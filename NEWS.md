@@ -17,3 +17,5 @@ Standards](http://www.gnu.org/prep/standards/html_node/NEWS-File.html#NEWS-File)
 
 * Add missing features to the `cycle` tag (#195) (still missing
   independtly stepping the cycle value).
+
+* Support records in regroup tag (#191).
