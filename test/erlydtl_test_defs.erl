@@ -92,6 +92,12 @@ all_test_defs() ->
           source = <<"{% for i in test %}{% cycle 'a' 'b' as c %}{{ i }}{{ c }},{% endfor %}">>,
           render_vars = [{test, [0,1,2,3,4]}],
           output = <<"a0a,b1b,a2a,b3b,a4a,">>
+         },
+       #test{
+          title = "keep current value silently in local variable",
+          source = <<"{% for i in test %}{% cycle 'a' 'b' as c silent %}{{ i }}{{ c }},{% endfor %}">>,
+          render_vars = [{test, [0,1,2,3,4]}],
+          output = <<"0a,1b,2a,3b,4a,">>
          }
       ]},
      {"number literal",

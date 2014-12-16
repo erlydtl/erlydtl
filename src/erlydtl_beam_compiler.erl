@@ -1440,13 +1440,16 @@ cycle_ast(Names, undefined, #treewalker{ context=Context }=TreeWalker) ->
     {{?Q("erlydtl_runtime:cycle({_@NamesTuple}, _@ForLoop)"),
       #ast_info{ var_names = VarNames }},
      TreeWalker1};
-cycle_ast(Names, {identifier, _, VarName}, TreeWalker) ->
+cycle_ast(Names, [{identifier, _, VarName}|Opts], TreeWalker) ->
     {{VarAst, AstInfo}, TW1} = cycle_ast(Names, undefined, TreeWalker),
     VarNameAst = varname_ast(VarName),
     {Scope, TW2} = begin_scope(
                      {[{VarName, VarNameAst}],
-                      [?Q("_@VarNameAst = _@VarAst"),
-                       VarAst
+                      [?Q("_@VarNameAst = _@VarAst")
+                       | case Opts of
+                             [silent] -> [];
+                             [] -> [VarAst]
+                         end
                       ]},
                      TW1),
     {{Scope, AstInfo}, TW2}.

@@ -199,6 +199,7 @@ Terminals
     plural_keyword
     regroup_keyword
     reversed_keyword
+    silent_keyword
     spaceless_keyword
     ssi_keyword
     string_literal
@@ -321,7 +322,8 @@ CycleNames -> Value : ['$1'].
 CycleNames -> CycleNames Value : '$1' ++ ['$2'].
 
 CycleAs -> '$empty' : undefined.
-CycleAs -> as_keyword identifier : '$2'.
+CycleAs -> as_keyword identifier : ['$2'].
+CycleAs -> as_keyword identifier silent_keyword : ['$2', silent].
 
 CycleNamesCompat -> identifier ',' : ['$1'].
 CycleNamesCompat -> CycleNamesCompat identifier ',' : '$1' ++ ['$2'].

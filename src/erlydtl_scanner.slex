@@ -317,6 +317,7 @@ form \
   \
   is_keyword(close, "only") -> true; \
   is_keyword(close, "parsed") -> true; \
+  is_keyword(close, "silent") -> true; \
   is_keyword(close, "reversed") -> true; \
   is_keyword(close, "openblock") -> true; \
   is_keyword(close, "closeblock") -> true; \
