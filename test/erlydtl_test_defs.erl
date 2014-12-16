@@ -68,13 +68,31 @@ all_test_defs() ->
         <<"{{ \"foo\"|add:\"\\\"\" }}">>, [], <<"foo\"">>}
       ]},
      {"cycle",
-      [{"Cycling through quoted strings",
+      [#test{
+          title = "deprecated cycle syntax",
+          source = <<"{% for i in test %}{% cycle a,b %}{{ i }},{% endfor %}">>,
+          render_vars = [{test, [0,1,2,3,4]}],
+          output = <<"a0,b1,a2,b3,a4,">>
+         },
+       {"Cycling through quoted strings",
         <<"{% for i in test %}{% cycle 'a' 'b' %}{{ i }},{% endfor %}">>,
         [{test, ["0", "1", "2", "3", "4"]}], <<"a0,b1,a2,b3,a4,">>},
        {"Cycling through normal variables",
         <<"{% for i in test %}{% cycle aye bee %}{{ i }},{% endfor %}">>,
         [{test, ["0", "1", "2", "3", "4"]}, {aye, "a"}, {bee, "b"}],
-        <<"a0,b1,a2,b3,a4,">>}
+        <<"a0,b1,a2,b3,a4,">>},
+       #test{
+          title = "mix strings and variables",
+          source = <<"{% for i in test %}{% cycle 'a' b 'c' %}{{ i }},{% endfor %}">>,
+          render_vars = [{test, [0,1,2,3,4]}, {b, 'B'}],
+          output = <<"a0,B1,c2,a3,B4,">>
+         },
+       #test{
+          title = "keep current value in local variable",
+          source = <<"{% for i in test %}{% cycle 'a' 'b' as c %}{{ i }}{{ c }},{% endfor %}">>,
+          render_vars = [{test, [0,1,2,3,4]}],
+          output = <<"a0a,b1b,a2a,b3b,a4a,">>
+         }
       ]},
      {"number literal",
       [{"Render integer",
