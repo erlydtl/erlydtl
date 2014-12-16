@@ -528,6 +528,8 @@ Differences from standard Django Template Language
 * Erlang specifics: Template variables may be prefixed with underscore
   (`_`) to avoid "unused variable" warnings (see
   [#164](https://github.com/erlydtl/erlydtl/issues/164)).
+* `cycle` tags do not support independently moving the cycle value
+  from the original loop.
 
 
 Tests
