@@ -28,7 +28,13 @@ all_test_defs() ->
         [{var1, "foo"}], <<"foo">>},
        {"Variable name is a tag name",
         <<"{{ comment }}">>,
-        [{comment, "Nice work!"}], <<"Nice work!">>}
+        [{comment, "Nice work!"}], <<"Nice work!">>},
+       #test{
+          title = "reserved name ok as variable name",
+          source = <<"{{ from }}">>,
+          render_vars = [{from, "test"}],
+          output = <<"test">>
+         }
       ]},
      {"comment",
       [{"comment block is excised",

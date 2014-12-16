@@ -36,7 +36,7 @@
 %%%-------------------------------------------------------------------
 -module(erlydtl_scanner).
 
-%% This file was generated 2014-06-29 19:46:00 UTC by slex 0.2.1-2-g7814678.
+%% This file was generated 2014-12-16 17:54:22 UTC by slex 0.2.1-2-g7814678.
 %% http://github.com/erlydtl/slex
 -slex_source(["src/erlydtl_scanner.slex"]).
 
@@ -350,7 +350,7 @@ scan(" " ++ T, S, {R, C} = P,
      {in_verbatim_code, E} = St) ->
     {Tag, Backtrack} = E,
     scan(T, S, {R, C + 1},
-	 {in_verbatim_code, {Tag, [$  | Backtrack]}});
+	 {in_verbatim_code, {Tag, [$\s | Backtrack]}});
 scan("endverbatim%}" ++ T, S, {R, C} = P,
      {in_verbatim_code, E} = St)
     when element(1, E) =:= undefined ->
@@ -366,7 +366,8 @@ scan(" " ++ T, S, {R, C} = P,
     when element(3, E) =:= "" ->
     {Tag, Backtrack, EndTag} = E,
     scan(T, S, {R, C + 1},
-	 {in_endverbatim_code, {Tag, [$  | Backtrack], EndTag}});
+	 {in_endverbatim_code,
+	  {Tag, [$\s | Backtrack], EndTag}});
 scan([H | T], S, {R, C} = P,
      {in_endverbatim_code, E} = St)
     when H >= $a andalso H =< $z orelse
@@ -380,7 +381,7 @@ scan(" " ++ T, S, {R, C} = P,
     when element(1, E) =:= element(3, E) ->
     {Tag, Backtrack, Tag} = E,
     scan(T, S, {R, C + 1},
-	 {in_endverbatim_code, {Tag, [$  | Backtrack], Tag}});
+	 {in_endverbatim_code, {Tag, [$\s | Backtrack], Tag}});
 scan("%}" ++ T, S, {R, C} = P,
      {in_endverbatim_code, E} = St)
     when element(1, E) =:= element(3, E) ->
@@ -563,6 +564,10 @@ post_process([{open_tag, _, _} | _],
 post_process([{open_tag, _, _} | _],
 	     {identifier, _, L} = T, _) ->
     is_keyword(open_tag, T);
+post_process([{open_var, _, _} | _],
+	     {identifier, _, L} = T, _) ->
+    setelement(3, T,
+	       begin L1 = lists:reverse(L), L2 = to_atom(L1), L2 end);
 post_process([{'.', _} | _], {identifier, _, L} = T,
 	     _) ->
     setelement(3, T,
