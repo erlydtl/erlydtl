@@ -37,6 +37,18 @@ all_test_defs() ->
           output = <<"test">>
          }
       ]},
+     {"maps",
+      case erlang:is_builtin(erlang, is_map, 1) of
+          false -> [];
+          true ->
+              [#test{
+                  title = "simple test",
+                  source = <<"{{ msg.hello }}">>,
+                  render_vars = [{msg, maps:put(hello, "world", maps:new())}],
+                  output = <<"world">>
+                 }
+              ]
+      end},
      {"comment",
       [{"comment block is excised",
         <<"bob {% comment %}(moron){% endcomment %} loblaw">>,
