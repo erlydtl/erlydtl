@@ -108,38 +108,32 @@ find_value(Key, Tuple) when is_tuple(Tuple) ->
                     undefined
             end
     end;
-find_value(Key, Map) when is_atom(Key) ->
+find_value(Key, Map) ->
     case erlang:is_builtin(erlang, is_map, 1) andalso erlang:is_map(Map) of
-        true ->
-            case maps:find(Key, Map) of
-                error           -> find_value(atom_to_list(Key), Map);
-                {ok, Value}     -> Value
-            end;
-        false ->
-            undefined
+        true  -> find_map_value(Key, Map);
+        false -> undefined
+    end.
+
+find_map_value(Key, Map) when is_atom(Key) ->
+    case maps:find(Key, Map) of
+        error           -> find_map_value(atom_to_list(Key), Map);
+        {ok, Value}     -> Value
     end;
-find_value(Key, Map) when is_list(Key) ->
-    case erlang:is_builtin(erlang, is_map, 1) andalso erlang:is_map(Map) of
-        true ->
-            case maps:find(Key, Map) of
-                error           -> find_value(list_to_binary(Key), Map);
-                {ok, Value}     -> Value
-            end;
-        false ->
-            undefined
+find_map_value(Key, Map) when is_list(Key) ->
+    case maps:find(Key, Map) of
+        error           -> find_map_value(list_to_binary(Key), Map);
+        {ok, Value}     -> Value
     end;
-find_value(Key, Map) when is_binary(Key) ->
-    case erlang:is_builtin(erlang, is_map, 1) andalso erlang:is_map(Map) of
-        true ->
-            case maps:find(Key, Map) of
-                error           -> undefined;
-                {ok, Value}     -> Value
-            end;
-        false ->
-            undefined
+find_map_value(Key, Map) when is_binary(Key) ->
+    case maps:find(Key, Map) of
+        error           -> undefined;
+        {ok, Value}     -> Value
     end;
-find_value(_, _) ->
-    undefined.
+find_map_value(Key, Map) ->
+    case maps:find(Key, Map) of
+        error           -> undefined;
+        {ok, Value}     -> Value
+    end.
 
 fetch_value(Key, Data, Options) ->
     fetch_value(Key, Data, Options, []).
