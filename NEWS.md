@@ -19,3 +19,5 @@ Standards](http://www.gnu.org/prep/standards/html_node/NEWS-File.html#NEWS-File)
   independtly stepping the cycle value).
 
 * Support records in regroup tag (#191).
+
+* Support for maps (#196).
