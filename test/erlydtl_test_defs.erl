@@ -46,6 +46,12 @@ all_test_defs() ->
                   source = <<"{{ msg.hello }}">>,
                   render_vars = [{msg, maps:put(hello, "world", maps:new())}],
                   output = <<"world">>
+                 },
+               #test{
+                  title = "various key types",
+                  source = <<"{{ msg.key1 }},{{ msg.key2 }},{{ msg.key3 }},{{ msg.4 }}">>,
+                  render_vars = [{msg, maps:from_list([{key1, 1}, {"key2", 2}, {<<"key3">>, 3}, {4, "value4"}])}],
+                  output = <<"1,2,3,value4">>
                  }
               ]
       end},
