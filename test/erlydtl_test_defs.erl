@@ -3,6 +3,7 @@
 -export([tests/0]).
 -include("testrunner.hrl").
 -record(testrec, {foo, bar, baz}).
+-record(person, {first_name, gender}).
 
 %% {Name, DTL, Vars, Output}
 %% {Name, DTL, Vars, RenderOpts, Output}
@@ -28,8 +29,32 @@ all_test_defs() ->
         [{var1, "foo"}], <<"foo">>},
        {"Variable name is a tag name",
         <<"{{ comment }}">>,
-        [{comment, "Nice work!"}], <<"Nice work!">>}
+        [{comment, "Nice work!"}], <<"Nice work!">>},
+       #test{
+          title = "reserved name ok as variable name",
+          source = <<"{{ from }}">>,
+          render_vars = [{from, "test"}],
+          output = <<"test">>
+         }
       ]},
+     {"maps",
+      case erlang:is_builtin(erlang, is_map, 1) of
+          false -> [];
+          true ->
+              [#test{
+                  title = "simple test",
+                  source = <<"{{ msg.hello }}">>,
+                  render_vars = [{msg, maps:put(hello, "world", maps:new())}],
+                  output = <<"world">>
+                 },
+               #test{
+                  title = "various key types",
+                  source = <<"{{ msg.key1 }},{{ msg.key2 }},{{ msg.key3 }},{{ msg.4 }}">>,
+                  render_vars = [{msg, maps:from_list([{key1, 1}, {"key2", 2}, {<<"key3">>, 3}, {4, "value4"}])}],
+                  output = <<"1,2,3,value4">>
+                 }
+              ]
+      end},
      {"comment",
       [{"comment block is excised",
         <<"bob {% comment %}(moron){% endcomment %} loblaw">>,
@@ -62,13 +87,37 @@ all_test_defs() ->
         <<"{{ \"foo\"|add:\"\\\"\" }}">>, [], <<"foo\"">>}
       ]},
      {"cycle",
-      [{"Cycling through quoted strings",
+      [#test{
+          title = "deprecated cycle syntax",
+          source = <<"{% for i in test %}{% cycle a,b %}{{ i }},{% endfor %}">>,
+          render_vars = [{test, [0,1,2,3,4]}],
+          output = <<"a0,b1,a2,b3,a4,">>
+         },
+       {"Cycling through quoted strings",
         <<"{% for i in test %}{% cycle 'a' 'b' %}{{ i }},{% endfor %}">>,
         [{test, ["0", "1", "2", "3", "4"]}], <<"a0,b1,a2,b3,a4,">>},
        {"Cycling through normal variables",
         <<"{% for i in test %}{% cycle aye bee %}{{ i }},{% endfor %}">>,
         [{test, ["0", "1", "2", "3", "4"]}, {aye, "a"}, {bee, "b"}],
-        <<"a0,b1,a2,b3,a4,">>}
+        <<"a0,b1,a2,b3,a4,">>},
+       #test{
+          title = "mix strings and variables",
+          source = <<"{% for i in test %}{% cycle 'a' b 'c' %}{{ i }},{% endfor %}">>,
+          render_vars = [{test, [0,1,2,3,4]}, {b, 'B'}],
+          output = <<"a0,B1,c2,a3,B4,">>
+         },
+       #test{
+          title = "keep current value in local variable",
+          source = <<"{% for i in test %}{% cycle 'a' 'b' as c %}{{ i }}{{ c }},{% endfor %}">>,
+          render_vars = [{test, [0,1,2,3,4]}],
+          output = <<"a0a,b1b,a2a,b3b,a4a,">>
+         },
+       #test{
+          title = "keep current value silently in local variable",
+          source = <<"{% for i in test %}{% cycle 'a' 'b' as c silent %}{{ i }}{{ c }},{% endfor %}">>,
+          render_vars = [{test, [0,1,2,3,4]}],
+          output = <<"0a,1b,2a,3b,4a,">>
+         }
       ]},
      {"number literal",
       [{"Render integer",
@@ -139,7 +188,17 @@ all_test_defs() ->
        {"Index all tuple elements 1-based (selected at render time)",
         <<"{{ var1.1 }},{{ var1.2 }},{{ var1.3 }}.">>,
         [{var1, {a, b, c}}], [], [{tuples_0_based, defer}],
-        <<"a,b,c.">>}
+        <<"a,b,c.">>},
+       {"Index tuple using a \"reserved\" keyword",
+        <<"{{ list.count }}">>,
+        [{list, [{count, 123}]}],
+        <<"123">>},
+       {"Index list value",
+        <<"{{ content.description }}">>,
+        [{content, "test"}], <<"">>},
+       {"Index binary value",
+        <<"{{ content.description }}">>,
+        [{content, <<"test">>}], <<"">>}
       ]},
      {"now",
       [{"now functional",
@@ -683,6 +742,12 @@ all_test_defs() ->
        {"|pluralize:\"y,es\" (list)",
         <<"{{ num|pluralize:\"y,es\" }}">>, [{num, 2}],
         <<"es">>},
+       {"|length|pluralize",
+        <<"{{ list|length|pluralize:\"plural\" }}">>, [{list, [foo, bar]}],
+        <<"plural">>},
+       {"|length|pluralize",
+        <<"{{ list|length|pluralize:\"plural\" }}">>, [{list, [foo]}],
+        <<"">>},
        {"|random",
         <<"{{ var1|random }}">>, [{var1, ["foo", "foo", "foo"]}],
         <<"foo">>},
@@ -1256,7 +1321,19 @@ all_test_defs() ->
         <<"People: {% regroup people by gender as gender_list %}{% for gender in gender_list %}{{ gender.grouper }}\n{% for item in gender.list %}{{ item.first_name }}\n{% endfor %}{% endfor %}Done.">>,
         [{people, [[{first_name, "George"}, {gender, "Male"}], [{first_name, "Bill"}, {gender, "Male"}],
                    [{first_name, "Margaret"}, {gender, "Female"}], [{first_name, "Condi"}, {gender, "Female"}]]}],
-        <<"People: Male\nGeorge\nBill\nFemale\nMargaret\nCondi\nDone.">>}
+        <<"People: Male\nGeorge\nBill\nFemale\nMargaret\nCondi\nDone.">>},
+       #test{
+          title = "regroup record",
+          source = <<"{% regroup people by gender as gender_list %}{% for gender in gender_list %}{{ gender.grouper }}:\n{% for person in gender.list %} - {{ person.first_name }}\n{% endfor %}{% endfor %}">>,
+          compile_opts = [{record_info, [{person, record_info(fields, person)}]} | (#test{})#test.compile_opts],
+          render_vars = [{people, [#person{ first_name = "George", gender = "Male" },
+                                   #person{ first_name = "Bill", gender = "Male" },
+                                   #person{ first_name = "Margaret", gender = "Female" },
+                                   #person{ first_name = "Condi", gender = "Female" }
+                                  ]}
+                        ],
+          output = <<"Male:\n - George\n - Bill\nFemale:\n - Margaret\n - Condi\n">>
+         }
       ]},
      {"spaceless",
       [{"Beginning", <<"{% spaceless %}    <b>foo</b>{% endspaceless %}">>, [], <<"<b>foo</b>">>},
@@ -1648,17 +1725,17 @@ all_test_defs() ->
       end},
      {"functional",
       [functional_test(F)
-       %% order is important.
-       || F <- ["autoescape", "comment", "extends", "filters", "for", "for_list",
-                "for_tuple", "for_list_preset", "for_preset", "for_records",
-                "for_records_preset", "include", "if", "if_preset", "ifequal",
-                "ifequal_preset", "ifnotequal", "ifnotequal_preset", "now",
-                "var", "var_preset", "cycle", "custom_tag", "custom_tag1",
-                "custom_tag2", "custom_tag3", "custom_tag4", "custom_call",
-                "include_template", "include_path", "ssi", "extends_path",
-                "extends_path2", "trans", "extends2", "extends3",
-                "recursive_block", "extend_recursive_block", "missing",
-                "block_super"]
+       %% order is important for a few of these tests, unfortunately.
+
+       || F <- ["autoescape", "comment", "extends", "filters", "for", "for_list", "for_tuple",
+                "for_list_preset", "for_preset", "for_records", "for_records_preset", "include",
+                "if", "if_preset", "ifequal", "ifequal_preset", "ifnotequal", "ifnotequal_preset",
+                "now", "var", "var_preset", "cycle", "custom_tag", "custom_tag1", "custom_tag2",
+                "custom_tag3", "custom_tag4", "custom_call", "include_template", "include_path",
+                "ssi", "extends_path", "extends_path2", "trans", "extends_for", "extends2",
+                "extends3", "recursive_block", "extend_recursive_block", "missing", "block_super",
+                "wrapper", "extends4", "super_escaped", "extends_chain"]
+
       ]},
      {"compile_dir",
       [setup_compile(T)
@@ -1765,10 +1842,13 @@ functional_test(F) ->
 setup_compile(#test{ title=F, compile_opts=Opts }=T) ->
     CompileOpts = [{doc_root, "../test/files/input"}|Opts],
     case setup_compile(F) of
-        {ok, [CV|CO]} ->
+        {ok, [CV|Other]} ->
+            CO = proplists:get_value(compile_opts, Other, []),
+            Ws = proplists:get_value(warnings, Other, []),
             setup(T#test{
                     compile_vars = CV,
-                    compile_opts = CO ++ CompileOpts
+                    compile_opts = CO ++ CompileOpts,
+                    warnings = Ws
                    });
         {error, Es, Ws} ->
             T#test{
@@ -1801,6 +1881,9 @@ setup_compile("ifnotequal_preset") ->
 setup_compile("var_preset") ->
     CompileVars = [{preset_var1, "preset-var1"}, {preset_var2, "preset-var2"}],
     {ok, [CompileVars]};
+setup_compile("extends_for") ->
+	CompileVars = [{veggie_list, ["broccoli", "beans", "peas", "carrots"]}],
+	{ok, [CompileVars]};
 setup_compile("extends2") ->
     File = template_file(input, "extends2"),
     Error = {none, erlydtl_beam_compiler, unexpected_extends_tag},
@@ -1810,16 +1893,22 @@ setup_compile("extends3") ->
     Include = template_file(input, "imaginary"),
     Error = {none, erlydtl_beam_compiler, {read_file, Include, enoent}},
     {error, [{File, [Error]}], []};
+setup_compile("extends4") ->
+    File = template_file(input, "extends4"),
+    Warning = {{1,21}, erlydtl_beam_compiler, non_block_tag},
+    {ok, [[]|[{warnings, [{File, [Warning]}]}]]};
 setup_compile("missing") ->
     File = template_file(input, "missing"),
     Error = {none, erlydtl_compiler, {read_file, File, enoent}},
     {error, [{File, [Error]}], []};
 setup_compile("custom_tag") ->
-    {ok, [[]|[{custom_tags_modules, [erlydtl_custom_tags]}]]};
+    {ok, [[]|[{compile_opts, [{custom_tags_modules, [erlydtl_custom_tags]}]}]]};
 setup_compile("custom_tag1") -> setup_compile("custom_tag");
 setup_compile("custom_tag2") -> setup_compile("custom_tag");
 setup_compile("custom_tag3") -> setup_compile("custom_tag");
 setup_compile("custom_tag4") -> setup_compile("custom_tag");
+setup_compile("super_escaped") ->
+    {ok, [[]|[{compile_opts, [auto_escape]}]]};
 setup_compile(_) ->
     {ok, [[]]}.
 
@@ -1936,6 +2025,10 @@ setup("custom_tag4") ->
 setup("ssi") ->
     RenderVars = [{path, "ssi_include.html"}],
     {ok, RenderVars};
+setup("wrapper") ->
+    RenderVars = [{types, ["b", "a", "c"]}],
+    {ok, RenderVars};
+
 %%--------------------------------------------------------------------
 %% Custom tags
 %%--------------------------------------------------------------------

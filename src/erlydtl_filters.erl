@@ -504,20 +504,13 @@ pluralize(Number) ->
     pluralize(Number, "s").
 
 pluralize_io(Number, Suffix) ->
-    case lists:member($, , Suffix) of
-        true ->
-            [Singular, Plural] = string:tokens(Suffix,","),
-            case Number of
-                0 -> Plural;
-                1 -> Singular;
-                _ -> Plural
-            end;
-        false ->
-            case Number of
-                0 -> Suffix;
-                1 -> [];
-                _ -> Suffix
-            end
+    [Singular, Plural] =
+        case string:tokens(Suffix,",") of
+            [P] -> ["", P];
+            [S, P|_] -> [S, P]
+        end,
+    if Number == 1; Number == "1"; Number == <<"1">> -> Singular;
+       true -> Plural
     end.
 
 %% @doc "pretty print" arbitrary data structures.  Used for debugging.
@@ -531,7 +524,7 @@ random(_) ->
     "".
 
 random_num(Value) ->
-    random:seed(now()),
+    _ = random:seed(now()),
     random:uniform(Value).
 
 %% random tags to be used when using erlydtl in testing

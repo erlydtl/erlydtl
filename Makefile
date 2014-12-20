@@ -2,7 +2,7 @@ ERL=erl
 ERLC=erlc
 REBAR=./rebar $(REBAR_ARGS)
 
-all: compile tests
+all: compile
 
 compile: check-slex get-deps
 	@$(REBAR) compile

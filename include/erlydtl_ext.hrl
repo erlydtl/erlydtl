@@ -35,7 +35,8 @@
           warnings = #error_info{},
           bin = undefined,
           lists_0_based = false,
-          tuples_0_based = false
+          tuples_0_based = false,
+          checks = [non_block_tag]
          }).
 
 %% ALL fields of ast_info{} must be lists (see erlydtl_compiler_utils:merge_info/2)

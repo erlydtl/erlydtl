@@ -266,6 +266,8 @@ close_tag: to_atom.
 
 open_tag identifier, close_tag: expr is_keyword(all, T) end.
 open_tag identifier: expr is_keyword(open_tag, T) end.
+open_var identifier: lists reverse, to_atom.
+\. - identifier: lists reverse, to_atom.
 identifier, close_tag: expr is_keyword(close_tag, T) end.
 identifier: expr is_keyword(any, T) end.
 
@@ -315,6 +317,7 @@ form \
   \
   is_keyword(close, "only") -> true; \
   is_keyword(close, "parsed") -> true; \
+  is_keyword(close, "silent") -> true; \
   is_keyword(close, "reversed") -> true; \
   is_keyword(close, "openblock") -> true; \
   is_keyword(close, "closeblock") -> true; \

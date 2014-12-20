@@ -57,6 +57,7 @@ Nonterminals
     CommentBraced
     EndCommentBraced
 
+    CycleAs
     CycleTag
     CycleNames
     CycleNamesCompat
@@ -198,6 +199,7 @@ Terminals
     plural_keyword
     regroup_keyword
     reversed_keyword
+    silent_keyword
     spaceless_keyword
     ssi_keyword
     string_literal
@@ -314,10 +316,14 @@ EndCommentBraced -> open_tag endcomment_keyword close_tag.
 CommentTag -> comment_tag : '$1'.
 
 CycleTag -> open_tag cycle_keyword CycleNamesCompat close_tag : {cycle_compat, '$3'}.
-CycleTag -> open_tag cycle_keyword CycleNames close_tag : {cycle, '$3'}.
+CycleTag -> open_tag cycle_keyword CycleNames CycleAs close_tag : {cycle, '$3', '$4'}.
 
 CycleNames -> Value : ['$1'].
 CycleNames -> CycleNames Value : '$1' ++ ['$2'].
+
+CycleAs -> '$empty' : undefined.
+CycleAs -> as_keyword identifier : ['$2'].
+CycleAs -> as_keyword identifier silent_keyword : ['$2', silent].
 
 CycleNamesCompat -> identifier ',' : ['$1'].
 CycleNamesCompat -> CycleNamesCompat identifier ',' : '$1' ++ ['$2'].

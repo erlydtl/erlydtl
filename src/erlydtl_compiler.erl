@@ -278,13 +278,26 @@ init_context(ParseTrail, DefDir, Module, Options) ->
            errors = init_error_info(errors, Ctx#dtl_context.errors, Options),
            warnings = init_error_info(warnings, Ctx#dtl_context.warnings, Options),
            lists_0_based = proplists:get_value(lists_0_based, Options, Ctx#dtl_context.lists_0_based),
-           tuples_0_based = proplists:get_value(tuples_0_based, Options, Ctx#dtl_context.tuples_0_based)
+           tuples_0_based = proplists:get_value(tuples_0_based, Options, Ctx#dtl_context.tuples_0_based),
+           checks = proplists:substitute_negations(
+                      [{no_non_block_tag, non_block_tag}],
+                      proplists:get_all_values(w, Options))
           },
-    Context = load_libraries(proplists:get_value(default_libraries, Options, []), Context0),
+    Context1 = load_libraries(proplists:get_value(default_libraries, Options, []), Context0),
+    Context = default_checks(Ctx#dtl_context.checks, Context1),
     case call_extension(Context, init_context, [Context]) of
         {ok, C} when is_record(C, dtl_context) -> C;
         undefined -> Context
     end.
+
+default_checks([], Context) -> Context;
+default_checks([C|Cs], #dtl_context{ checks = Checks0 } = Context) ->
+    Checks =
+        case proplists:get_value(C, Checks0) of
+            undefined -> [C|Checks0];
+            _ -> Checks0
+        end,
+    default_checks(Cs, Context#dtl_context{ checks = Checks }).
 
 init_error_info(warnings, Ei, Options) ->
     case proplists:get_bool(warnings_as_errors, Options) of
