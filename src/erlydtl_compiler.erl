@@ -280,7 +280,7 @@ init_context(ParseTrail, DefDir, Module, Options) ->
            lists_0_based = proplists:get_value(lists_0_based, Options, Ctx#dtl_context.lists_0_based),
            tuples_0_based = proplists:get_value(tuples_0_based, Options, Ctx#dtl_context.tuples_0_based),
            checks = proplists:substitute_negations(
-                      [{no_non_block_tag}],
+                      [{no_non_block_tag, non_block_tag}],
                       proplists:get_all_values(w, Options))
           },
     Context1 = load_libraries(proplists:get_value(default_libraries, Options, []), Context0),
