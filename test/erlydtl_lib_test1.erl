@@ -1,7 +1,14 @@
 -module(erlydtl_lib_test1).
+-behaviour(erlydtl_lib_test1). %% for test multiple behaviours
 -behaviour(erlydtl_library).
 
 -export([version/0, inventory/1, reverse/1]).
+
+-export([behaviour_info/1]).
+
+behaviour_info(callbacks) ->
+    [
+    ].
 
 version() -> 1.
 
