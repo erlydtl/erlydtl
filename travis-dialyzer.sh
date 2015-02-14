@@ -8,7 +8,7 @@ dialyzer  --build_plt --apps kernel stdlib\
        --output_plt $PLT > /dev/null
 
 echo "********************************************************************************"
-for app in  erts 
+for app in  erts eunit gettext syntax_tools
 do 
     echo $"Adding $app"
     dialyzer --add_to_plt --apps $app\
