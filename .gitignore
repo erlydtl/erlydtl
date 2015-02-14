@@ -13,3 +13,5 @@ deps
 /.edts
 /.rebar/
 /*.beam
+/.settings/
+/.project
