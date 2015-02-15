@@ -32,6 +32,6 @@ dialyzer	ebin/			\
     -Wunmatched_returns	\
     --verbose				\
     --fullpath				\
-    -n						\
+    --statistics			\
     --plt $PLT
 #
