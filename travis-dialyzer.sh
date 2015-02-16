@@ -16,6 +16,7 @@ do
 done
 
 echo "********************************************************************************"
+rm -f deps/merl/priv/merl_transform.beam
 for app in $(ls deps/)
 do
    echo "Adding $app"
