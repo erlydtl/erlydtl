@@ -35,7 +35,7 @@
 %% Include files
 %%
 
--include("include/erlydtl_ext.hrl").
+-include("erlydtl_ext.hrl").
 
 -record(phrase, {msgid :: string(),
                  msgid_plural :: string() | undefined,
