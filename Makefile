@@ -32,9 +32,7 @@ dialyze:
 PLT_APPS ?=
 plt:
 	@dialyzer -n -nn --build_plt --apps \
-		erts kernel stdlib sasl compiler \
-		crypto syntax_tools runtime_tools \
-		tools webtool hipe inets eunit
+		kernel stdlib compiler erts eunit syntax_tools
 
 clean:
 	@echo "Clean merl..." ; $(MAKE) -C deps/merl clean
