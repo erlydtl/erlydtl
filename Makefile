@@ -29,13 +29,14 @@ PLT_APPS ?= kernel stdlib compiler erts eunit syntax_tools
 DIALYZER_OPTS ?= -Werror_handling -Wrace_conditions -Wunmatched_returns \
 		-Wunderspecs --verbose --fullpath
 .PHONY: dialyze
-dialyze:
+dialyze: compile
+	@[ -f $(PLT_FILE) ] || $(MAKE) plt
 	@dialyzer --plt $(PLT_FILE) $(DIALYZER_OPTS) ebin || [ $$? -eq 2 ];
 
 ## In case you are missing a plt file for dialyzer,
 ## you can run/adapt this command
 .PHONY: plt
-plt:
+plt: compile
 # we need to remove second copy of file
 	rm -f deps/merl/priv/merl_transform.beam
 	@echo "Building PLT, may take a few minutes"
@@ -46,6 +47,9 @@ clean:
 	@echo "Clean merl..." ; $(MAKE) -C deps/merl clean
 	@$(REBAR) -C rebar-slex.config clean
 	rm -fv erl_crash.dump
+
+really-clean: clean
+	rm -f $(PLT_FILE)
 
 # rebuild any .slex files as well..  not included by default to avoid
 # the slex dependency, which is only needed in case the .slex file has

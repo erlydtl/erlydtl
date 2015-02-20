@@ -19,9 +19,8 @@ otp_release:
 # since Travis is naughty and calls rebar get-deps behind our backs,
 # we'll have to clean it up and build merl our selves..
 script: 
-  - "make -C deps/merl && make tests"
-  - make plt
-  - make dialyze
+  - "make -C deps/merl && make check"
+
 notifications:
   irc: "chat.freenode.net#erlydtl"
   email: false
