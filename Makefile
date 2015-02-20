@@ -23,16 +23,22 @@ tests: src/erlydtl_parser.erl
 
 check: tests dialyze
 
-DIALYZER_OPTS ?= -Werror_handling -Wrace_conditions -Wunmatched_returns
+DIALYZER_OPTS ?= -Werror_handling -Wrace_conditions -Wunmatched_returns \
+		-Wunderspecs --verbose --fullpath
+PLT_FILE = ~/erlydtl.plt
+.PHONY: dialyze
 dialyze:
-	@dialyzer -nn $(DIALYZER_OPTS) ebin || [ $$? -eq 2 ];
+	@dialyzer -nn --plt $(PLT_FILE) $(DIALYZER_OPTS) ebin || [ $$? -eq 2 ];
 
 ## In case you are missing a plt file for dialyzer,
 ## you can run/adapt this command
 PLT_APPS ?=
 plt:
-	@dialyzer -n -nn --build_plt --apps \
-		kernel stdlib compiler erts eunit syntax_tools
+# we need to remove second copy of file
+	rm -f deps/merl/priv/merl_transform.beam
+	@echo "Building PLT, may take a few minutes"
+	@dialyzer -n -nn --build_plt --output_plt $(PLT_FILE) --apps \
+		kernel stdlib compiler erts eunit syntax_tools deps/*
 
 clean:
 	@echo "Clean merl..." ; $(MAKE) -C deps/merl clean
