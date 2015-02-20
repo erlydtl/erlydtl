@@ -23,16 +23,17 @@ tests: src/erlydtl_parser.erl
 
 check: tests dialyze
 
+## dialyzer
+PLT_FILE = ~/erlydtl.plt
+PLT_APPS ?= kernel stdlib compiler erts eunit syntax_tools
 DIALYZER_OPTS ?= -Werror_handling -Wrace_conditions -Wunmatched_returns \
 		-Wunderspecs --verbose --fullpath
-PLT_FILE = ~/erlydtl.plt
 .PHONY: dialyze
 dialyze:
-	@dialyzer -nn --plt $(PLT_FILE) $(DIALYZER_OPTS) ebin
+	@dialyzer --plt $(PLT_FILE) $(DIALYZER_OPTS) ebin
 
 ## In case you are missing a plt file for dialyzer,
 ## you can run/adapt this command
-PLT_APPS ?= kernel stdlib compiler erts eunit syntax_tools
 .PHONY: plt
 plt:
 # we need to remove second copy of file
