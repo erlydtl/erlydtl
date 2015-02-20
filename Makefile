@@ -37,7 +37,7 @@ plt:
 # we need to remove second copy of file
 	rm -f deps/merl/priv/merl_transform.beam
 	@echo "Building PLT, may take a few minutes"
-	@dialyzer -n -nn --build_plt --output_plt $(PLT_FILE) --apps \
+	@dialyzer --build_plt --output_plt $(PLT_FILE) --apps \
 		kernel stdlib compiler erts eunit syntax_tools deps/* || [ $$? -eq 2 ];
 
 clean:
