@@ -30,7 +30,7 @@ DIALYZER_OPTS ?= -Werror_handling -Wrace_conditions -Wunmatched_returns \
 		-Wunderspecs --verbose --fullpath
 .PHONY: dialyze
 dialyze:
-	@dialyzer --plt $(PLT_FILE) $(DIALYZER_OPTS) ebin
+	@dialyzer --plt $(PLT_FILE) $(DIALYZER_OPTS) ebin || [ $$? -eq 2 ];
 
 ## In case you are missing a plt file for dialyzer,
 ## you can run/adapt this command
