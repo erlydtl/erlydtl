@@ -28,7 +28,7 @@ DIALYZER_OPTS ?= -Werror_handling -Wrace_conditions -Wunmatched_returns \
 PLT_FILE = ~/erlydtl.plt
 .PHONY: dialyze
 dialyze:
-	@dialyzer -nn --plt $(PLT_FILE) $(DIALYZER_OPTS) ebin || [ $$? -eq 2 ];
+	@dialyzer -nn --plt $(PLT_FILE) $(DIALYZER_OPTS) ebin
 
 ## In case you are missing a plt file for dialyzer,
 ## you can run/adapt this command
@@ -38,7 +38,7 @@ plt:
 	rm -f deps/merl/priv/merl_transform.beam
 	@echo "Building PLT, may take a few minutes"
 	@dialyzer -n -nn --build_plt --output_plt $(PLT_FILE) --apps \
-		kernel stdlib compiler erts eunit syntax_tools deps/*
+		kernel stdlib compiler erts eunit syntax_tools deps/* || [ $$? -eq 2 ];
 
 clean:
 	@echo "Clean merl..." ; $(MAKE) -C deps/merl clean
