@@ -32,13 +32,14 @@ dialyze:
 
 ## In case you are missing a plt file for dialyzer,
 ## you can run/adapt this command
-PLT_APPS ?=
+PLT_APPS ?= kernel stdlib compiler erts eunit syntax_tools
+.PHONY: plt
 plt:
 # we need to remove second copy of file
 	rm -f deps/merl/priv/merl_transform.beam
 	@echo "Building PLT, may take a few minutes"
 	@dialyzer --build_plt --output_plt $(PLT_FILE) --apps \
-		kernel stdlib compiler erts eunit syntax_tools deps/* || [ $$? -eq 2 ];
+		$(PLT_APPS) deps/* || [ $$? -eq 2 ];
 
 clean:
 	@echo "Clean merl..." ; $(MAKE) -C deps/merl clean
