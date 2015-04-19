@@ -447,6 +447,7 @@ WithBraced -> open_tag with_keyword Args close_tag : '$3'.
 EndWithBraced -> open_tag endwith_keyword close_tag.
 
 CustomTag -> open_tag identifier CustomArgs close_tag : {tag, '$2', '$3'}.
+CustomTag -> open_tag identifier CustomArgs as_keyword identifier close_tag : {tag, '$2', '$3', '$5'}.
 
 CustomArgs -> '$empty' : [].
 CustomArgs -> identifier '=' Value CustomArgs : [{'$1', '$3'}|'$4'].
