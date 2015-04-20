@@ -540,3 +540,9 @@ From a Unix shell, run:
     make tests
 
 Note that the tests will create some output in tests/output in case of regressions.
+
+
+License
+-------
+
+ErlyDTL is released under the MIT license.
