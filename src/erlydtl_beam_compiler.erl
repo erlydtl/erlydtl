@@ -686,6 +686,8 @@ body_ast(DjangoParseTree, BodyScope, TreeWalker) ->
                 string_ast(String, TW);
             ({'tag', Name, Args}, TW) ->
                 tag_ast(Name, Args, TW);
+            ({'tag', Name, Args, {identifier, _, NewTagVar}}, TW) ->
+                tag_ast(Name, Args, NewTagVar, TW);
             ({'templatetag', {_, _, TagName}}, TW) ->
                 templatetag_ast(TagName, TW);
             ({'trans', Value}, TW) ->
@@ -1549,6 +1551,62 @@ custom_tags_modules_ast({identifier, Pos, Name}, InterpretedArgs,
                true ->
                     {{?Q("render_tag(_@Name@, [_@InterpretedArgs], RenderOptions)"),
                       #ast_info{ custom_tags = [Name] }}, TreeWalker}
+            end
+    end.
+
+tag_ast(Name, Args, NewTagVar, TreeWalker) ->
+    {{InterpretedArgs, AstInfo1}, TreeWalker1} = interpret_args(Args, TreeWalker),
+    {{RenderAst, RenderInfo}, TreeWalker2} = custom_tags_modules_ast(Name, InterpretedArgs, NewTagVar, TreeWalker1),
+    {{RenderAst, merge_info(AstInfo1, RenderInfo)}, TreeWalker2}.
+
+custom_tags_modules_ast({identifier, Pos, Name}, InterpretedArgs, NewTagVar,
+                        #treewalker{
+                           context=#dtl_context{
+                                      tags = Tags,
+                                      module = Module,
+                                      is_compiling_dir=IsCompilingDir
+                                     }
+                          }=TreeWalker) ->
+  LocalVarAst = varname_ast(NewTagVar),
+    case proplists:get_value(Name, Tags) of
+        {Mod, Fun}=Tag ->
+            case lists:max([-1] ++ [I || {N,I} <- Mod:module_info(exports), N =:= Fun]) of
+                2 ->
+                      {Id, TreeWalker1} = begin_scope(
+                        {[{NewTagVar, LocalVarAst}],
+                          [?Q("_@LocalVarAst = '@Mod@':'@Fun@'([_@InterpretedArgs], RenderOptions)")]},
+                        TreeWalker
+                      ),
+                  {{Id, #ast_info{}}, TreeWalker1};
+                1 ->
+                      {Id, TreeWalker1} = begin_scope(
+                        {[{NewTagVar, LocalVarAst}],
+                          [?Q("_@LocalVarAst = '@Mod@':'@Fun@'([_@InterpretedArgs])")]},
+                        TreeWalker
+                  ),
+                  {{Id, #ast_info{}}, TreeWalker1};
+
+                -1 ->
+                    empty_ast(?WARN({Pos, {missing_tag, Name, Tag}}, TreeWalker));
+                I ->
+                    empty_ast(?WARN({Pos, {bad_tag, Name, Tag, I}}, TreeWalker))
+            end;
+        undefined ->
+            if IsCompilingDir =/= false ->
+                      {Id, TreeWalker1} = begin_scope(
+                        {[{NewTagVar, LocalVarAst}],
+                          [?Q("_@LocalVarAst = '@Module@':'@Name@'([_@InterpretedArgs], RenderOptions)")]},
+                        TreeWalker
+                      ),
+                      {{Id, #ast_info{ custom_tags = [Name]}}, TreeWalker1};
+               true ->
+                     {Id, TreeWalker1} = begin_scope(
+                       {[{NewTagVar, LocalVarAst}],
+                         [?Q("_@LocalVarAst = '@Module@':'@Name@'([_@InterpretedArgs], RenderOptions)")]},
+                       TreeWalker
+                     ),
+                     {{Id, #ast_info{ custom_tags = [Name]}}, TreeWalker1}
+
             end
     end.
 
