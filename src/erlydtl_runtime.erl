@@ -450,13 +450,25 @@ spaceless(Contents) ->
     Contents4 = re:replace(Contents3, ">\\s+<", "><", [global, {return,list}]),
     Contents4.
 
-read_file(Module, Function, DocRoot, FileName) ->
+read_file(Module, Function, DocRoot, FileName, ReaderOptions) ->
     AbsName = case filename:absname(FileName) of
                   FileName -> FileName;
                   _ -> filename:join([DocRoot, FileName])
               end,
-    case Module:Function(AbsName) of
+    case read_file_internal(Module, Function, AbsName, ReaderOptions) of
         {ok, Data} -> Data;
         {error, Reason} ->
             throw({read_file, AbsName, Reason})
+    end.
+read_file_internal(Module, Function, FileName, ReaderOptions) ->
+    case erlang:function_exported(Module, Function,1) of
+        true ->
+            Module:Function(FileName);
+        false ->
+            case erlang:function_exported(Module, Function,2) of
+                true ->
+                    Module:Function(FileName, ReaderOptions);
+                false ->
+                    {error, "Empty reader"}
+            end
     end.
