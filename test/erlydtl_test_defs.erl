@@ -1,6 +1,6 @@
 -module(erlydtl_test_defs).
 
--export([tests/0]).
+-export([tests/0, extra_reader/2]).
 -include("testrunner.hrl").
 -record(testrec, {foo, bar, baz}).
 -record(person, {first_name, gender}).
@@ -1740,7 +1740,7 @@ all_test_defs() ->
                 "custom_tag3", "custom_tag4", "custom_tag_var", "custom_tag_lib_var", "custom_call", "include_template", "include_path",
                 "ssi", "extends_path", "extends_path2", "trans", "extends_for", "extends2",
                 "extends3", "recursive_block", "extend_recursive_block", "missing", "block_super",
-                "wrapper", "extends4", "super_escaped", "extends_chain"]
+                "wrapper", "extends4", "super_escaped", "extends_chain", "reader_options", "ssi_reader_options"]
 
       ]},
      {"compile_dir",
@@ -1918,9 +1918,24 @@ setup_compile("custom_tag_lib_var") ->
  {ok, [[]|[{compile_opts, [{libraries, [{custom_tag_lib,erlydtl_custom_tags_lib}]}, {default_libraries, [custom_tag_lib]}]}]]};
 setup_compile("super_escaped") ->
     {ok, [[]|[{compile_opts, [auto_escape]}]]};
+setup_compile("reader_options") ->
+ {ok, [[]|[{compile_opts, [{reader, {?MODULE, extra_reader}}, {reader_options, [{user_id, <<"007">>}, {user_name, <<"Agent">>}]}]}]]};
+setup_compile("ssi_reader_options") ->
+ {ok, [[]|[{compile_opts, [{reader, {?MODULE, extra_reader}}, {reader_options, [{user_id, <<"007">>}, {user_name, <<"Agent">>}]}]}]]};
 setup_compile(_) ->
     {ok, [[]]}.
 
+extra_reader(FileName, ReaderOptions) ->
+ UserID = proplists:get_value(user_id, ReaderOptions, <<"IDUnknown">>),
+ UserName = proplists:get_value(user_name, ReaderOptions, <<"NameUnknown">>),
+ case file:read_file(FileName) of
+  {ok, Data} when UserID == <<"007">>, UserName == <<"Agent">> ->
+   {ok, Data};
+  {ok, _Data} ->
+   {error, "Not Found"};
+  Err ->
+   Err
+ end.
 
 expected(File) ->
     Filename = template_file(expect, File),
@@ -2041,6 +2056,13 @@ setup("ssi") ->
 setup("wrapper") ->
     RenderVars = [{types, ["b", "a", "c"]}],
     {ok, RenderVars};
+setup("reader_options") ->
+ RenderVars = [{base_var, "base-barstring"}, {test_var, "test-barstring"}],
+% Options = [],%[{compile_opts, [{reader, {?MODULE, extra_reader}}, {reader_options, [{user_id, <<"007">>}, {user_name, <<"Agent">>}]}]}],
+  {ok, RenderVars};
+setup("ssi_reader_options") ->
+ RenderVars = [{path, "ssi_include.html"}],
+ {ok, RenderVars};
 
 %%--------------------------------------------------------------------
 %% Custom tags

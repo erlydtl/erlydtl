@@ -320,13 +320,14 @@ maybe_debug_template(Forms, Context) ->
 is_up_to_date(CheckSum, Context) ->
     Module = Context#dtl_context.module,
     {M, F} = Context#dtl_context.reader,
+    ReaderOptions = Context#dtl_context.reader_options,
     case catch Module:source() of
         {_, CheckSum} ->
             case catch Module:dependencies() of
                 L when is_list(L) ->
                     RecompileList = lists:foldl(
                                       fun ({XFile, XCheckSum}, Acc) ->
-                                              case catch M:F(XFile) of
+                                              case catch erlydtl_runtime:read_file_internal(M, F, XFile, ReaderOptions) of
                                                   {ok, Data} ->
                                                       case binary_to_list(erlang:md5(Data)) of
                                                           XCheckSum ->
@@ -1028,11 +1029,12 @@ include_ast(File, ArgList, Scopes, #treewalker{ context=Context }=TreeWalker) ->
 ssi_ast(FileName, #treewalker{
                      context=#dtl_context{
                                 reader = {Mod, Fun},
+                                reader_options = ReaderOptions,
                                 doc_root = Dir
                                }
                     }=TreeWalker) ->
     {{FileAst, Info}, TreeWalker1} = value_ast(FileName, true, true, TreeWalker),
-    {{?Q("erlydtl_runtime:read_file(_@Mod@, _@Fun@, _@Dir@, _@FileAst)"), Info}, TreeWalker1}.
+    {{?Q("erlydtl_runtime:read_file(_@Mod@, _@Fun@, _@Dir@, _@FileAst, _@ReaderOptions@)"), Info}, TreeWalker1}.
 
 filter_tag_ast(FilterList, Contents, TreeWalker) ->
     {{InnerAst, Info}, TreeWalker1} = body_ast(Contents, push_auto_escape(did, TreeWalker)),
