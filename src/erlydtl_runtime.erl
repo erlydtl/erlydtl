@@ -461,11 +461,14 @@ read_file(Module, Function, DocRoot, FileName, ReaderOptions) ->
             throw({read_file, AbsName, Reason})
     end.
 read_file_internal(Module, Function, FileName, ReaderOptions) ->
-    case lists:min([I || {N,I} <- Module:module_info(exports), N =:= Function] ++ [1000]) of
-        1->
+    case erlang:function_exported(Module, Function,1) of
+        true ->
             Module:Function(FileName);
-        2->
-            Module:Function(FileName, ReaderOptions);
-        _ ->
-            {error, "Empty reader"}
+        false ->
+            case erlang:function_exported(Module, Function,2) of
+                true ->
+                    Module:Function(FileName, ReaderOptions);
+                false ->
+                    {error, "Empty reader"}
+            end
     end.
