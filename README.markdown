@@ -218,10 +218,35 @@ Options is a proplist possibly containing:
   specified, no .beam files will be created and a warning is
   emitted. To silence the warning, use `{out_dir, false}`.
 
-* `reader` - {module, function} tuple that takes a path to a template
-  and returns a binary with the file contents. Defaults to `{file,
-  read_file}`. Useful for reading templates from a network resource.
+* `reader` - {module, function} tuple that takes a path to a template,
+  may be ReaderOptions  and returns a binary with the file contents.
+  Defaults to `{file,  read_file}`. Useful for reading templates from
+  a network resource.
 
+* `reader_options` - list of {option_name, Option} that passed as the
+  second parameter to `reader`.
+
+  ```erlang
+    extra_reader(FileName, ReaderOptions) ->
+     UserID = proplists:get_value(user_id, ReaderOptions, <<"IDUnknown">>),
+     UserName = proplists:get_value(user_name, ReaderOptions, <<"NameUnknown">>),
+     case file:read_file(FileName) of
+      {ok, Data} when UserID == <<"007">>, UserName == <<"Agent">> ->
+       {ok, Data};
+      {ok, _Data} ->
+       {error, "Not Found"};
+      Err ->
+       Err
+     end.
+  ```
+  ```
+    CompileResult = erlydtl:compile(Body, ModName,
+    										[return,
+    										  {reader, {?MODULE, extra_reader}},
+    										  {reader_options, [{user_id, <<"007">>},
+    											    {user_name, <<"Agent">>}]}
+    									    ]),
+  ```
 * `record_info` - List of records to look for when rendering the
   template. Each record info is a tuple with the fields of the record:
 
