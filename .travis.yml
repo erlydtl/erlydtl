@@ -1,6 +1,7 @@
 language: erlang
 otp_release:
 # Test on all supported releases accepted by the `require_otp_vsn` in rebar.config
+   - 18.0
    - 17.4
    - 17.3
    - 17.1
