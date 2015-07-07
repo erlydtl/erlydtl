@@ -1117,7 +1117,9 @@ truncatewords_html_io([C|Rest], WordsLeft, Acc, Tags, tag) ->
 truncatewords_html_io([C|Rest], WordsLeft, Acc, Tags, attrs) when C =:= $> ->
     truncatewords_html_io(Rest, WordsLeft, [C|Acc], Tags, text);
 truncatewords_html_io([C|Rest], WordsLeft, Acc, [_Tag|RestOfTags], close_tag) when C =:= $> ->
-    truncatewords_html_io(Rest, WordsLeft, [C|Acc], RestOfTags, text).
+    truncatewords_html_io(Rest, WordsLeft, [C|Acc], RestOfTags, text);
+truncatewords_html_io([C|Rest], WordsLeft, Acc, Tags, close_tag) when C =/= $> ->
+    truncatewords_html_io(Rest, WordsLeft, [C|Acc], Tags, close_tag).
 
 wordcount([], Count) ->
     Count;
