@@ -496,7 +496,11 @@ lib_module(Name, #dtl_context{ libraries=Libs }) ->
     end.
 
 implements_behaviour(Behaviour, Mod) ->
-    [] =:= [Behaviour] -- [B || [B] <- proplists:get_all_values(behaviour, Mod:module_info(attributes))].
+    Attrs = Mod:module_info(attributes),
+    Found =
+        [B || [B] <- proplists:get_all_values(behaviour, Attrs)] ++
+        [B || [B] <- proplists:get_all_values(behavior, Attrs)],
+    [] =:= [Behaviour] -- Found.
 
 read_library(Mod, Section, Which) ->
     [{Name, lib_function(Mod, Fun)}
