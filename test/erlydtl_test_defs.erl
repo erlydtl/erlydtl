@@ -1674,6 +1674,12 @@ all_test_defs() ->
         [{default_libraries, [test2]},
          {libraries, [{test2, erlydtl_lib_test2}]}],
         <<"ytrewQ">>
+       },
+       {"lib with multiple behaviors (alternative spelling)",
+        <<"{{ QWER|reverse }}">>, [{'QWER', "Qwerty"}], [],
+        [{default_libraries, [test2]},
+         {libraries, [{test2, erlydtl_lib_test2a}]}],
+        <<"ytrewQ">>
        }
       ]},
      {"compile time default vars/constants",
