@@ -1897,8 +1897,8 @@ setup_compile("var_preset") ->
     CompileVars = [{preset_var1, "preset-var1"}, {preset_var2, "preset-var2"}],
     {ok, [CompileVars]};
 setup_compile("extends_for") ->
-	CompileVars = [{veggie_list, ["broccoli", "beans", "peas", "carrots"]}],
-	{ok, [CompileVars]};
+    CompileVars = [{veggie_list, ["broccoli", "beans", "peas", "carrots"]}],
+    {ok, [CompileVars]};
 setup_compile("extends2") ->
     File = template_file(input, "extends2"),
     Error = {none, erlydtl_beam_compiler, unexpected_extends_tag},

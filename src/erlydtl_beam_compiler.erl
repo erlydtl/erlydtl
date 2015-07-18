@@ -585,7 +585,7 @@ body_ast(DjangoParseTree, BodyScope, TreeWalker) ->
                         lists:foldr(
                           fun ({ChildFile, ChildPos, ChildBlock}, {{SuperAst, SuperInfo}, AccTW}) ->
                                   BlockScope = create_scope(
-                                                 [{block, ?Q("[{super, _@SuperAst}]"), safe}],
+                                                 [{block, ?Q("fun (super) -> _@SuperAst; (_) -> [] end"), safe}],
                                                  ChildPos, ChildFile, AccTW),
                                   {{BlockAst, BlockInfo}, BlockTW} = body_ast(ChildBlock, BlockScope, AccTW),
                                   {{BlockAst, merge_info(SuperInfo, BlockInfo)}, BlockTW}
