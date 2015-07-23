@@ -1,0 +1,14 @@
+%% -*- mode: erlang -*-
+application:load(syntax_tools),
+ExtraApps = case application:get_key(syntax_tools, vsn) of
+                {ok, Vsn} when "1.7" > Vsn -> [merl];
+                _ -> []
+            end,
+
+{application, erlydtl,
+ [{description, "Django Template Language for Erlang"},
+  {vsn, git},
+  {modules, []},
+  {applications, [kernel, stdlib, compiler, syntax_tools|ExtraApps]},
+  {registered, []}
+ ]}.
