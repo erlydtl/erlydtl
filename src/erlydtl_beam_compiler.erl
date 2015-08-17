@@ -817,11 +817,11 @@ blocktrans_ast(Args, Contents, PluralContents, TreeWalker) ->
 
     #dtl_context{
       trans_fun = TFun,
-      trans_locales = TLocales } = TreeWalker3#treewalker.context,
+      trans_locales = TLocales, auto_escape = AutoEscape } = TreeWalker3#treewalker.context,
     if TFun =:= none; PluralContents =/= undefined ->
             %% translate in runtime
             {FinalAst, FinalTW} = blocktrans_runtime_ast(
-                                    {DefaultAst, MergedInfo}, SourceText, Contents, Context,
+                                    {DefaultAst, MergedInfo}, SourceText, Contents, Context, AutoEscape,
                                     plural_contents(PluralContents, Count, TreeWalker3)),
             {FinalAst, restore_scope(TreeWalker1, FinalTW)};
        is_function(TFun, 2) ->
@@ -847,7 +847,7 @@ blocktrans_ast(Args, Contents, PluralContents, TreeWalker) ->
             empty_ast(?ERR({translation_fun, TFun}, TreeWalker3))
     end.
 
-blocktrans_runtime_ast({DefaultAst, Info}, SourceText, Contents, Context, {Plural, TreeWalker}) ->
+blocktrans_runtime_ast({DefaultAst, Info}, SourceText, Contents, Context, AutoEscape, {Plural, TreeWalker}) ->
     %% Contents is flat - only strings and '{{var}}' allowed.
     %% build sorted list (orddict) of pre-resolved variables to pass to runtime translation function
     USortedVariables = lists:usort(fun({variable, {identifier, _, A}},
@@ -863,13 +863,14 @@ blocktrans_runtime_ast({DefaultAst, Info}, SourceText, Contents, Context, {Plura
     VarListAst = erl_syntax:list(VarAsts),
     BlockTransAst = ?Q(["begin",
                         "  case erlydtl_runtime:translate_block(",
-                        "         _@phrase, _@locale,",
+                        "         _@phrase, _@locale, _@auto_escape, ",
                         "         _@VarListAst, _TranslationFun) of",
                         "    default -> _@DefaultAst;",
                         "    Text -> Text",
                         "  end",
                         "end"],
                        [{phrase, phrase_ast(SourceText, Plural)},
+                        {auto_escape, autoescape_ast(AutoEscape)},
                         {locale, phrase_locale_ast(Context)}]),
     {{BlockTransAst, merge_count_info(Info, Plural)}, TreeWalker1}.
 
@@ -893,6 +894,9 @@ phrase_ast(Text, {Contents, {CountAst, _CountInfo}}) ->
          [merl:term(erlydtl_unparser:unparse(Contents)),
           CountAst])
       ]).
+
+autoescape_ast(L) ->
+    erl_syntax:atom(not lists:member(off, L)).
 
 phrase_locale_ast(undefined) -> merl:var('_CurrentLocale');
 phrase_locale_ast(Context) -> erl_syntax:tuple([merl:var('_CurrentLocale'), merl:term(Context)]).
