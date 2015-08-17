@@ -894,9 +894,8 @@ phrase_ast(Text, {Contents, {CountAst, _CountInfo}}) ->
          [merl:term(erlydtl_unparser:unparse(Contents)),
           CountAst])
       ]).
-
-autoescape_ast(L) ->
-    erl_syntax:atom(not lists:member(off, L)).
+autoescape_ast([]) -> autoescape_ast([on]);
+autoescape_ast([V | _]) -> erl_syntax:atom(V == on).
 
 phrase_locale_ast(undefined) -> merl:var('_CurrentLocale');
 phrase_locale_ast(Context) -> erl_syntax:tuple([merl:var('_CurrentLocale'), merl:term(Context)]).
