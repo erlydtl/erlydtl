@@ -1123,10 +1123,10 @@ filter_ast1({{identifier, Pos, Name}, Args}, ValueAst, TreeWalker) ->
 filter_ast2(Name, Args, #dtl_context{ filters = Filters }) ->
     case proplists:get_value(Name, Filters) of
         {Mod, Fun}=Filter ->
-            case erlang:function_exported(Mod, Fun, length(Args)) of
-                true -> {ok, ?Q("'@Mod@':'@Fun@'(_@Args)")};
-                false ->
-                    {filter_args, Name, Filter, length(Args)}
+            case {erlang:function_exported(Mod, Fun, length(Args)), Name} of
+                {true, 'date'} -> {ok, ?Q("'@Mod@':'@Fun@'(_@Args, _TranslationFun)")};
+                {true, _} -> {ok, ?Q("'@Mod@':'@Fun@'(_@Args)")};
+                {false, _} -> {filter_args, Name, Filter, length(Args)}
             end;
         undefined ->
             {unknown_filter, Name, length(Args)}
@@ -1483,7 +1483,7 @@ now_ast(FormatString, TreeWalker) ->
     %% i.e. \"foo\" becomes "foo"
     UnescapeOuter = string:strip(FormatString, both, 34),
     {{StringAst, Info}, TreeWalker1} = string_ast(UnescapeOuter, TreeWalker),
-    {{?Q("erlydtl_dateformat:format(_@StringAst)"), Info}, TreeWalker1}.
+    {{?Q("erlydtl_dateformat:format(_@StringAst, _TranslationFun)"), Info}, TreeWalker1}.
 
 spaceless_ast(Contents, TreeWalker) ->
     {{Ast, Info}, TreeWalker1} = body_ast(Contents, TreeWalker),

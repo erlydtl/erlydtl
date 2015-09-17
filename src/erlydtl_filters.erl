@@ -56,6 +56,7 @@
         cut/2,
         date/1,
         date/2,
+        date/3,
         default/2,
         default_if_none/2,
         dictsort/2,
@@ -236,14 +237,20 @@ cut(Input, [Char]) when is_list(Input) ->
  
 %% @doc Formats a date according to the default format.
 date(Input) ->
-    date(Input, "F j, Y").
+    date(Input, fun(A) -> A end).
+
+%% @doc Formats a date according to the default format. 
+%% @doc Translating tokens with function F
+date(Input, F) when is_function(F)->
+    date(Input, "F j, Y", F).
 
 %% @doc Formats a date according to the given format.
-date(Input, FormatStr)
+date(Input, FormatStr, F)
   when is_tuple(Input)
-       andalso (size(Input) == 2 orelse size(Input) == 3) ->
+       andalso (size(Input) == 2 orelse size(Input) == 3)
+       andalso is_function(F) ->
     erlydtl_dateformat:format(Input, FormatStr);
-date(Input, _FormatStr) ->
+date(Input, _FormatStr, _F) ->
     io:format("Unexpected date parameter: ~p~n", [Input]),
     "".
 
