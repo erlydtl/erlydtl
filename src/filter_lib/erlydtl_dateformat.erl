@@ -63,11 +63,11 @@ format({{_,_,_} = Date,{_,_,_} = Time}, FormatString) ->
 %%
 format({_,_,_} = Date, FormatString) ->
     replace_tags(Date, {0,0,0}, FormatString);
-format(DateTime, FormatString, TransFun) ->
-    io:format("Translations are not yet supported", []),
-    FormatString.
 format(DateTime, FormatString) ->
     io:format("Unrecognised date paramater : ~p~n", [DateTime]),
+    FormatString.
+format(DateTime, FormatString, TransFun) ->
+    io:format("Translations are not yet supported", []),
     FormatString.
 
 replace_tags(Date, Time, Input) ->
