@@ -70,19 +70,27 @@ format(DateTime, FormatString) ->
     FormatString.
 
 %% The same set of functions with TranslationFunction and Locale args
+%% Translation function may be 'none' atom - handle this separately
+%% replacing atom with a stub function (it's easier to do it this way)
 format(FormatString, TransFun, Locale) when is_binary(FormatString) ->
     format(binary_to_list(FormatString), TransFun, Locale);
+format(FormatString, none, Locale) -> 
+    format(FormatString, fun stub_tran/2, <<>>);
 format(FormatString, TransFun, Locale) ->
     {Date, Time} = erlang:localtime(),
     replace_tags(Date, Time, FormatString, TransFun, Locale).
 
 format(DateTime, FormatString, TransFun, Locale) when is_binary(FormatString) ->
     format(DateTime, binary_to_list(FormatString), TransFun, Locale);
+format(DateTime, FormatString, none, Locale) ->
+    format(DateTime, FormatString, fun stub_tran/2, <<>>);
 format({{_,_,_} = Date,{_,_,_} = Time}, FormatString, TransFun, Locale) ->
     replace_tags(Date, Time, FormatString, TransFun, Locale );
 
+format({_,_,_} = Date, FormatString, none, Locale) ->
+    replace_tags(Date, {0,0,0}, FormatString, fun stub_tran/2, <<>>);
 format({_,_,_} = Date, FormatString, TransFun, Locale) ->
-    replace_tags(Date, {0,0,0}, FormatString, TransFun, Locale );
+    replace_tags(Date, {0,0,0}, FormatString, TransFun, Locale);
 format(DateTime, FormatString, _TransFun, _Locale) ->
     io:format("Unrecognised date paramater : ~p~n", [DateTime]),
     FormatString.
