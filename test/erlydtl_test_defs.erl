@@ -1,3 +1,4 @@
+%% -*- coding: utf-8 -*-
 -module(erlydtl_test_defs).
 
 -export([tests/0, extra_reader/2]).
@@ -203,7 +204,11 @@ all_test_defs() ->
      {"now",
       [{"now functional",
         <<"It is the {% now \"jS \\o\\f F Y\" %}.">>, [{var1, ""}], generate_test_date()}
-      ]},
+     ]},
+      {"now",
+      [{"now function with translation", % notice, that only date output is traslated. While you might want to transle the whole format string ('F'->'E')
+        <<"It is the {% now \"jS \\o\\f F Y\" %}.">>, [{var1, ""}], [{locale, <<"ru">>}, {translation_fun, fun date_translation/2}], generate_test_date(russian)}
+     ]},
      {"if",
       [{"If/else",
         <<"{% if var1 %}boo{% else %}yay{% endif %}">>, [{var1, ""}], <<"yay">>},
@@ -560,6 +565,48 @@ all_test_defs() ->
         <<"{{ var1|date }}">>,
         [{var1, {{1975,7,24}, {7,13,1}}}],
         <<"July 24, 1975">>},
+        % I doubt someone need first two, but test we support it
+        {"|date a translation",
+        <<"{{ var1|date:\"a\" }}">>,
+        [{var1, {{1975,7,24},{12,00,00}}}],[{translation_fun, fun date_translation/2},{locale, <<"ru">>}],
+        <<"п.п."/utf8>>},
+        {"|date A translation",
+        <<"{{ var1|date:\"A\" }}">>,
+        [{var1, {{1975,7,24},{12,00,00}}}],[{translation_fun, fun date_translation/2},{locale, <<"ru">>}],
+        <<"ПП"/utf8>>},
+        {"|date b translation", 
+        <<"{{ var1|date:\"b\" }}">>,
+        [{var1, {1975,7,24}}],[{translation_fun, fun date_translation/2},{locale, <<"ru">>}],
+        <<"июл"/utf8>>},
+        {"|date D translation",
+        <<"{{ var1|date:\"D\" }}">>,
+        [{var1, {1975,7,24}}],[{translation_fun, fun date_translation/2},{locale, <<"ru">>}],
+        <<"Чтв"/utf8>>},
+        {"|date E translation",
+        <<"{{ var1|date:\"E\" }}">>,
+        [{var1, {1975,7,24}}],[{translation_fun, fun date_translation/2},{locale, <<"ru">>}],
+        <<"Июля"/utf8>>},
+        {"|date F translation",
+        <<"{{ var1|date:\"F\" }}">>,
+        [{var1, {1975,7,24}}],[{translation_fun, fun date_translation/2},{locale, <<"ru">>}],
+        <<"Июль"/utf8>>},
+        {"|date l translation",
+        <<"{{ var1|date:\"l\" }}">>,
+        [{var1, {1975,7,24}}],[{translation_fun, fun date_translation/2},{locale, <<"ru">>}],
+        <<"Четверг"/utf8>>},
+        {"|date M translation",
+        <<"{{ var1|date:\"M\" }}">>,
+        [{var1, {1986,9,24}}],[{translation_fun, fun date_translation/2},{locale, <<"ru">>}],
+        <<"Сен"/utf8>>},
+        {"|date N translation",
+        <<"{{ var1|date:\"N\" }}">>,
+        [{var1, {1986,9,24}}],[{translation_fun, fun date_translation/2},{locale, <<"ru">>}],
+        <<"Сен."/utf8>>},
+        {"|date P translation",
+        <<"{{ var1|date:\"P\" }}">>,
+        [{var1, {{1986,9,24},{12,0,0}}}],[{translation_fun, fun date_translation/2},{locale, <<"ru">>}],
+        <<"полдень"/utf8>>},
+
        {"|default:\"foo\" 1",
         <<"{{ var1|default:\"foo\" }}">>, [], <<"foo">>},
        {"|default:\"foo\" 2",
@@ -1797,13 +1844,65 @@ def_to_test(Group, {Name, DTL, Vars, RenderOpts, CompilerOpts, Output, Warnings}
       }.
 
 
+date_translation(Val, LC) when is_list(Val) ->
+    io:format("Translating ~p~n", [Val]),
+    date_translation(list_to_binary(Val),LC);
+% date a
+date_translation(<<"p.m.">>, <<"ru">>) ->
+    <<"п.п."/utf8>>;
+% date A
+date_translation(<<"PM">>, <<"ru">>) ->
+    <<"ПП"/utf8>>;
+% date b
+date_translation(<<"jul">>, <<"ru">>) ->
+    <<"июл"/utf8>>;
+% date D
+date_translation(<<"Thu">>, <<"ru">>) ->
+    <<"Чтв"/utf8>>;
+% date E
+date_translation(<<"July">>, {<<"ru">>, <<"alt. month">>}) ->
+    <<"Июля"/utf8>>;
+% date F
+date_translation(<<"July">>, <<"ru">>) ->
+    <<"Июль"/utf8>>;
+% date l
+date_translation(<<"Thursday">>, <<"ru">>) ->
+    <<"Четверг"/utf8>>;
+% date M
+date_translation(<<"Sep">>, <<"ru">>) ->
+    <<"Сен"/utf8>>;
+% date N
+date_translation(<<"Sept.">>, {<<"ru">>, <<"abbrev. month">>}) ->
+    <<"Сен."/utf8>>;
+% date P
+date_translation(<<"noon">>, <<"ru">>) ->
+    <<"полдень"/utf8>>;
+date_translation(Text, <<"ru">>) ->
+    proplists:get_value(Text,
+                        lists:zip(
+                              lists:map(fun list_to_binary/1, en_months()),
+                              ru_months()),
+                        Text);
+date_translation(Text, _) ->
+    Text.
+
+ru_months() -> [ <<"Январь"/utf8>>, <<"Февраль"/utf8>>, <<"Март"/utf8>>, <<"Апрель"/utf8>>,
+             <<"Май"/utf8>>, <<"Июнь"/utf8>>, <<"Июль"/utf8>>, <<"Август"/utf8>>, <<"Сентябрь"/utf8>>,
+             <<"Октябрь"/utf8>>, <<"Ноябрь"/utf8>>, <<"Декабрь"/utf8>>].
+en_months() -> ["January", "February", "March", "April",
+             "May", "June", "July", "August", "September",
+             "October", "November", "December"].
+
+
+
 generate_test_date() ->
+    generate_test_date(false).
+generate_test_date(Translation) ->
     {{Y,M,D}, _} = erlang:localtime(),
-    MonthName = [
-                 "January", "February", "March", "April",
-                 "May", "June", "July", "August", "September",
-                 "October", "November", "December"
-                ],
+    MonthName = case Translation of
+                    russian -> ru_months();
+                    _ -> en_months()
+                end,
     OrdinalSuffix = [
                      "st","nd","rd","th","th","th","th","th","th","th", % 1-10
                      "th","th","th","th","th","th","th","th","th","th", % 10-20
