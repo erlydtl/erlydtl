@@ -122,15 +122,15 @@ replace_tags(Date, Time, [C|Rest], Out, _State, TransFun, Locale) ->
 
 %% 'a.m.' or 'p.m.'
 tag_to_value($a, _, {H, _, _}, TransFun, Locale) when H > 11 -> 
-    erlang:apply(TransFun, ["p.m.", Locale]);
+    TransFun("p.m.", Locale);
 tag_to_value($a, _, _, TransFun, Locale) -> 
-    erlang: apply(TransFun, ["a.m.", Locale]);
+    TransFun("a.m.", Locale);
 
 %% 'AM' or 'PM'
 tag_to_value($A, _, {H, _, _}, TransFun, Locale) when H > 11 -> 
-    erlang:apply(TransFun, ["PM", Locale]);
+    TransFun("PM", Locale);
 tag_to_value($A, _, _, TransFun, Locale) -> 
-    erlang:apply(TransFun, ["AM", Locale]);
+    TransFun("AM", Locale);
 
 %% Swatch Internet time
 tag_to_value($B, _, _, _TransFun, _Locale) ->
@@ -186,9 +186,9 @@ tag_to_value($i, _, {_,M,_}, _TransFun, _Locale) ->
 %% Examples: '1 a.m.', '1:30 p.m.', 'midnight', 'noon', '12:30 p.m.'
 %% Proprietary extension.
 tag_to_value($P, _, {0,  0, _}, TransFun, Locale) -> 
-    erlang:apply(TransFun, ["midnight", Locale]);
+    TransFun("midnight", Locale);
 tag_to_value($P, _, {12, 0, _}, TransFun, Locale) -> 
-    erlang:apply(TransFun, ["noon", Locale]);
+    TransFun("noon", Locale);
 tag_to_value($P, Date, Time, TransFun, Locale) ->
     tag_to_value($f, Date, Time, TransFun, Locale)
         ++ " " ++ tag_to_value($a, Date, Time, TransFun, Locale);
@@ -203,7 +203,7 @@ tag_to_value($s, _, {_,_,S}, _TransFun, _Locale) ->
 
 %% Month, textual, 3 letters, lowercase; e.g. 'jan'
 tag_to_value($b, {_,M,_}, _, TransFun, Locale) ->
-    erlang:apply(TransFun,[string:sub_string(monthname(M), 1, 3), Locale]);
+    TransFun(string:sub_string(monthname(M), 1, 3), Locale);
 
 %% Day of the month, 2 digits with leading zeros; i.e. '01' to '31'
 tag_to_value($d, {_, _, D}, _, _TransFun, _Locale) ->
@@ -212,22 +212,16 @@ tag_to_value($d, {_, _, D}, _, _TransFun, _Locale) ->
 %% Day of the week, textual, 3 letters; e.g. 'Fri'
 tag_to_value($D, Date, _, TransFun, Locale) ->
     Dow = calendar:day_of_the_week(Date),
-    erlang:apply(TransFun, [
-                 ucfirst(string:sub_string(dayname(Dow), 1, 3)),
-                 Locale ]);
+    TransFun(ucfirst(string:sub_string(dayname(Dow), 1, 3)), Locale);
 
 %% Month, textual, long, alternative; e.g. 'Listopada'
 tag_to_value($E, {_,M,_}, _, TransFun, Locale) ->
-    erlang:apply(TransFun, [
-                 ucfirst(monthname(M)),
-                 {Locale, <<"alt. month">>}]);
+    TransFun(ucfirst(monthname(M)), {Locale, <<"alt. month">>});
 
 
 %% Month, textual, long; e.g. 'January'
 tag_to_value($F, {_,M,_}, _, TransFun, Locale) ->
-    erlang:apply(TransFun, [
-                 ucfirst(monthname(M)),
-                 Locale]);
+    TransFun(ucfirst(monthname(M)), Locale);
 
 %% '1' if Daylight Savings Time, '0' otherwise.
 tag_to_value($I, _, _, _TransFun, _Locale) ->
@@ -239,9 +233,7 @@ tag_to_value($j, {_, _, D}, _, _TransFun, _Locale) ->
 
 %% Day of the week, textual, long; e.g. 'Friday'
 tag_to_value($l, Date, _, TransFun, Locale) ->
-    erlang:apply(TransFun, [
-                 ucfirst(dayname(calendar:day_of_the_week(Date))),
-                 Locale]);
+    TransFun(ucfirst(dayname(calendar:day_of_the_week(Date))), Locale);
 
 %% Boolean for whether it is a leap year; i.e. True or False
 tag_to_value($L, {Y,_,_}, _, _TransFun, _Locale) ->
@@ -256,9 +248,7 @@ tag_to_value($m, {_, M, _}, _, _TransFun, _Locale) ->
 
 %% Month, textual, 3 letters; e.g. 'Jan'
 tag_to_value($M, {_,M,_}, _, TransFun, Locale) ->
-    erlang:apply(TransFun, [
-                 ucfirst(string:sub_string(monthname(M), 1, 3)),
-                 Locale]);
+    TransFun(ucfirst(string:sub_string(monthname(M), 1, 3)), Locale);
 
 %% Month without leading zeros; i.e. '1' to '12'
 tag_to_value($n, {_, M, _}, _, _TransFun, _Locale) ->
@@ -267,20 +257,16 @@ tag_to_value($n, {_, M, _}, _, _TransFun, _Locale) ->
 %% Month abbreviation in Associated Press style. Proprietary extension.
 tag_to_value($N, {_,M,_}, _, TransFun, Locale) when M =:= 9 ->
     %% Special case - "Sept."
-    erlang:apply(TransFun, [
-                 ucfirst(string:sub_string(monthname(M), 1, 4)) ++ ".",
-                 {Locale, <<"abbrev. month">>}]);
+    TransFun(ucfirst(string:sub_string(monthname(M), 1, 4)) ++ ".",
+             {Locale, <<"abbrev. month">>});
 tag_to_value($N, {_,M,_}, _, TransFun, Locale) when M < 3 orelse M > 7 ->
     %% Jan, Feb, Aug, Oct, Nov, Dec are all
     %% abbreviated with a full-stop appended.
-    erlang:apply(TransFun, [
-                 ucfirst(string:sub_string(monthname(M), 1, 3)) ++ ".",
-                 {Locale, <<"abbrev. month">>}]);
+    TransFun(ucfirst(string:sub_string(monthname(M), 1, 3)) ++ ".",
+                 {Locale, <<"abbrev. month">>});
 tag_to_value($N, {_,M,_}, _, TransFun, Locale) ->
     %% The rest are the fullname.
-    erlang:apply(TransFun, [
-                 ucfirst(monthname(M)),
-                 {Locale, <<"abbrev. month">>}]);
+    TransFun(ucfirst(monthname(M)), {Locale, <<"abbrev. month">>});
 
 %% Difference to Greenwich time in hours; e.g. '+0200'
 tag_to_value($O, Date, Time, _TransFun, _Locale) ->
