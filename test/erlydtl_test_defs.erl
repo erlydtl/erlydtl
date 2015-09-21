@@ -137,6 +137,8 @@ all_test_defs() ->
         <<"{{ var1 }}">>, dict:store(var1, "bar", dict:new()), <<"bar">>},
        {"Render variable with missing attribute in dict",
         <<"{{ var1.foo }}">>, [{var1, dict:store(bar, "Othello", dict:new())}], <<"">>},
+       {"Render variable in a two elements tuple",
+        <<"{{ var1.2 }}">>, [{var1,{12,[bar]}}], <<"bar">>},
        {"Render variable in gb_tree",
         <<"{{ var1 }}">>, gb_trees:insert(var1, "bar", gb_trees:empty()), <<"bar">>},
        {"Render variable in arity-1 func",
