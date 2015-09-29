@@ -281,8 +281,10 @@ Options is a proplist possibly containing:
     when Locale::string(), Context::string().
   ```
 
+  Please, keep in mind, that if your templates where not specially 
+  designed, you probably still need render time translations.
   See description of the `translation_fun` render option for more
-  details on the translation `context`.
+  details on the translation `context`. 
 
   Notice, you may instead pass a `fun/0`, `{Module, Function}` or
   `{Module, Function, Args}` which will be called recursively until it
@@ -412,9 +414,43 @@ Same as `render/1`, but with the following options:
   {% endblocktrans %}
   ```
 
-  Notice, the translation fun can also be a `fun/0` or a MFA-tuple to
-  setup the translation prior to rendering. See the `translation_fun`
-  compile option for more details.
+  Render time translation function is also used to translate dates.
+  Date tokens mimics those used in django, so you may reuse django translations.
+  Tokens may appear in a date are:
+  1. Full months names, capitalized ("January" .. "December");
+  2. 3 letters months names ("jan" .. "dec");
+  3. Associated Press style months 
+     ("Jan." .. "Dec." with "abbrev.month" context);
+  4. Alternative month name, for "E" option
+     ("January" .. "December" with "alt. month" context);
+  5. Full week day names, capitalized ("Monday" .. "Sunday");
+  6. Abbreviated week day names, capitalized ("Mon" .. "Sun");
+  7. day time tokens ("AM", "PM", "a.m.", "p.m.", "noon", "midnight");
+
+  While date token values may be passed as lists, consider using binaries 
+  as a default string format.
+  Here is a simple but robust translation function stub:
+  ```erlang
+     translation_placeholder({Val,{Plural, Count}}, {L, C}) when is_list(Val) ->
+       translation_placeholder({list_to_binary(Val),{Plural, Count}}, LC);
+     translation_placeholder(Val, {L, C}) when is_list(Val) ->
+       translation_placeholder(list_to_binary(Val), LC);
+     translation_placeholder(Val, {L, C}) when is_list(C) ->
+       translation_placeholder(Val, list_to_binary(C));
+     translation_placeholder(Val, {L, C}) when is_list(C) ->
+       io:format("Translating ~p into ~p with context ~p~n", [Val, L, C]),
+       %% do nothing and return original value
+       Val.
+  ```
+
+  The translation fun can also be a `fun/0`, `{Module, Function}` or
+  `{Module, Function, Args}` which will be called recursively until it
+  yields a valid translation function, at which time any needed
+  translation setup actions can be carried out prior to returning the
+  next step (either another setup function/tuple, or the translation
+  function).
+
+  
 
 * `lists_0_based` - If the compile option `lists_0_based` was set to
   `defer`, pass this option (or set it to true, `{lists_0_based,
