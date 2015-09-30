@@ -1120,13 +1120,28 @@ filter_ast1({{identifier, Pos, Name}, Args}, ValueAst, TreeWalker) ->
             empty_ast(?WARN({Pos, Error}, TreeWalker1))
     end.
 
-filter_ast2(Name, Args, #dtl_context{ filters = Filters }) ->
+% special case for date, which reqires localisation
+% may be replaced later with a query to a list 
+% of functions which require translation
+filter_ast2('date' = Name, Args, #dtl_context{ filters = Filters } = Ctx) ->
+    case proplists:get_value(Name, Filters) of
+        {Mod, Fun} -> 
+            case erlang:function_exported(Mod, Fun, length(Args) + 2) of
+                true -> {ok, ?Q("'@Mod@':'@Fun@'(_@Args, _TranslationFun, _CurrentLocale )")};
+                false -> filter_ast3(Name, Args, Ctx) % redefined 'date'?
+            end;
+        % should never happen
+        undefined -> {unknown_filter, Name, length(Args)}
+    end;
+filter_ast2(Name, Args, Ctx) ->
+    filter_ast3(Name, Args, Ctx).
+
+filter_ast3(Name, Args, #dtl_context{ filters = Filters }) ->
     case proplists:get_value(Name, Filters) of
         {Mod, Fun}=Filter ->
             case erlang:function_exported(Mod, Fun, length(Args)) of
                 true -> {ok, ?Q("'@Mod@':'@Fun@'(_@Args)")};
-                false ->
-                    {filter_args, Name, Filter, length(Args)}
+                false -> {filter_args, Name, Filter, length(Args)}
             end;
         undefined ->
             {unknown_filter, Name, length(Args)}
@@ -1483,7 +1498,7 @@ now_ast(FormatString, TreeWalker) ->
     %% i.e. \"foo\" becomes "foo"
     UnescapeOuter = string:strip(FormatString, both, 34),
     {{StringAst, Info}, TreeWalker1} = string_ast(UnescapeOuter, TreeWalker),
-    {{?Q("erlydtl_dateformat:format(_@StringAst)"), Info}, TreeWalker1}.
+    {{?Q("erlydtl_dateformat:format(_@StringAst, _TranslationFun, _CurrentLocale)"), Info}, TreeWalker1}.
 
 spaceless_ast(Contents, TreeWalker) ->
     {{Ast, Info}, TreeWalker1} = body_ast(Contents, TreeWalker),
