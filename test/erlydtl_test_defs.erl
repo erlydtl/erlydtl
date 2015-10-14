@@ -1798,8 +1798,8 @@ all_test_defs() ->
                 "custom_tag3", "custom_tag4", "custom_tag_var", "custom_tag_lib_var", "custom_call", "include_template", "include_path",
                 "ssi", "extends_path", "extends_path2", "trans", "extends_for", "extends2",
                 "extends3", "recursive_block", "extend_recursive_block", "missing", "block_super",
-                "wrapper", "extends4", "super_escaped", "extends_chain", "reader_options", "ssi_reader_options"]
-
+                "wrapper", "extends4", "super_escaped", "extends_chain", "reader_options", "ssi_reader_options",
+                "extend_doubleblock"]
       ]},
      {"compile_dir",
       [setup_compile(T)
@@ -2032,6 +2032,8 @@ setup_compile("reader_options") ->
  {ok, [[]|[{compile_opts, [{reader, {?MODULE, extra_reader}}, {reader_options, [{user_id, <<"007">>}, {user_name, <<"Agent">>}]}]}]]};
 setup_compile("ssi_reader_options") ->
  {ok, [[]|[{compile_opts, [{reader, {?MODULE, extra_reader}}, {reader_options, [{user_id, <<"007">>}, {user_name, <<"Agent">>}]}]}]]};
+%%setup_compile("extend_doubleblock") ->
+%%    {ok, [[]|[{compile_opts, [debug_compiler]}]]};
 setup_compile(_) ->
     {ok, [[]]}.
 

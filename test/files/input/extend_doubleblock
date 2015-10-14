@@ -1,0 +1,2 @@
+{% extends "base_doubleblock" %}
+{% block title %}General Info{% endblock %}
