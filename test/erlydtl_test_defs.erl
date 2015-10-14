@@ -2032,6 +2032,8 @@ setup_compile("reader_options") ->
  {ok, [[]|[{compile_opts, [{reader, {?MODULE, extra_reader}}, {reader_options, [{user_id, <<"007">>}, {user_name, <<"Agent">>}]}]}]]};
 setup_compile("ssi_reader_options") ->
  {ok, [[]|[{compile_opts, [{reader, {?MODULE, extra_reader}}, {reader_options, [{user_id, <<"007">>}, {user_name, <<"Agent">>}]}]}]]};
+%%setup_compile("extend_doubleblock") ->
+%%    {ok, [[]|[{compile_opts, [debug_compiler]}]]};
 setup_compile(_) ->
     {ok, [[]]}.
 

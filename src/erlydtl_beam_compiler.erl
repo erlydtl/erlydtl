@@ -722,7 +722,7 @@ body_ast(DjangoParseTree, BodyScope, TreeWalker) ->
           end, #ast_info{}, AstInfoList),
 
     {Ast, TreeWalker2} = end_scope(
-                           fun ([ScopeVars|ScopeBody]) -> [?Q("begin _@ScopeVars, [_@ScopeBody] end")] end,
+                           fun ([ScopeVars|ScopeBody]) -> [?Q("(fun() -> _@ScopeVars, [_@ScopeBody] end)()")] end,
                            ScopeId, AstList, TreeWalker1),
     {{erl_syntax:list(Ast), Info}, TreeWalker2}.
 
