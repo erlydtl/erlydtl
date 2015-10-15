@@ -433,16 +433,27 @@ custom_tags_clauses_ast1([Tag|CustomTags], ExcludeTags, ClauseAcc, InfoAcc, Tree
 custom_forms(Dir, Module, Functions, AstInfo) ->
     Dependencies = AstInfo#ast_info.dependencies,
     TranslatableStrings = AstInfo#ast_info.translatable_strings,
+    TranslatedBlocks = AstInfo#ast_info.translated_blocks,
+    Variables = lists:usort(AstInfo#ast_info.var_names),
+    DefaultVariables = lists:usort(AstInfo#ast_info.def_names),
+    Constants = lists:usort(AstInfo#ast_info.const_names),
 
     erl_syntax:revert_forms(
       lists:flatten(
         ?Q(["-module('@Module@').",
             "-export([source_dir/0, dependencies/0, translatable_strings/0,",
-            "         render/1, render/2, render/3]).",
+            "         translated_blocks/0, variables/0, default_variables/0,",
+            "         constants/0, render/1, render/2, render/3]).",
             "-export(['@__export_functions'/0]).",
+
             "source_dir() -> _@Dir@.",
             "dependencies() -> _@Dependencies@.",
+            "variables() -> _@Variables@.",
+            "default_variables() -> _@DefaultVariables@.",
+            "constants() -> _@Constants@.",
             "translatable_strings() -> _@TranslatableStrings@.",
+            "translated_blocks() -> _@TranslatedBlocks@.",
+
             "render(Tag) -> render(Tag, [], []).",
             "render(Tag, Vars) -> render(Tag, Vars, []).",
             "render(Tag, Vars, Opts) ->",
@@ -486,6 +497,7 @@ forms({BodyAst, BodyInfo}, {CustomTagsFunctionAst, CustomTagsInfo}, CheckSum,
           "-export([render/0, render/1, render/2, source/0, dependencies/0,",
           "         translatable_strings/0, translated_blocks/0, variables/0,",
           "         default_variables/0, constants/0]).",
+
           "source() -> {_@File@, _@CheckSum@}.",
           "dependencies() -> _@Dependencies@.",
           "variables() -> _@Variables@.",
@@ -493,7 +505,9 @@ forms({BodyAst, BodyInfo}, {CustomTagsFunctionAst, CustomTagsInfo}, CheckSum,
           "constants() -> _@Constants@.",
           "translatable_strings() -> _@TranslatableStrings@.",
           "translated_blocks() -> _@TranslatedBlocks@.",
+
           "'@_CustomTagsFunctionAst'() -> _.",
+
           "render() -> render([], []).",
           "render(Variables) -> render(Variables, []).",
           "render(Variables, RenderOptions) ->",
@@ -502,6 +516,7 @@ forms({BodyAst, BodyInfo}, {CustomTagsFunctionAst, CustomTagsInfo}, CheckSum,
           "  catch",
           "    Err -> {error, Err}",
           "  end.",
+
           "render_internal(_Variables, RenderOptions) -> _@FinalBodyAst."
          ])).
 
