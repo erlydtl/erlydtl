@@ -2032,7 +2032,7 @@ setup_compile("reader_options") ->
  {ok, [[]|[{compile_opts, [{reader, {?MODULE, extra_reader}}, {reader_options, [{user_id, <<"007">>}, {user_name, <<"Agent">>}]}]}]]};
 setup_compile("ssi_reader_options") ->
  {ok, [[]|[{compile_opts, [{reader, {?MODULE, extra_reader}}, {reader_options, [{user_id, <<"007">>}, {user_name, <<"Agent">>}]}]}]]};
-%%setup_compile("extend_doubleblock") ->
+%%setup_compile("path1") ->
 %%    {ok, [[]|[{compile_opts, [debug_compiler]}]]};
 setup_compile(_) ->
     {ok, [[]]}.
@@ -2146,8 +2146,8 @@ setup("cycle") ->
                   {a, "Apple"}, {b, "Banana"}, {c, "Cherry"}],
     {ok, RenderVars};
 setup("trans") ->
-    RenderVars = [{locale, "reverse"}],
-    {ok, RenderVars};
+    RenderOpts = [{translation_fun, fun lists:reverse/1}],
+    {ok, [], RenderOpts};
 setup("locale") ->
     {ok, _RenderVars = [{locale, "ru"}]};
 setup("custom_tag1") ->
