@@ -220,12 +220,12 @@ do_translate(Phrase, Locale, TranslationFun)
 %%  * Each interpolation variable should exist
 %%    (String="{{a}}", Variables=[{"b", "b-val"}] will fall)
 %%  * Orddict keys should be string(), not binary()
--spec translate_block(phrase(), locale(), orddict:orddict(), none | translate_fun()) -> iodata().
-translate_block(Phrase, Locale, Variables, TranslationFun) ->
+-spec translate_block(phrase(), locale(), atom(), orddict:orddict(), none | translate_fun()) -> iodata().
+translate_block(Phrase, Locale, AutoEscape, Variables, TranslationFun) ->
     case translate(Phrase, Locale, TranslationFun, default) of
         default -> default;
         Translated ->
-            try interpolate_variables(Translated, Variables)
+            try interpolate_variables(Translated, Variables, AutoEscape)
             catch
                 {no_close_var, T} ->
                     io:format(standard_error, "Warning: template translation: variable not closed: \"~s\"~n", [T]),
@@ -234,13 +234,13 @@ translate_block(Phrase, Locale, Variables, TranslationFun) ->
             end
     end.
 
-interpolate_variables(Tpl, []) ->
+interpolate_variables(Tpl, [], _) ->
     Tpl;
-interpolate_variables(Tpl, Variables) ->
+interpolate_variables(Tpl, Variables, AutoEscape) ->
     BTpl = iolist_to_binary(Tpl),
-    interpolate_variables1(BTpl, Variables).
+    interpolate_variables1(BTpl, Variables, AutoEscape).
 
-interpolate_variables1(Tpl, Vars) ->
+interpolate_variables1(Tpl, Vars, AutoEscape) ->
     %% pre-compile binary patterns?
     case binary:split(Tpl, <<"{{">>) of
         [Tpl]=NoVars -> NoVars; %% need to enclose in list due to list tail call below..
@@ -249,11 +249,19 @@ interpolate_variables1(Tpl, Vars) ->
                 [_] -> throw({no_close_var, Tpl});
                 [Var, Post1] ->
                     Var1 = string:strip(binary_to_list(Var)),
-                    Value = orddict:fetch(Var1, Vars),
-                    [Pre, Value | interpolate_variables1(Post1, Vars)]
+                    Value = cast(orddict:fetch(Var1, Vars), AutoEscape),
+                    [Pre, Value | interpolate_variables1(Post1, Vars, AutoEscape)]
             end
     end.
 
+cast(V, _) when is_integer(V); is_float(V) ->
+    erlydtl_filters:format_number(V);
+cast(V, true) when is_binary(V); is_list(V) ->
+    erlydtl_filters:force_escape(V);
+cast(V, false) when is_binary(V); is_list(V) ->
+    V;
+cast(V, AutoEscape) ->
+    cast(io_lib:format("~p", [V]), AutoEscape).
 
 are_equal(Arg1, Arg2) when Arg1 =:= Arg2 ->
     true;
