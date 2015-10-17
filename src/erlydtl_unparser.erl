@@ -15,7 +15,7 @@ unparse([{'block', Identifier, Contents}|Rest], Acc) ->
 unparse([{'blocktrans', Args, Contents, undefined}|Rest], Acc) ->
     unparse(Rest, [["{% blocktrans ", unparse_blocktrans_args(Args), "%}", unparse(Contents), "{% endblocktrans %}"]|Acc]);
 unparse([{'blocktrans', Args, Contents, PluralContents}|Rest], Acc) ->
-    unparse(Rest, [["{% blocktrans ", unparse_args(Args), " %}",
+    unparse(Rest, [["{% blocktrans ", unparse_blocktrans_args(Args), " %}",
                     unparse(Contents),
                     "{% plural %}",
                     unparse(PluralContents),
@@ -212,5 +212,8 @@ unparse_blocktrans_args([{count, Count}|Args], Acc) ->
 unparse_blocktrans_args([{context, Context}|Args], Acc) ->
     unparse_blocktrans_args(
       Args, [["context ", unparse_value(Context)]|Acc]);
+unparse_blocktrans_args([trimmed|Args], Acc) ->
+    unparse_blocktrans_args(
+      Args, ["trimmed"|Acc]);
 unparse_blocktrans_args([], Acc) ->
     lists:reverse(Acc).

@@ -211,6 +211,7 @@ Terminals
     string_literal
     string
     templatetag_keyword
+    trimmed_keyword
     openblock_keyword
     closeblock_keyword
     openvariable_keyword
@@ -421,6 +422,7 @@ BlockTransArgs -> '$empty' : [].
 BlockTransArgs -> count_keyword Arg BlockTransArgs : [{count, '$2'}|'$3'].
 BlockTransArgs -> with_keyword Args BlockTransArgs : [{args, '$2'}|'$3'].
 BlockTransArgs -> context_keyword string_literal BlockTransArgs : [{context, '$2'}|'$3'].
+BlockTransArgs -> trimmed_keyword BlockTransArgs : [trimmed|'$2'].
 
 BlockTransContents -> '$empty' : [].
 BlockTransContents -> open_var identifier close_var BlockTransContents : [{variable, '$2'}|'$4'].

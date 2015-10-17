@@ -170,8 +170,9 @@ process_token(Fname,
     St#state{acc=[Phrase | Acc], translators_comment=undefined};
 process_token(Fname, {blocktrans, Args, Contents, PluralContents}, #state{acc=Acc, translators_comment=Comment}=St) ->
     {Fname, Line, Col} = guess_blocktrans_lc(Fname, Args, Contents),
-    Phrase = #phrase{msgid=unparse(Contents),
-                     msgid_plural=unparse(PluralContents),
+    Trim = proplists:get_value(trimmed, Args),
+    Phrase = #phrase{msgid=maybe_trim(unparse(Contents), Trim),
+                     msgid_plural=maybe_trim(unparse(PluralContents), Trim),
                      context=case proplists:get_value(context, Args) of
                                  {string_literal, _, String} ->
                                      erlydtl_compiler_utils:unescape_string_literal(String);
@@ -200,6 +201,17 @@ unescape(String) -> string:sub_string(String, 2, string:len(String) -1).
 
 unparse(undefined) -> undefined;
 unparse(Contents) -> erlydtl_unparser:unparse(Contents).
+
+maybe_trim(Text, undefined) -> Text;
+maybe_trim(Text, true) ->
+    tl(
+      lists:foldr(
+        fun (L, Ls) -> [" ", L|Ls] end, [],
+        lists:flatten(
+          re:replace(Text, <<"(^\s+)|(\s+$)|\n">>, <<"">>, [global, multiline])
+         )
+       )
+     ).
 
 %% hack to guess ~position of blocktrans
 guess_blocktrans_lc(Fname, [{{identifier, {L, C}, _}, _} | _], _) ->
