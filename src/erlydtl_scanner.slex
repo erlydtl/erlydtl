@@ -332,6 +332,8 @@ form \
   is_keyword(open, "endautoescape") -> true; \
   is_keyword(open, "block") -> true; \
   is_keyword(open, "endblock") -> true; \
+  is_keyword(open, "language") -> true; \
+  is_keyword(open, "endlanguage") -> true; \
   is_keyword(open, "comment") -> true; \
   is_keyword(open, "endcomment") -> true; \
   is_keyword(open, "cycle") -> true; \

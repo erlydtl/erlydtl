@@ -225,7 +225,7 @@ compile_to_binary(DjangoParseTree, CheckSum, Context) ->
 compile_forms(Forms, Context) ->
     maybe_debug_template(Forms, Context),
     Options = Context#dtl_context.compiler_options,
-    case compile:forms(Forms, Options) of
+    case compile:forms(Forms, [nowarn_shadow_vars|Options]) of
         Compiled when element(1, Compiled) =:= ok ->
             [ok, Module, Bin|Info] = tuple_to_list(Compiled),
             lists:foldl(
@@ -589,9 +589,10 @@ body_ast([{'extends', {string_literal, _Pos, String}} | ThisParseTree], #treewal
     end;
 
 body_ast(DjangoParseTree, TreeWalker) ->
-    body_ast(DjangoParseTree, empty_scope(), TreeWalker).
+    ScopeFun = fun ([ScopeVars|ScopeBody]) -> [?Q("(fun() -> _@ScopeVars, [_@ScopeBody] end)()")] end,
+    body_ast(DjangoParseTree, empty_scope(), ScopeFun, TreeWalker).
 
-body_ast(DjangoParseTree, BodyScope, TreeWalker) ->
+body_ast(DjangoParseTree, BodyScope, ScopeFun, TreeWalker) ->
     {ScopeId, TreeWalkerScope} = begin_scope(BodyScope, TreeWalker),
     BodyFun =
         fun ({'autoescape', {identifier, _, OnOrOff}, Contents}, TW) ->
@@ -606,7 +607,7 @@ body_ast(DjangoParseTree, BodyScope, TreeWalker) ->
                                   BlockScope = create_scope(
                                                  [{block, ?Q("fun (super) -> _@SuperAst; (_) -> [] end"), safe}],
                                                  ChildPos, ChildFile, AccTW),
-                                  {{BlockAst, BlockInfo}, BlockTW} = body_ast(ChildBlock, BlockScope, AccTW),
+                                  {{BlockAst, BlockInfo}, BlockTW} = body_ast(ChildBlock, BlockScope, ScopeFun, AccTW),
                                   {{BlockAst, merge_info(SuperInfo, BlockInfo)}, BlockTW}
                           end,
                           ContentsAst, ChildBlocks);
@@ -724,6 +725,11 @@ body_ast(DjangoParseTree, BodyScope, TreeWalker) ->
                 extension_ast(Tag, TW);
             ({'extends', _}, TW) ->
                 empty_ast(?ERR(unexpected_extends_tag, TW));
+            ({'language', Locale, Contents}, TW) ->
+                {{LocaleAst, LocaleInfo}, LocaleTW} = value_ast(Locale, true, false, TW),
+                LanguageScopeFun = fun ([ScopeVars|ScopeBody]) -> [?Q("(fun(_CurrentLocale) -> _@ScopeVars, [_@ScopeBody] end)(_@LocaleAst)")] end,
+                {{BodyAst, BodyInfo}, BodyTW} = body_ast(Contents, {[], [?Q("")]}, LanguageScopeFun, LocaleTW),
+                {{BodyAst, merge_info(BodyInfo, LocaleInfo)}, BodyTW};
             (ValueToken, TW) ->
                 format(value_ast(ValueToken, true, true, TW))
         end,
@@ -736,9 +742,7 @@ body_ast(DjangoParseTree, BodyScope, TreeWalker) ->
                   {Ast, merge_info(Info, InfoAcc)}
           end, #ast_info{}, AstInfoList),
 
-    {Ast, TreeWalker2} = end_scope(
-                           fun ([ScopeVars|ScopeBody]) -> [?Q("(fun() -> _@ScopeVars, [_@ScopeBody] end)()")] end,
-                           ScopeId, AstList, TreeWalker1),
+    {Ast, TreeWalker2} = end_scope(ScopeFun, ScopeId, AstList, TreeWalker1),
     {{erl_syntax:list(Ast), Info}, TreeWalker2}.
 
 

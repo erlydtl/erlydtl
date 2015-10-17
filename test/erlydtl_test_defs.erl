@@ -1547,6 +1547,12 @@ all_test_defs() ->
         [{locale, default}, {translation_fun, fun () -> fun lists:reverse/1 end}],
         <<"oof">>}
       ]},
+     {"language",
+      [{"override locale",
+        <<"{% trans 'foo' %}{% language 'other' %}{% trans 'foo' %}{% endlanguage %}">>,
+        [], [{locale, <<"default">>}, {translation_fun, fun ("foo", <<"default">>) -> "1"; ("foo", <<"other">>) -> "2"; (A, B) -> [A, B] end}],
+        <<"12">>}
+      ]},
      {"verbatim",
       [{"Plain verbatim",
         <<"{% verbatim %}{{ oh no{% foobar %}{% endverbatim %}">>, [],
