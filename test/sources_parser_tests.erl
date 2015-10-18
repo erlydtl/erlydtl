@@ -32,7 +32,13 @@ test_defs() ->
         [{"Hello inside an if inside a for",{"dummy_path",1,73}}]},
        {"if and else both with trans",
         <<"<html>{% block content %}{% if thing %} {% trans \"Hello inside an if\" %} {% else %} {% trans \"Hello inside an else\" %} {% endif %} {% endblock %}</html>">>,
-        [{"Hello inside an else",{"dummy_path",1,94}}, {"Hello inside an if",{"dummy_path",1,50}}]}
+        [{"Hello inside an else",{"dummy_path",1,94}}, {"Hello inside an if",{"dummy_path",1,50}}]},
+       {"blocktrans with pretty format",
+        <<"<html>{% blocktrans %}\n  This is a multiline\n  message... \n{% endblocktrans %}">>,
+        [{"\n  This is a multiline\n  message... \n", {"dummy_path",1,10}}]},
+       {"blocktrans with pretty format, trimmed",
+        <<"<html>{% blocktrans trimmed %}\n  This is a multiline\n  message... \n{% endblocktrans %}">>,
+        [{"This is a multiline message...", {"dummy_path",1,18}}]}
       ]}
     ].
 
@@ -80,7 +86,7 @@ unparser_test_() ->
 test_unparser_fun({Name, Tpl}) ->
     {Name, fun() ->
                    %% take input Tpl value, parse it, "unparse" it, then parse it again.
-                   %% the both parsed values should be equvialent, even if the source versions
+                   %% both parsed values should be equvialent, even if the source versions
                    %% are not an exact match (there can be whitespace differences)
                    {ok, Dpt} = erlydtl_compiler:do_parse_template(
                                  Tpl, #dtl_context{}),

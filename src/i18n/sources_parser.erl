@@ -26,9 +26,12 @@
 
 %% New API
 -export([parse_pattern/1, parse_file/1, parse_content/2, phrase_info/2]).
+
 %% Deprecated API
 -export([parse/0, parse/1, process_content/2]).
+-deprecated([{parse, '_'}, {process_content, 2}]).
 
+%% Type exports
 -export_type([phrase/0, compat_phrase/0, field/0]).
 
 %%
@@ -202,13 +205,18 @@ unescape(String) -> string:sub_string(String, 2, string:len(String) -1).
 unparse(undefined) -> undefined;
 unparse(Contents) -> erlydtl_unparser:unparse(Contents).
 
+maybe_trim(undefined, _) -> undefined;
 maybe_trim(Text, undefined) -> Text;
 maybe_trim(Text, true) ->
-    tl(
-      lists:foldr(
-        fun (L, Ls) -> [" ", L|Ls] end, [],
-        lists:flatten(
-          re:replace(Text, <<"(^\s+)|(\s+$)|\n">>, <<"">>, [global, multiline])
+    binary_to_list(
+      iolist_to_binary(
+        tl(
+          lists:foldr(
+            fun (L, Ls) -> [" ", L|Ls] end, [],
+            lists:flatten(
+              re:replace(Text, <<"(^\\s+)|(\\s+$)|\n">>, <<"">>, [global, multiline])
+             )
+           )
          )
        )
      ).
