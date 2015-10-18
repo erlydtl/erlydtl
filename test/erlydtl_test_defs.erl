@@ -1686,12 +1686,20 @@ all_test_defs() ->
         <<"{% foo %}">>, [], [],
         [{custom_tags_modules, [foo]}],
         <<"">>,
-        [error_info([{none,erlydtl_compiler,{load_library,'(custom-legacy)',foo,nofile}}])]
+        [error_info(
+           [{none,erlydtl_beam_compiler,{unknown_tag, foo}},
+            {none,erlydtl_compiler,{load_library,'(custom-legacy)',foo,nofile}}
+           ])]
        },
        {"unknown filter",
         <<"{{ '123'|foo }}">>, [], [], [],
         <<"">>,
         [error_info([{{1,10},erlydtl_beam_compiler,{unknown_filter,foo,1}}])]
+       },
+       {"unknown tag",
+        <<"a{% b %}c">>, [], [], [],
+        <<"ac">>,
+        [error_info([{none,erlydtl_beam_compiler,{unknown_tag, b}}])]
        },
        {"ssi file not found",
         <<"{% ssi 'foo' %}">>, [],

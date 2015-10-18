@@ -98,13 +98,15 @@ format_error({write_file, Error}) ->
 format_error(compile_beam) ->
     "Failed to compile template to BEAM code";
 format_error({unknown_filter, Name, Arity}) ->
-    io_lib:format("Unknown filter '~p' (arity ~p)", [Name, Arity]);
+    io_lib:format("Unknown filter '~s' (arity ~b)", [Name, Arity]);
 format_error({filter_args, Name, {Mod, Fun}, Arity}) ->
-    io_lib:format("Wrong number of arguments to filter '~p' (~p:~p): ~p", [Name, Mod, Fun, Arity]);
+    io_lib:format("Wrong number of arguments to filter '~s' (~s:~s): ~b", [Name, Mod, Fun, Arity]);
+format_error({unknown_tag, Name}) ->
+    io_lib:format("Unknown tag '~s'", [Name]);
 format_error({missing_tag, Name, {Mod, Fun}}) ->
-    io_lib:format("Custom tag '~p' not exported (~p:~p)", [Name, Mod, Fun]);
+    io_lib:format("Custom tag '~s' not exported (~s:~s)", [Name, Mod, Fun]);
 format_error({bad_tag, Name, {Mod, Fun}, Arity}) ->
-    io_lib:format("Invalid tag '~p' (~p:~p/~p)", [Name, Mod, Fun, Arity]);
+    io_lib:format("Invalid tag '~s' (~s:~s/~b)", [Name, Mod, Fun, Arity]);
 format_error({load_code, Error}) ->
     io_lib:format("Failed to load BEAM code: ~p", [Error]);
 format_error({reserved_variable, ReservedName}) ->
@@ -113,7 +115,7 @@ format_error({translation_fun, Fun}) ->
     io_lib:format("Invalid translation function: ~s~n",
                   [if is_function(Fun) ->
                            Info = erlang:fun_info(Fun),
-                           io_lib:format("~s:~s/~p", [proplists:get_value(K, Info) || K <- [module, name, arity]]);
+                           io_lib:format("~s:~s/~b", [proplists:get_value(K, Info) || K <- [module, name, arity]]);
                       true -> io_lib:format("~p", [Fun])
                    end]);
 format_error(non_block_tag) ->
@@ -366,7 +368,7 @@ custom_tags_ast(CustomTags, TreeWalker) ->
     case custom_tags_clauses_ast(CustomTags, TreeWalker) of
         skip ->
             {{erl_syntax:comment(
-                ["% render_tag/3 is not used in this template."]),
+                ["%% render_tag/3 is not used in this template."]),
               #ast_info{}},
              TreeWalker};
         {{CustomTagsClauses, CustomTagsInfo}, TreeWalker1} ->
@@ -419,7 +421,9 @@ custom_tags_clauses_ast1([Tag|CustomTags], ExcludeTags, ClauseAcc, InfoAcc, Tree
                         undefined ->
                             custom_tags_clauses_ast1(
                               CustomTags, [Tag | ExcludeTags],
-                              ClauseAcc, InfoAcc, TreeWalker);
+                              ClauseAcc, InfoAcc,
+                              ?WARN({unknown_tag, Tag}, TreeWalker)
+                             );
                         {{Ast, Info}, TW} ->
                             Clause = ?Q("(_@Tag@, _Variables, RenderOptions) -> _@match, _@Ast",
                                         [{match, options_match_ast(TW)}]),
