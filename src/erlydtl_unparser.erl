@@ -13,7 +13,7 @@ unparse([{'autoescape', OnOrOff, Contents}|Rest], Acc) ->
 unparse([{'block', Identifier, Contents}|Rest], Acc) ->
     unparse(Rest, [["{% block ", unparse_identifier(Identifier), " %}", unparse(Contents), "{% endblock %}"]|Acc]);
 unparse([{'blocktrans', Args, Contents, undefined}|Rest], Acc) ->
-    unparse(Rest, [["{% blocktrans ", unparse_blocktrans_args(Args), "%}", unparse(Contents), "{% endblocktrans %}"]|Acc]);
+    unparse(Rest, [["{% blocktrans ", unparse_blocktrans_args(Args), " %}", unparse(Contents), "{% endblocktrans %}"]|Acc]);
 unparse([{'blocktrans', Args, Contents, PluralContents}|Rest], Acc) ->
     unparse(Rest, [["{% blocktrans ", unparse_blocktrans_args(Args), " %}",
                     unparse(Contents),
@@ -184,11 +184,9 @@ unparse_args(Args) ->
     unparse_args(Args, []).
 
 unparse_args([], Acc) ->
-    lists:reverse(Acc);
-unparse_args([{{identifier, _, Name}, Value}], Acc) ->
-    unparse_args([], [[atom_to_list(Name), "=", unparse_value(Value)]|Acc]);
-unparse_args([{{identifier, _, Name}, Value}|Rest], Acc) ->
-    unparse_args(Rest, lists:reverse([[atom_to_list(Name), "=", unparse_value(Value)], " "], Acc)).
+    collect_args_acc(Acc);
+unparse_args([{{identifier, _, Name}, Value}|Args], Acc) ->
+    unparse_args(Args, [[atom_to_list(Name), "=", unparse_value(Value)]|Acc]).
 
 unparse_cycle_compat_names(Names) ->
     unparse_cycle_compat_names(Names, []).
@@ -203,6 +201,8 @@ unparse_cycle_compat_names([{identifier, _, Name}|Rest], Acc) ->
 unparse_blocktrans_args(Args) ->
     unparse_blocktrans_args(Args, []).
 
+unparse_blocktrans_args([], Acc) ->
+    collect_args_acc(Acc);
 unparse_blocktrans_args([{args, WithArgs}|Args], Acc) ->
     unparse_blocktrans_args(
       Args, [["with ", unparse_args(WithArgs)]|Acc]);
@@ -214,6 +214,7 @@ unparse_blocktrans_args([{context, Context}|Args], Acc) ->
       Args, [["context ", unparse_value(Context)]|Acc]);
 unparse_blocktrans_args([trimmed|Args], Acc) ->
     unparse_blocktrans_args(
-      Args, ["trimmed"|Acc]);
-unparse_blocktrans_args([], Acc) ->
-    lists:reverse(Acc).
+      Args, ["trimmed"|Acc]).
+
+collect_args_acc(Acc) ->
+    lists:flatten(string:join(lists:reverse(Acc), " ")).

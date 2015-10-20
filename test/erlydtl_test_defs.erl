@@ -1450,7 +1450,7 @@ all_test_defs() ->
           errors = [error_info([{{1,31}, erlydtl_parser, ["syntax error before: ","'.'"]}])]
          },
        {"blocktrans runtime",
-        <<"{% blocktrans with v1=foo%}Hello, {{ name }}! See {{v1}}.{%endblocktrans%}">>,
+        <<"{%blocktrans with v1=foo%}Hello, {{ name }}! See {{v1}}.{%endblocktrans%}">>,
         [{name, "Mr. President"}, {foo, <<"rubber-duck">>}],
         [{translation_fun, fun("Hello, {{ name }}! See {{ v1 }}.") -> <<"Guten tag, {{name}}! Sehen {{    v1   }}.">> end}],
         [], <<"Guten tag, Mr. President! Sehen rubber-duck.">>}
