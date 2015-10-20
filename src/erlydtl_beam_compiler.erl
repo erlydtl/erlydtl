@@ -815,6 +815,7 @@ blocktrans_ast(Args, Contents, PluralContents, TreeWalker) ->
                   {string_literal, _, S} ->
                       unescape_string_literal(S)
               end,
+    Trimmed = proplists:get_value(trimmed, Args),
 
     %% add new scope using 'with' values
     {NewScope, {ArgInfo, TreeWalker1}} =
@@ -834,7 +835,7 @@ blocktrans_ast(Args, Contents, PluralContents, TreeWalker) ->
     TreeWalker2 = push_scope(NewScope, TreeWalker1),
 
     %% key for translation lookup
-    SourceText = erlydtl_unparser:unparse(Contents),
+    SourceText = erlydtl_unparser:unparse(Contents, Trimmed),
     {{DefaultAst, AstInfo}, TreeWalker3} = body_ast(Contents, TreeWalker2),
     MergedInfo = merge_info(AstInfo, ArgInfo),
 
@@ -845,7 +846,7 @@ blocktrans_ast(Args, Contents, PluralContents, TreeWalker) ->
             %% translate in runtime
             {FinalAst, FinalTW} = blocktrans_runtime_ast(
                                     {DefaultAst, MergedInfo}, SourceText, Contents, Context, AutoEscape,
-                                    plural_contents(PluralContents, Count, TreeWalker3)),
+                                    plural_contents(PluralContents, Count, TreeWalker3), Trimmed),
             {FinalAst, restore_scope(TreeWalker1, FinalTW)};
        is_function(TFun, 2) ->
             %% translate in compile-time
@@ -870,7 +871,7 @@ blocktrans_ast(Args, Contents, PluralContents, TreeWalker) ->
             empty_ast(?ERR({translation_fun, TFun}, TreeWalker3))
     end.
 
-blocktrans_runtime_ast({DefaultAst, Info}, SourceText, Contents, Context, AutoEscape, {Plural, TreeWalker}) ->
+blocktrans_runtime_ast({DefaultAst, Info}, SourceText, Contents, Context, AutoEscape, {Plural, TreeWalker}, Trimmed) ->
     %% Contents is flat - only strings and '{{var}}' allowed.
     %% build sorted list (orddict) of pre-resolved variables to pass to runtime translation function
     USortedVariables = lists:usort(fun({variable, {identifier, _, A}},
@@ -892,7 +893,7 @@ blocktrans_runtime_ast({DefaultAst, Info}, SourceText, Contents, Context, AutoEs
                         "    Text -> Text",
                         "  end",
                         "end"],
-                       [{phrase, phrase_ast(SourceText, Plural)},
+                       [{phrase, phrase_ast(SourceText, Plural, Trimmed)},
                         {auto_escape, autoescape_ast(AutoEscape)},
                         {locale, phrase_locale_ast(Context)}]),
     {{BlockTransAst, merge_count_info(Info, Plural)}, TreeWalker1}.
@@ -909,12 +910,12 @@ plural_contents(Contents, {_CountVarName, Value}, TreeWalker) ->
     {CountAst, TW} = value_ast(Value, false, false, TreeWalker),
     {{Contents, CountAst}, TW}.
 
-phrase_ast(Text, undefined) -> merl:term(Text);
-phrase_ast(Text, {Contents, {CountAst, _CountInfo}}) ->
+phrase_ast(Text, undefined, _) -> merl:term(Text);
+phrase_ast(Text, {Contents, {CountAst, _CountInfo}}, Trimmed) ->
     erl_syntax:tuple(
       [merl:term(Text),
        erl_syntax:tuple(
-         [merl:term(erlydtl_unparser:unparse(Contents)),
+         [merl:term(erlydtl_unparser:unparse(Contents, Trimmed)),
           CountAst])
       ]).
 autoescape_ast([]) -> autoescape_ast([on]);

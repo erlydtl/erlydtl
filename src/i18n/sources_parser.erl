@@ -174,8 +174,8 @@ process_token(Fname,
 process_token(Fname, {blocktrans, Args, Contents, PluralContents}, #state{acc=Acc, translators_comment=Comment}=St) ->
     {Fname, Line, Col} = guess_blocktrans_lc(Fname, Args, Contents),
     Trim = proplists:get_value(trimmed, Args),
-    Phrase = #phrase{msgid=maybe_trim(unparse(Contents), Trim),
-                     msgid_plural=maybe_trim(unparse(PluralContents), Trim),
+    Phrase = #phrase{msgid=unparse(Contents, Trim),
+                     msgid_plural=unparse(PluralContents, Trim),
                      context=case proplists:get_value(context, Args) of
                                  {string_literal, _, String} ->
                                      erlydtl_compiler_utils:unescape_string_literal(String);
@@ -202,24 +202,8 @@ trans({string_literal,Pos,String}) -> {Pos, String}.
 
 unescape(String) -> string:sub_string(String, 2, string:len(String) -1).
 
-unparse(undefined) -> undefined;
-unparse(Contents) -> erlydtl_unparser:unparse(Contents).
-
-maybe_trim(undefined, _) -> undefined;
-maybe_trim(Text, undefined) -> Text;
-maybe_trim(Text, true) ->
-    binary_to_list(
-      iolist_to_binary(
-        tl(
-          lists:foldr(
-            fun (L, Ls) -> [" ", L|Ls] end, [],
-            lists:flatten(
-              re:replace(Text, <<"(^\\s+)|(\\s+$)|\n">>, <<"">>, [global, multiline])
-             )
-           )
-         )
-       )
-     ).
+unparse(undefined, _) -> undefined;
+unparse(Contents, Trim) -> erlydtl_unparser:unparse(Contents, Trim).
 
 %% hack to guess ~position of blocktrans
 guess_blocktrans_lc(Fname, [{{identifier, {L, C}, _}, _} | _], _) ->

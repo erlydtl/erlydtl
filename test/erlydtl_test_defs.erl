@@ -1453,7 +1453,11 @@ all_test_defs() ->
         <<"{%blocktrans with v1=foo%}Hello, {{ name }}! See {{v1}}.{%endblocktrans%}">>,
         [{name, "Mr. President"}, {foo, <<"rubber-duck">>}],
         [{translation_fun, fun("Hello, {{ name }}! See {{ v1 }}.") -> <<"Guten tag, {{name}}! Sehen {{    v1   }}.">> end}],
-        [], <<"Guten tag, Mr. President! Sehen rubber-duck.">>}
+        [], <<"Guten tag, Mr. President! Sehen rubber-duck.">>},
+       {"trimmed",
+        <<"{% blocktrans trimmed %}\n  foo  \n   bar   here .\n \n   \n baz{% endblocktrans %}">>,
+        [], [{translation_fun, fun ("foo bar   here . baz") -> "ok" end}],
+        <<"ok">>}
       ]},
      {"extended translation features (#131)",
       [{"trans default locale",
