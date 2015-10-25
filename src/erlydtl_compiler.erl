@@ -266,6 +266,7 @@ init_context(ParseTrail, DefDir, Module, Options) ->
            vars = proplists:get_value(default_vars, Options, Ctx#dtl_context.vars),
            const = proplists:get_value(constants, Options, Ctx#dtl_context.const),
            reader = proplists:get_value(reader, Options, Ctx#dtl_context.reader),
+           reader_options = proplists:get_value(reader_options, Options, Ctx#dtl_context.reader_options),
            compiler_options = proplists:append_values(compiler_options, Options),
            binary_strings = proplists:get_value(binary_strings, Options, Ctx#dtl_context.binary_strings),
            force_recompile = proplists:get_bool(force_recompile, Options),
@@ -366,7 +367,8 @@ is_up_to_date(CheckSum, Context) ->
 
 parse_file(File, Context) ->
     {M, F} = Context#dtl_context.reader,
-    case catch M:F(File) of
+    ReaderOptions = Context#dtl_context.reader_options,
+    case catch erlydtl_runtime:read_file_internal(M, F, File, ReaderOptions) of
         {ok, Data} ->
             parse_template(Data, Context);
         {error, Reason} ->

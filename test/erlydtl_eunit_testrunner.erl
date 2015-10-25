@@ -58,8 +58,14 @@ run_compile(T) ->
            T#test.module,
            compile_opts(T))
     of
-        {ok, M, W} ->
+        {ok, M, W0} ->
             ?assertEqual(T#test.module, M),
+            %% ignore useless_building warnings
+            W = lists:flatten(
+                  [case W1 of
+                       {_, [{_, sys_core_fold, useless_building}]} -> [];
+                       _ -> W1
+                   end || W1 <- W0]),
             ?assertEqual(T#test.warnings, W);
         {error, E, W} ->
             ?assertEqual(T#test.errors, E),

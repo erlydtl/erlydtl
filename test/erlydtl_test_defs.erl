@@ -1,6 +1,7 @@
+%% -*- coding: utf-8 -*-
 -module(erlydtl_test_defs).
 
--export([tests/0]).
+-export([tests/0, extra_reader/2]).
 -include("testrunner.hrl").
 -record(testrec, {foo, bar, baz}).
 -record(person, {first_name, gender}).
@@ -136,6 +137,8 @@ all_test_defs() ->
         <<"{{ var1 }}">>, dict:store(var1, "bar", dict:new()), <<"bar">>},
        {"Render variable with missing attribute in dict",
         <<"{{ var1.foo }}">>, [{var1, dict:store(bar, "Othello", dict:new())}], <<"">>},
+       {"Render variable in a two elements tuple",
+        <<"{{ var1.2 }}">>, [{var1,{12,[bar]}}], <<"bar">>},
        {"Render variable in gb_tree",
         <<"{{ var1 }}">>, gb_trees:insert(var1, "bar", gb_trees:empty()), <<"bar">>},
        {"Render variable in arity-1 func",
@@ -203,7 +206,11 @@ all_test_defs() ->
      {"now",
       [{"now functional",
         <<"It is the {% now \"jS \\o\\f F Y\" %}.">>, [{var1, ""}], generate_test_date()}
-      ]},
+     ]},
+      {"now",
+      [{"now function with translation", % notice, that only date output is traslated. While you might want to transle the whole format string ('F'->'E')
+        <<"It is the {% now \"jS \\o\\f F Y\" %}.">>, [{var1, ""}], [{locale, <<"ru">>}, {translation_fun, fun date_translation/2}], generate_test_date(russian)}
+     ]},
      {"if",
       [{"If/else",
         <<"{% if var1 %}boo{% else %}yay{% endif %}">>, [{var1, ""}], <<"yay">>},
@@ -560,6 +567,48 @@ all_test_defs() ->
         <<"{{ var1|date }}">>,
         [{var1, {{1975,7,24}, {7,13,1}}}],
         <<"July 24, 1975">>},
+        % I doubt someone need first two, but test we support it
+        {"|date a translation",
+        <<"{{ var1|date:\"a\" }}">>,
+        [{var1, {{1975,7,24},{12,00,00}}}],[{translation_fun, fun date_translation/2},{locale, <<"ru">>}],
+        <<"п.п."/utf8>>},
+        {"|date A translation",
+        <<"{{ var1|date:\"A\" }}">>,
+        [{var1, {{1975,7,24},{12,00,00}}}],[{translation_fun, fun date_translation/2},{locale, <<"ru">>}],
+        <<"ПП"/utf8>>},
+        {"|date b translation", 
+        <<"{{ var1|date:\"b\" }}">>,
+        [{var1, {1975,7,24}}],[{translation_fun, fun date_translation/2},{locale, <<"ru">>}],
+        <<"июл"/utf8>>},
+        {"|date D translation",
+        <<"{{ var1|date:\"D\" }}">>,
+        [{var1, {1975,7,24}}],[{translation_fun, fun date_translation/2},{locale, <<"ru">>}],
+        <<"Чтв"/utf8>>},
+        {"|date E translation",
+        <<"{{ var1|date:\"E\" }}">>,
+        [{var1, {1975,7,24}}],[{translation_fun, fun date_translation/2},{locale, <<"ru">>}],
+        <<"Июля"/utf8>>},
+        {"|date F translation",
+        <<"{{ var1|date:\"F\" }}">>,
+        [{var1, {1975,7,24}}],[{translation_fun, fun date_translation/2},{locale, <<"ru">>}],
+        <<"Июль"/utf8>>},
+        {"|date l translation",
+        <<"{{ var1|date:\"l\" }}">>,
+        [{var1, {1975,7,24}}],[{translation_fun, fun date_translation/2},{locale, <<"ru">>}],
+        <<"Четверг"/utf8>>},
+        {"|date M translation",
+        <<"{{ var1|date:\"M\" }}">>,
+        [{var1, {1986,9,24}}],[{translation_fun, fun date_translation/2},{locale, <<"ru">>}],
+        <<"Сен"/utf8>>},
+        {"|date N translation",
+        <<"{{ var1|date:\"N\" }}">>,
+        [{var1, {1986,9,24}}],[{translation_fun, fun date_translation/2},{locale, <<"ru">>}],
+        <<"Сен."/utf8>>},
+        {"|date P translation",
+        <<"{{ var1|date:\"P\" }}">>,
+        [{var1, {{1986,9,24},{12,0,0}}}],[{translation_fun, fun date_translation/2},{locale, <<"ru">>}],
+        <<"полдень"/utf8>>},
+
        {"|default:\"foo\" 1",
         <<"{{ var1|default:\"foo\" }}">>, [], <<"foo">>},
        {"|default:\"foo\" 2",
@@ -1059,6 +1108,9 @@ all_test_defs() ->
        {"|truncatewords_html:4",
         <<"{{ var1|truncatewords_html:4 }}">>, [{var1, "<p>The <strong>Long and <em>Winding</em> Road</strong> is too long</p>"}],
         <<"<p>The <strong>Long and <em>Winding</em>...</strong></p>">>},
+       {"|truncatewords_html:50",
+        <<"{{ var1|truncatewords_html:50 }}">>, [{var1, "<p>The <strong>Long and <em>Winding</em> Road</strong> is too long</p>"}],
+        <<"<p>The <strong>Long and <em>Winding</em> Road</strong> is too long</p>">>},
        {"|unordered_list",
         <<"{{ var1|unordered_list }}">>, [{var1, ["States", ["Kansas", ["Lawrence", "Topeka"], "Illinois"]]}],
         <<"<li>States<ul><li>Kansas<ul><li>Lawrence</li><li>Topeka</li></ul></li><li>Illinois</li></ul></li>">>},
@@ -1398,10 +1450,14 @@ all_test_defs() ->
           errors = [error_info([{{1,31}, erlydtl_parser, ["syntax error before: ","'.'"]}])]
          },
        {"blocktrans runtime",
-        <<"{% blocktrans with v1=foo%}Hello, {{ name }}! See {{v1}}.{%endblocktrans%}">>,
+        <<"{%blocktrans with v1=foo%}Hello, {{ name }}! See {{v1}}.{%endblocktrans%}">>,
         [{name, "Mr. President"}, {foo, <<"rubber-duck">>}],
         [{translation_fun, fun("Hello, {{ name }}! See {{ v1 }}.") -> <<"Guten tag, {{name}}! Sehen {{    v1   }}.">> end}],
-        [], <<"Guten tag, Mr. President! Sehen rubber-duck.">>}
+        [], <<"Guten tag, Mr. President! Sehen rubber-duck.">>},
+       {"trimmed",
+        <<"{% blocktrans trimmed %}\n  foo  \n   bar   here .\n \n   \n baz{% endblocktrans %}">>,
+        [], [{translation_fun, fun ("foo bar   here . baz") -> "ok" end}],
+        <<"ok">>}
       ]},
      {"extended translation features (#131)",
       [{"trans default locale",
@@ -1494,6 +1550,12 @@ all_test_defs() ->
         <<"{% trans 'foo' %}">>, [], [],
         [{locale, default}, {translation_fun, fun () -> fun lists:reverse/1 end}],
         <<"oof">>}
+      ]},
+     {"language",
+      [{"override locale",
+        <<"{% trans 'foo' %}{% language 'other' %}{% trans 'foo' %}{% endlanguage %}">>,
+        [], [{locale, <<"default">>}, {translation_fun, fun ("foo", <<"default">>) -> "1"; ("foo", <<"other">>) -> "2"; (A, B) -> [A, B] end}],
+        <<"12">>}
       ]},
      {"verbatim",
       [{"Plain verbatim",
@@ -1628,12 +1690,20 @@ all_test_defs() ->
         <<"{% foo %}">>, [], [],
         [{custom_tags_modules, [foo]}],
         <<"">>,
-        [error_info([{none,erlydtl_compiler,{load_library,'(custom-legacy)',foo,nofile}}])]
+        [error_info(
+           [{none,erlydtl_beam_compiler,{unknown_tag, foo}},
+            {none,erlydtl_compiler,{load_library,'(custom-legacy)',foo,nofile}}
+           ])]
        },
        {"unknown filter",
         <<"{{ '123'|foo }}">>, [], [], [],
         <<"">>,
         [error_info([{{1,10},erlydtl_beam_compiler,{unknown_filter,foo,1}}])]
+       },
+       {"unknown tag",
+        <<"a{% b %}c">>, [], [], [],
+        <<"ac">>,
+        [error_info([{none,erlydtl_beam_compiler,{unknown_tag, b}}])]
        },
        {"ssi file not found",
         <<"{% ssi 'foo' %}">>, [],
@@ -1664,6 +1734,18 @@ all_test_defs() ->
         <<"{{ QWER|reverse }}">>, [{'QWER', "Qwerty"}], [],
         [{default_libraries, [test1]},
          {libraries, [{test1, erlydtl_lib_test1}]}],
+        <<"ytrewQ">>
+       },
+       {"lib with multiple behaviours",
+        <<"{{ QWER|reverse }}">>, [{'QWER', "Qwerty"}], [],
+        [{default_libraries, [test2]},
+         {libraries, [{test2, erlydtl_lib_test2}]}],
+        <<"ytrewQ">>
+       },
+       {"lib with multiple behaviors (alternative spelling)",
+        <<"{{ QWER|reverse }}">>, [{'QWER', "Qwerty"}], [],
+        [{default_libraries, [test2]},
+         {libraries, [{test2, erlydtl_lib_test2a}]}],
         <<"ytrewQ">>
        }
       ]},
@@ -1731,11 +1813,11 @@ all_test_defs() ->
                 "for_list_preset", "for_preset", "for_records", "for_records_preset", "include",
                 "if", "if_preset", "ifequal", "ifequal_preset", "ifnotequal", "ifnotequal_preset",
                 "now", "var", "var_preset", "cycle", "custom_tag", "custom_tag1", "custom_tag2",
-                "custom_tag3", "custom_tag4", "custom_call", "include_template", "include_path",
+                "custom_tag3", "custom_tag4", "custom_tag_var", "custom_tag_lib_var", "custom_call", "include_template", "include_path",
                 "ssi", "extends_path", "extends_path2", "trans", "extends_for", "extends2",
                 "extends3", "recursive_block", "extend_recursive_block", "missing", "block_super",
-                "wrapper", "extends4", "super_escaped", "extends_chain"]
-
+                "wrapper", "extends4", "super_escaped", "extends_chain", "reader_options", "ssi_reader_options",
+                "extend_doubleblock"]
       ]},
      {"compile_dir",
       [setup_compile(T)
@@ -1782,13 +1864,65 @@ def_to_test(Group, {Name, DTL, Vars, RenderOpts, CompilerOpts, Output, Warnings}
       }.
 
 
+date_translation(Val, LC) when is_list(Val) ->
+    io:format("Translating ~p~n", [Val]),
+    date_translation(list_to_binary(Val),LC);
+% date a
+date_translation(<<"p.m.">>, <<"ru">>) ->
+    <<"п.п."/utf8>>;
+% date A
+date_translation(<<"PM">>, <<"ru">>) ->
+    <<"ПП"/utf8>>;
+% date b
+date_translation(<<"jul">>, <<"ru">>) ->
+    <<"июл"/utf8>>;
+% date D
+date_translation(<<"Thu">>, <<"ru">>) ->
+    <<"Чтв"/utf8>>;
+% date E
+date_translation(<<"July">>, {<<"ru">>, <<"alt. month">>}) ->
+    <<"Июля"/utf8>>;
+% date F
+date_translation(<<"July">>, <<"ru">>) ->
+    <<"Июль"/utf8>>;
+% date l
+date_translation(<<"Thursday">>, <<"ru">>) ->
+    <<"Четверг"/utf8>>;
+% date M
+date_translation(<<"Sep">>, <<"ru">>) ->
+    <<"Сен"/utf8>>;
+% date N
+date_translation(<<"Sept.">>, {<<"ru">>, <<"abbrev. month">>}) ->
+    <<"Сен."/utf8>>;
+% date P
+date_translation(<<"noon">>, <<"ru">>) ->
+    <<"полдень"/utf8>>;
+date_translation(Text, <<"ru">>) ->
+    proplists:get_value(Text,
+                        lists:zip(
+                              lists:map(fun list_to_binary/1, en_months()),
+                              ru_months()),
+                        Text);
+date_translation(Text, _) ->
+    Text.
+
+ru_months() -> [ <<"Январь"/utf8>>, <<"Февраль"/utf8>>, <<"Март"/utf8>>, <<"Апрель"/utf8>>,
+             <<"Май"/utf8>>, <<"Июнь"/utf8>>, <<"Июль"/utf8>>, <<"Август"/utf8>>, <<"Сентябрь"/utf8>>,
+             <<"Октябрь"/utf8>>, <<"Ноябрь"/utf8>>, <<"Декабрь"/utf8>>].
+en_months() -> ["January", "February", "March", "April",
+             "May", "June", "July", "August", "September",
+             "October", "November", "December"].
+
+
+
 generate_test_date() ->
+    generate_test_date(false).
+generate_test_date(Translation) ->
     {{Y,M,D}, _} = erlang:localtime(),
-    MonthName = [
-                 "January", "February", "March", "April",
-                 "May", "June", "July", "August", "September",
-                 "October", "November", "December"
-                ],
+    MonthName = case Translation of
+                    russian -> ru_months();
+                    _ -> en_months()
+                end,
     OrdinalSuffix = [
                      "st","nd","rd","th","th","th","th","th","th","th", % 1-10
                      "th","th","th","th","th","th","th","th","th","th", % 10-20
@@ -1882,8 +2016,8 @@ setup_compile("var_preset") ->
     CompileVars = [{preset_var1, "preset-var1"}, {preset_var2, "preset-var2"}],
     {ok, [CompileVars]};
 setup_compile("extends_for") ->
-	CompileVars = [{veggie_list, ["broccoli", "beans", "peas", "carrots"]}],
-	{ok, [CompileVars]};
+    CompileVars = [{veggie_list, ["broccoli", "beans", "peas", "carrots"]}],
+    {ok, [CompileVars]};
 setup_compile("extends2") ->
     File = template_file(input, "extends2"),
     Error = {none, erlydtl_beam_compiler, unexpected_extends_tag},
@@ -1907,11 +2041,31 @@ setup_compile("custom_tag1") -> setup_compile("custom_tag");
 setup_compile("custom_tag2") -> setup_compile("custom_tag");
 setup_compile("custom_tag3") -> setup_compile("custom_tag");
 setup_compile("custom_tag4") -> setup_compile("custom_tag");
+setup_compile("custom_tag_var") -> setup_compile("custom_tag");
+setup_compile("custom_tag_lib_var") ->
+ {ok, [[]|[{compile_opts, [{libraries, [{custom_tag_lib,erlydtl_custom_tags_lib}]}, {default_libraries, [custom_tag_lib]}]}]]};
 setup_compile("super_escaped") ->
     {ok, [[]|[{compile_opts, [auto_escape]}]]};
+setup_compile("reader_options") ->
+ {ok, [[]|[{compile_opts, [{reader, {?MODULE, extra_reader}}, {reader_options, [{user_id, <<"007">>}, {user_name, <<"Agent">>}]}]}]]};
+setup_compile("ssi_reader_options") ->
+ {ok, [[]|[{compile_opts, [{reader, {?MODULE, extra_reader}}, {reader_options, [{user_id, <<"007">>}, {user_name, <<"Agent">>}]}]}]]};
+%%setup_compile("path1") ->
+%%    {ok, [[]|[{compile_opts, [debug_compiler]}]]};
 setup_compile(_) ->
     {ok, [[]]}.
 
+extra_reader(FileName, ReaderOptions) ->
+ UserID = proplists:get_value(user_id, ReaderOptions, <<"IDUnknown">>),
+ UserName = proplists:get_value(user_name, ReaderOptions, <<"NameUnknown">>),
+ case file:read_file(FileName) of
+  {ok, Data} when UserID == <<"007">>, UserName == <<"Agent">> ->
+   {ok, Data};
+  {ok, _Data} ->
+   {error, "Not Found"};
+  Err ->
+   Err
+ end.
 
 expected(File) ->
     Filename = template_file(expect, File),
@@ -2010,8 +2164,8 @@ setup("cycle") ->
                   {a, "Apple"}, {b, "Banana"}, {c, "Cherry"}],
     {ok, RenderVars};
 setup("trans") ->
-    RenderVars = [{locale, "reverse"}],
-    {ok, RenderVars};
+    RenderOpts = [{translation_fun, fun lists:reverse/1}],
+    {ok, [], RenderOpts};
 setup("locale") ->
     {ok, _RenderVars = [{locale, "ru"}]};
 setup("custom_tag1") ->
@@ -2022,12 +2176,23 @@ setup("custom_tag3") ->
     {ok, [{a, <<"a1">>}], [{locale, ru}], <<"b3\n">>};
 setup("custom_tag4") ->
     {ok, [], [], <<"a\n">>};
+setup("custom_tag_var") ->
+ {ok, [{a, <<"a1">>}], [{locale, ru}], <<"\nb1\n11\n">>};
+setup("custom_tag_lib_var") ->
+ {ok, [{a, <<"a1">>}], [{locale, ru}], <<"\nb1\n11\n">>};
 setup("ssi") ->
     RenderVars = [{path, "ssi_include.html"}],
     {ok, RenderVars};
 setup("wrapper") ->
     RenderVars = [{types, ["b", "a", "c"]}],
     {ok, RenderVars};
+setup("reader_options") ->
+ RenderVars = [{base_var, "base-barstring"}, {test_var, "test-barstring"}],
+% Options = [],%[{compile_opts, [{reader, {?MODULE, extra_reader}}, {reader_options, [{user_id, <<"007">>}, {user_name, <<"Agent">>}]}]}],
+  {ok, RenderVars};
+setup("ssi_reader_options") ->
+ RenderVars = [{path, "ssi_include.html"}],
+ {ok, RenderVars};
 
 %%--------------------------------------------------------------------
 %% Custom tags

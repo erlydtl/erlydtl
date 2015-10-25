@@ -21,6 +21,7 @@
           libraries = [],
           custom_tags_dir = [],
           reader = {file, read_file},
+          reader_options = [],
           module = undefined,
           compiler_options = [],
           binary_strings = true,

@@ -67,7 +67,11 @@
          load_library/4, shorten_filename/2, push_auto_escape/2,
          pop_auto_escape/1, token_pos/1, is_stripped_token_empty/1]).
 
+-ifdef(MERL_DEP).
 -include_lib("merl/include/merl.hrl").
+-else.
+-include_lib("syntax_tools/include/merl.hrl").
+-endif.
 -include("erlydtl_ext.hrl").
 
 
@@ -94,13 +98,15 @@ format_error({write_file, Error}) ->
 format_error(compile_beam) ->
     "Failed to compile template to BEAM code";
 format_error({unknown_filter, Name, Arity}) ->
-    io_lib:format("Unknown filter '~p' (arity ~p)", [Name, Arity]);
+    io_lib:format("Unknown filter '~s' (arity ~b)", [Name, Arity]);
 format_error({filter_args, Name, {Mod, Fun}, Arity}) ->
-    io_lib:format("Wrong number of arguments to filter '~p' (~p:~p): ~p", [Name, Mod, Fun, Arity]);
+    io_lib:format("Wrong number of arguments to filter '~s' (~s:~s): ~b", [Name, Mod, Fun, Arity]);
+format_error({unknown_tag, Name}) ->
+    io_lib:format("Unknown tag '~s'", [Name]);
 format_error({missing_tag, Name, {Mod, Fun}}) ->
-    io_lib:format("Custom tag '~p' not exported (~p:~p)", [Name, Mod, Fun]);
+    io_lib:format("Custom tag '~s' not exported (~s:~s)", [Name, Mod, Fun]);
 format_error({bad_tag, Name, {Mod, Fun}, Arity}) ->
-    io_lib:format("Invalid tag '~p' (~p:~p/~p)", [Name, Mod, Fun, Arity]);
+    io_lib:format("Invalid tag '~s' (~s:~s/~b)", [Name, Mod, Fun, Arity]);
 format_error({load_code, Error}) ->
     io_lib:format("Failed to load BEAM code: ~p", [Error]);
 format_error({reserved_variable, ReservedName}) ->
@@ -109,7 +115,7 @@ format_error({translation_fun, Fun}) ->
     io_lib:format("Invalid translation function: ~s~n",
                   [if is_function(Fun) ->
                            Info = erlang:fun_info(Fun),
-                           io_lib:format("~s:~s/~p", [proplists:get_value(K, Info) || K <- [module, name, arity]]);
+                           io_lib:format("~s:~s/~b", [proplists:get_value(K, Info) || K <- [module, name, arity]]);
                       true -> io_lib:format("~p", [Fun])
                    end]);
 format_error(non_block_tag) ->
@@ -221,7 +227,7 @@ compile_to_binary(DjangoParseTree, CheckSum, Context) ->
 compile_forms(Forms, Context) ->
     maybe_debug_template(Forms, Context),
     Options = Context#dtl_context.compiler_options,
-    case compile:forms(Forms, Options) of
+    case compile:forms(Forms, [nowarn_shadow_vars|Options]) of
         Compiled when element(1, Compiled) =:= ok ->
             [ok, Module, Bin|Info] = tuple_to_list(Compiled),
             lists:foldl(
@@ -320,13 +326,14 @@ maybe_debug_template(Forms, Context) ->
 is_up_to_date(CheckSum, Context) ->
     Module = Context#dtl_context.module,
     {M, F} = Context#dtl_context.reader,
+    ReaderOptions = Context#dtl_context.reader_options,
     case catch Module:source() of
         {_, CheckSum} ->
             case catch Module:dependencies() of
                 L when is_list(L) ->
                     RecompileList = lists:foldl(
                                       fun ({XFile, XCheckSum}, Acc) ->
-                                              case catch M:F(XFile) of
+                                              case catch erlydtl_runtime:read_file_internal(M, F, XFile, ReaderOptions) of
                                                   {ok, Data} ->
                                                       case binary_to_list(erlang:md5(Data)) of
                                                           XCheckSum ->
@@ -361,7 +368,7 @@ custom_tags_ast(CustomTags, TreeWalker) ->
     case custom_tags_clauses_ast(CustomTags, TreeWalker) of
         skip ->
             {{erl_syntax:comment(
-                ["% render_tag/3 is not used in this template."]),
+                ["%% render_tag/3 is not used in this template."]),
               #ast_info{}},
              TreeWalker};
         {{CustomTagsClauses, CustomTagsInfo}, TreeWalker1} ->
@@ -414,7 +421,9 @@ custom_tags_clauses_ast1([Tag|CustomTags], ExcludeTags, ClauseAcc, InfoAcc, Tree
                         undefined ->
                             custom_tags_clauses_ast1(
                               CustomTags, [Tag | ExcludeTags],
-                              ClauseAcc, InfoAcc, TreeWalker);
+                              ClauseAcc, InfoAcc,
+                              ?WARN({unknown_tag, Tag}, TreeWalker)
+                             );
                         {{Ast, Info}, TW} ->
                             Clause = ?Q("(_@Tag@, _Variables, RenderOptions) -> _@match, _@Ast",
                                         [{match, options_match_ast(TW)}]),
@@ -428,16 +437,27 @@ custom_tags_clauses_ast1([Tag|CustomTags], ExcludeTags, ClauseAcc, InfoAcc, Tree
 custom_forms(Dir, Module, Functions, AstInfo) ->
     Dependencies = AstInfo#ast_info.dependencies,
     TranslatableStrings = AstInfo#ast_info.translatable_strings,
+    TranslatedBlocks = AstInfo#ast_info.translated_blocks,
+    Variables = lists:usort(AstInfo#ast_info.var_names),
+    DefaultVariables = lists:usort(AstInfo#ast_info.def_names),
+    Constants = lists:usort(AstInfo#ast_info.const_names),
 
     erl_syntax:revert_forms(
       lists:flatten(
         ?Q(["-module('@Module@').",
             "-export([source_dir/0, dependencies/0, translatable_strings/0,",
-            "         render/1, render/2, render/3]).",
+            "         translated_blocks/0, variables/0, default_variables/0,",
+            "         constants/0, render/1, render/2, render/3]).",
             "-export(['@__export_functions'/0]).",
+
             "source_dir() -> _@Dir@.",
             "dependencies() -> _@Dependencies@.",
+            "variables() -> _@Variables@.",
+            "default_variables() -> _@DefaultVariables@.",
+            "constants() -> _@Constants@.",
             "translatable_strings() -> _@TranslatableStrings@.",
+            "translated_blocks() -> _@TranslatedBlocks@.",
+
             "render(Tag) -> render(Tag, [], []).",
             "render(Tag, Vars) -> render(Tag, Vars, []).",
             "render(Tag, Vars, Opts) ->",
@@ -481,6 +501,7 @@ forms({BodyAst, BodyInfo}, {CustomTagsFunctionAst, CustomTagsInfo}, CheckSum,
           "-export([render/0, render/1, render/2, source/0, dependencies/0,",
           "         translatable_strings/0, translated_blocks/0, variables/0,",
           "         default_variables/0, constants/0]).",
+
           "source() -> {_@File@, _@CheckSum@}.",
           "dependencies() -> _@Dependencies@.",
           "variables() -> _@Variables@.",
@@ -488,7 +509,9 @@ forms({BodyAst, BodyInfo}, {CustomTagsFunctionAst, CustomTagsInfo}, CheckSum,
           "constants() -> _@Constants@.",
           "translatable_strings() -> _@TranslatableStrings@.",
           "translated_blocks() -> _@TranslatedBlocks@.",
+
           "'@_CustomTagsFunctionAst'() -> _.",
+
           "render() -> render([], []).",
           "render(Variables) -> render(Variables, []).",
           "render(Variables, RenderOptions) ->",
@@ -497,6 +520,7 @@ forms({BodyAst, BodyInfo}, {CustomTagsFunctionAst, CustomTagsInfo}, CheckSum,
           "  catch",
           "    Err -> {error, Err}",
           "  end.",
+
           "render_internal(_Variables, RenderOptions) -> _@FinalBodyAst."
          ])).
 
@@ -569,9 +593,10 @@ body_ast([{'extends', {string_literal, _Pos, String}} | ThisParseTree], #treewal
     end;
 
 body_ast(DjangoParseTree, TreeWalker) ->
-    body_ast(DjangoParseTree, empty_scope(), TreeWalker).
+    ScopeFun = fun ([ScopeVars|ScopeBody]) -> [?Q("(fun() -> _@ScopeVars, [_@ScopeBody] end)()")] end,
+    body_ast(DjangoParseTree, empty_scope(), ScopeFun, TreeWalker).
 
-body_ast(DjangoParseTree, BodyScope, TreeWalker) ->
+body_ast(DjangoParseTree, BodyScope, ScopeFun, TreeWalker) ->
     {ScopeId, TreeWalkerScope} = begin_scope(BodyScope, TreeWalker),
     BodyFun =
         fun ({'autoescape', {identifier, _, OnOrOff}, Contents}, TW) ->
@@ -584,9 +609,9 @@ body_ast(DjangoParseTree, BodyScope, TreeWalker) ->
                         lists:foldr(
                           fun ({ChildFile, ChildPos, ChildBlock}, {{SuperAst, SuperInfo}, AccTW}) ->
                                   BlockScope = create_scope(
-                                                 [{block, ?Q("[{super, _@SuperAst}]"), safe}],
+                                                 [{block, ?Q("fun (super) -> _@SuperAst; (_) -> [] end"), safe}],
                                                  ChildPos, ChildFile, AccTW),
-                                  {{BlockAst, BlockInfo}, BlockTW} = body_ast(ChildBlock, BlockScope, AccTW),
+                                  {{BlockAst, BlockInfo}, BlockTW} = body_ast(ChildBlock, BlockScope, ScopeFun, AccTW),
                                   {{BlockAst, merge_info(SuperInfo, BlockInfo)}, BlockTW}
                           end,
                           ContentsAst, ChildBlocks);
@@ -686,6 +711,8 @@ body_ast(DjangoParseTree, BodyScope, TreeWalker) ->
                 string_ast(String, TW);
             ({'tag', Name, Args}, TW) ->
                 tag_ast(Name, Args, TW);
+            ({'tag', Name, Args, {identifier, _, NewTagVar}}, TW) ->
+                tag_ast(Name, Args, NewTagVar, TW);
             ({'templatetag', {_, _, TagName}}, TW) ->
                 templatetag_ast(TagName, TW);
             ({'trans', Value}, TW) ->
@@ -702,6 +729,11 @@ body_ast(DjangoParseTree, BodyScope, TreeWalker) ->
                 extension_ast(Tag, TW);
             ({'extends', _}, TW) ->
                 empty_ast(?ERR(unexpected_extends_tag, TW));
+            ({'language', Locale, Contents}, TW) ->
+                {{LocaleAst, LocaleInfo}, LocaleTW} = value_ast(Locale, true, false, TW),
+                LanguageScopeFun = fun ([ScopeVars|ScopeBody]) -> [?Q("(fun(_CurrentLocale) -> _@ScopeVars, [_@ScopeBody] end)(_@LocaleAst)")] end,
+                {{BodyAst, BodyInfo}, BodyTW} = body_ast(Contents, {[], [?Q("")]}, LanguageScopeFun, LocaleTW),
+                {{BodyAst, merge_info(BodyInfo, LocaleInfo)}, BodyTW};
             (ValueToken, TW) ->
                 format(value_ast(ValueToken, true, true, TW))
         end,
@@ -714,9 +746,7 @@ body_ast(DjangoParseTree, BodyScope, TreeWalker) ->
                   {Ast, merge_info(Info, InfoAcc)}
           end, #ast_info{}, AstInfoList),
 
-    {Ast, TreeWalker2} = end_scope(
-                           fun ([ScopeVars|ScopeBody]) -> [?Q("begin _@ScopeVars, [_@ScopeBody] end")] end,
-                           ScopeId, AstList, TreeWalker1),
+    {Ast, TreeWalker2} = end_scope(ScopeFun, ScopeId, AstList, TreeWalker1),
     {{erl_syntax:list(Ast), Info}, TreeWalker2}.
 
 
@@ -785,6 +815,7 @@ blocktrans_ast(Args, Contents, PluralContents, TreeWalker) ->
                   {string_literal, _, S} ->
                       unescape_string_literal(S)
               end,
+    Trimmed = proplists:get_value(trimmed, Args),
 
     %% add new scope using 'with' values
     {NewScope, {ArgInfo, TreeWalker1}} =
@@ -804,18 +835,18 @@ blocktrans_ast(Args, Contents, PluralContents, TreeWalker) ->
     TreeWalker2 = push_scope(NewScope, TreeWalker1),
 
     %% key for translation lookup
-    SourceText = erlydtl_unparser:unparse(Contents),
+    SourceText = erlydtl_unparser:unparse(Contents, Trimmed),
     {{DefaultAst, AstInfo}, TreeWalker3} = body_ast(Contents, TreeWalker2),
     MergedInfo = merge_info(AstInfo, ArgInfo),
 
     #dtl_context{
       trans_fun = TFun,
-      trans_locales = TLocales } = TreeWalker3#treewalker.context,
+      trans_locales = TLocales, auto_escape = AutoEscape } = TreeWalker3#treewalker.context,
     if TFun =:= none; PluralContents =/= undefined ->
             %% translate in runtime
             {FinalAst, FinalTW} = blocktrans_runtime_ast(
-                                    {DefaultAst, MergedInfo}, SourceText, Contents, Context,
-                                    plural_contents(PluralContents, Count, TreeWalker3)),
+                                    {DefaultAst, MergedInfo}, SourceText, Contents, Context, AutoEscape,
+                                    plural_contents(PluralContents, Count, TreeWalker3), Trimmed),
             {FinalAst, restore_scope(TreeWalker1, FinalTW)};
        is_function(TFun, 2) ->
             %% translate in compile-time
@@ -840,7 +871,7 @@ blocktrans_ast(Args, Contents, PluralContents, TreeWalker) ->
             empty_ast(?ERR({translation_fun, TFun}, TreeWalker3))
     end.
 
-blocktrans_runtime_ast({DefaultAst, Info}, SourceText, Contents, Context, {Plural, TreeWalker}) ->
+blocktrans_runtime_ast({DefaultAst, Info}, SourceText, Contents, Context, AutoEscape, {Plural, TreeWalker}, Trimmed) ->
     %% Contents is flat - only strings and '{{var}}' allowed.
     %% build sorted list (orddict) of pre-resolved variables to pass to runtime translation function
     USortedVariables = lists:usort(fun({variable, {identifier, _, A}},
@@ -856,13 +887,14 @@ blocktrans_runtime_ast({DefaultAst, Info}, SourceText, Contents, Context, {Plura
     VarListAst = erl_syntax:list(VarAsts),
     BlockTransAst = ?Q(["begin",
                         "  case erlydtl_runtime:translate_block(",
-                        "         _@phrase, _@locale,",
+                        "         _@phrase, _@locale, _@auto_escape, ",
                         "         _@VarListAst, _TranslationFun) of",
                         "    default -> _@DefaultAst;",
                         "    Text -> Text",
                         "  end",
                         "end"],
-                       [{phrase, phrase_ast(SourceText, Plural)},
+                       [{phrase, phrase_ast(SourceText, Plural, Trimmed)},
+                        {auto_escape, autoescape_ast(AutoEscape)},
                         {locale, phrase_locale_ast(Context)}]),
     {{BlockTransAst, merge_count_info(Info, Plural)}, TreeWalker1}.
 
@@ -878,14 +910,16 @@ plural_contents(Contents, {_CountVarName, Value}, TreeWalker) ->
     {CountAst, TW} = value_ast(Value, false, false, TreeWalker),
     {{Contents, CountAst}, TW}.
 
-phrase_ast(Text, undefined) -> merl:term(Text);
-phrase_ast(Text, {Contents, {CountAst, _CountInfo}}) ->
+phrase_ast(Text, undefined, _) -> merl:term(Text);
+phrase_ast(Text, {Contents, {CountAst, _CountInfo}}, Trimmed) ->
     erl_syntax:tuple(
       [merl:term(Text),
        erl_syntax:tuple(
-         [merl:term(erlydtl_unparser:unparse(Contents)),
+         [merl:term(erlydtl_unparser:unparse(Contents, Trimmed)),
           CountAst])
       ]).
+autoescape_ast([]) -> autoescape_ast([on]);
+autoescape_ast([V | _]) -> erl_syntax:atom(V == on).
 
 phrase_locale_ast(undefined) -> merl:var('_CurrentLocale');
 phrase_locale_ast(Context) -> erl_syntax:tuple([merl:var('_CurrentLocale'), merl:term(Context)]).
@@ -1026,11 +1060,12 @@ include_ast(File, ArgList, Scopes, #treewalker{ context=Context }=TreeWalker) ->
 ssi_ast(FileName, #treewalker{
                      context=#dtl_context{
                                 reader = {Mod, Fun},
+                                reader_options = ReaderOptions,
                                 doc_root = Dir
                                }
                     }=TreeWalker) ->
     {{FileAst, Info}, TreeWalker1} = value_ast(FileName, true, true, TreeWalker),
-    {{?Q("erlydtl_runtime:read_file(_@Mod@, _@Fun@, _@Dir@, _@FileAst)"), Info}, TreeWalker1}.
+    {{?Q("erlydtl_runtime:read_file(_@Mod@, _@Fun@, _@Dir@, _@FileAst, _@ReaderOptions@)"), Info}, TreeWalker1}.
 
 filter_tag_ast(FilterList, Contents, TreeWalker) ->
     {{InnerAst, Info}, TreeWalker1} = body_ast(Contents, push_auto_escape(did, TreeWalker)),
@@ -1112,13 +1147,28 @@ filter_ast1({{identifier, Pos, Name}, Args}, ValueAst, TreeWalker) ->
             empty_ast(?WARN({Pos, Error}, TreeWalker1))
     end.
 
-filter_ast2(Name, Args, #dtl_context{ filters = Filters }) ->
+% special case for date, which reqires localisation
+% may be replaced later with a query to a list 
+% of functions which require translation
+filter_ast2('date' = Name, Args, #dtl_context{ filters = Filters } = Ctx) ->
+    case proplists:get_value(Name, Filters) of
+        {Mod, Fun} -> 
+            case erlang:function_exported(Mod, Fun, length(Args) + 2) of
+                true -> {ok, ?Q("'@Mod@':'@Fun@'(_@Args, _TranslationFun, _CurrentLocale )")};
+                false -> filter_ast3(Name, Args, Ctx) % redefined 'date'?
+            end;
+        % should never happen
+        undefined -> {unknown_filter, Name, length(Args)}
+    end;
+filter_ast2(Name, Args, Ctx) ->
+    filter_ast3(Name, Args, Ctx).
+
+filter_ast3(Name, Args, #dtl_context{ filters = Filters }) ->
     case proplists:get_value(Name, Filters) of
         {Mod, Fun}=Filter ->
             case erlang:function_exported(Mod, Fun, length(Args)) of
                 true -> {ok, ?Q("'@Mod@':'@Fun@'(_@Args)")};
-                false ->
-                    {filter_args, Name, Filter, length(Args)}
+                false -> {filter_args, Name, Filter, length(Args)}
             end;
         undefined ->
             {unknown_filter, Name, length(Args)}
@@ -1475,7 +1525,7 @@ now_ast(FormatString, TreeWalker) ->
     %% i.e. \"foo\" becomes "foo"
     UnescapeOuter = string:strip(FormatString, both, 34),
     {{StringAst, Info}, TreeWalker1} = string_ast(UnescapeOuter, TreeWalker),
-    {{?Q("erlydtl_dateformat:format(_@StringAst)"), Info}, TreeWalker1}.
+    {{?Q("erlydtl_dateformat:format(_@StringAst, _TranslationFun, _CurrentLocale)"), Info}, TreeWalker1}.
 
 spaceless_ast(Contents, TreeWalker) ->
     {{Ast, Info}, TreeWalker1} = body_ast(Contents, TreeWalker),
@@ -1549,6 +1599,62 @@ custom_tags_modules_ast({identifier, Pos, Name}, InterpretedArgs,
                true ->
                     {{?Q("render_tag(_@Name@, [_@InterpretedArgs], RenderOptions)"),
                       #ast_info{ custom_tags = [Name] }}, TreeWalker}
+            end
+    end.
+
+tag_ast(Name, Args, NewTagVar, TreeWalker) ->
+    {{InterpretedArgs, AstInfo1}, TreeWalker1} = interpret_args(Args, TreeWalker),
+    {{RenderAst, RenderInfo}, TreeWalker2} = custom_tags_modules_ast(Name, InterpretedArgs, NewTagVar, TreeWalker1),
+    {{RenderAst, merge_info(AstInfo1, RenderInfo)}, TreeWalker2}.
+
+custom_tags_modules_ast({identifier, Pos, Name}, InterpretedArgs, NewTagVar,
+                        #treewalker{
+                           context=#dtl_context{
+                                      tags = Tags,
+                                      module = Module,
+                                      is_compiling_dir=IsCompilingDir
+                                     }
+                          }=TreeWalker) ->
+  LocalVarAst = varname_ast(NewTagVar),
+    case proplists:get_value(Name, Tags) of
+        {Mod, Fun}=Tag ->
+            case lists:max([-1] ++ [I || {N,I} <- Mod:module_info(exports), N =:= Fun]) of
+                2 ->
+                      {Id, TreeWalker1} = begin_scope(
+                        {[{NewTagVar, LocalVarAst}],
+                          [?Q("_@LocalVarAst = '@Mod@':'@Fun@'([_@InterpretedArgs], RenderOptions)")]},
+                        TreeWalker
+                      ),
+                  {{Id, #ast_info{}}, TreeWalker1};
+                1 ->
+                      {Id, TreeWalker1} = begin_scope(
+                        {[{NewTagVar, LocalVarAst}],
+                          [?Q("_@LocalVarAst = '@Mod@':'@Fun@'([_@InterpretedArgs])")]},
+                        TreeWalker
+                  ),
+                  {{Id, #ast_info{}}, TreeWalker1};
+
+                -1 ->
+                    empty_ast(?WARN({Pos, {missing_tag, Name, Tag}}, TreeWalker));
+                I ->
+                    empty_ast(?WARN({Pos, {bad_tag, Name, Tag, I}}, TreeWalker))
+            end;
+        undefined ->
+            if IsCompilingDir =/= false ->
+                      {Id, TreeWalker1} = begin_scope(
+                        {[{NewTagVar, LocalVarAst}],
+                          [?Q("_@LocalVarAst = '@Module@':'@Name@'([_@InterpretedArgs], RenderOptions)")]},
+                        TreeWalker
+                      ),
+                      {{Id, #ast_info{ custom_tags = [Name]}}, TreeWalker1};
+               true ->
+                     {Id, TreeWalker1} = begin_scope(
+                       {[{NewTagVar, LocalVarAst}],
+                         [?Q("_@LocalVarAst = '@Module@':'@Name@'([_@InterpretedArgs], RenderOptions)")]},
+                       TreeWalker
+                     ),
+                     {{Id, #ast_info{ custom_tags = [Name]}}, TreeWalker1}
+
             end
     end.
 

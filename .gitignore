@@ -10,3 +10,8 @@ tests/output
 deps
 .emacs*
 .eunit
+/.edts
+/.rebar/
+/*.beam
+/.settings/
+/.project

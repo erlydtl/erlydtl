@@ -483,21 +483,24 @@ lib_module(Name, #dtl_context{ libraries=Libs }) ->
     Mod = proplists:get_value(Name, Libs, Name),
     case code:ensure_loaded(Mod) of
         {module, Mod} ->
-            IsLib = case proplists:get_value(behaviour, Mod:module_info(attributes)) of
-                        Behaviours when is_list(Behaviours) ->
-                            lists:member(erlydtl_library, Behaviours);
-                        _ -> false
-                    end,
-            if IsLib ->
+            case implements_behaviour(erlydtl_library, Mod) of
+                true ->
                     case Mod:version() of
                         ?LIB_VERSION -> {ok, Mod};
                         V -> {load_library, Name, Mod, {version, V}}
                     end;
-               true -> {load_library, Name, Mod, behaviour}
+               false -> {load_library, Name, Mod, behaviour}
             end;
         {error, Reason} ->
             {load_library, Name, Mod, Reason}
     end.
+
+implements_behaviour(Behaviour, Mod) ->
+    Attrs = Mod:module_info(attributes),
+    Found =
+        [B || [B] <- proplists:get_all_values(behaviour, Attrs)] ++
+        [B || [B] <- proplists:get_all_values(behavior, Attrs)],
+    [] =:= [Behaviour] -- Found.
 
 read_library(Mod, Section, Which) ->
     [{Name, lib_function(Mod, Fun)}
@@ -530,4 +533,3 @@ remove_first_quote(String) ->
 
 remove_last_quote(String) ->
     lists:reverse(remove_first_quote(lists:reverse(String))).
-  

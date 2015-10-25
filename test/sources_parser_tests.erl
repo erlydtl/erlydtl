@@ -32,7 +32,13 @@ test_defs() ->
         [{"Hello inside an if inside a for",{"dummy_path",1,73}}]},
        {"if and else both with trans",
         <<"<html>{% block content %}{% if thing %} {% trans \"Hello inside an if\" %} {% else %} {% trans \"Hello inside an else\" %} {% endif %} {% endblock %}</html>">>,
-        [{"Hello inside an else",{"dummy_path",1,94}}, {"Hello inside an if",{"dummy_path",1,50}}]}
+        [{"Hello inside an else",{"dummy_path",1,94}}, {"Hello inside an if",{"dummy_path",1,50}}]},
+       {"blocktrans with pretty format",
+        <<"<html>{% blocktrans %}\n  This is a multiline\n  message... \n{% endblocktrans %}">>,
+        [{"\n  This is a multiline\n  message... \n", {"dummy_path",1,10}}]},
+       {"blocktrans with pretty format, trimmed",
+        <<"<html>{% blocktrans trimmed %}\n  This is a multiline\n  message... \n{% endblocktrans %}">>,
+        [{"This is a multiline message...", {"dummy_path",1,18}}]}
       ]}
     ].
 
@@ -80,18 +86,33 @@ unparser_test_() ->
 test_unparser_fun({Name, Tpl}) ->
     {Name, fun() ->
                    %% take input Tpl value, parse it, "unparse" it, then parse it again.
-                   %% the both parsed values should be equvialent, even if the source versions
+                   %% both parsed values should be equvialent, even if the source versions
                    %% are not an exact match (there can be whitespace differences)
-                   {ok, Dpt} = erlydtl_compiler:do_parse_template(
-                                 Tpl, #dtl_context{}),
-                   Unparsed = erlydtl_unparser:unparse(Dpt),
-                   {ok, DptU} = erlydtl_compiler:do_parse_template(
-                                 Unparsed, #dtl_context{}),
-                   compare_tree(Dpt, DptU)
+                   case erlydtl_compiler:do_parse_template(
+                          Tpl, #dtl_context{}) of
+                       {ok, Dpt} ->
+                           Unparsed = erlydtl_unparser:unparse(Dpt),
+                           case erlydtl_compiler:do_parse_template(
+                                  Unparsed, #dtl_context{}) of
+                               {ok, DptU} ->
+                                   case catch compare_tree(Dpt, DptU) of
+                                       ok -> ok;
+                                       Err -> throw({compare_failed, Err, {test_ast, Dpt}, {unparsed, {source, Unparsed}, {ast, DptU}}})
+                                   end;
+                               Err ->
+                                   throw({unparsed_source, Err})
+                           end;
+                       Err ->
+                           throw({test_source, Err})
+                   end
            end}.
 
 unparser_test_defs() ->
-    [{"comment tag", <<"here it is: {# this is my comment #} <-- it was right there.">>}
+    [{"comment tag", <<"here it is: {# this is my comment #} <-- it was right there.">>},
+     {"blocktrans plain", <<"{% blocktrans %}foo bar{% endblocktrans %}">>},
+     {"blocktrans trimmed", <<"{% blocktrans trimmed %}\n foo \n   bar \n\n{% endblocktrans %}">>},
+     {"blocktrans with args", <<"{% blocktrans with var1=foo var2=bar count c=d %}blarg{% endblocktrans %}">>},
+     {"blocktrans with all", <<"{% blocktrans with var1=foo var2=bar trimmed context 'baz' count c=d %}blarg{% endblocktrans %}">>}
     ].
 
 
@@ -108,9 +129,13 @@ compare_token({'autoescape', OnOrOff1, Contents1}, {'autoescape', OnOrOff2, Cont
 compare_token({'block', Identifier1, Contents1}, {'block', Identifier2, Contents2}) ->
     compare_identifier(Identifier1, Identifier2),
     compare_tree(Contents1, Contents2);
-compare_token({'blocktrans', Args1, Contents1}, {'blocktrans', Args2, Contents2}) ->
-    compare_args(Args1, Args2),
-    compare_tree(Contents1, Contents2);
+compare_token({'blocktrans', Args1, Contents1, Plural1}, {'blocktrans', Args2, Contents2, Plural2}) ->
+    compare_blocktrans_args(Args1, Args2),
+    compare_tree(Contents1, Contents2),
+    case {Plural1, Plural2} of
+        {undefined, undefined} -> ok;
+        _ -> compare_tree(Plural1, Plural2)
+    end;
 compare_token({'call', Identifier1}, {'call', Identifier2}) ->
     compare_identifier(Identifier1, Identifier2);
 compare_token({'call', Identifier1, With1}, {'call', Identifier2, With2}) ->
@@ -197,13 +222,33 @@ compare_value({'attribute', {Variable1, Identifier1}}, {'attribute', {Variable2,
 compare_value({'variable', Identifier1}, {'variable', Identifier2}) ->
     compare_identifier(Identifier1, Identifier2).
 
-compare_args(Args1, Args2) ->
+compare_args(Args1, Args2) when length(Args1) =:= length(Args2) ->
     [compare_arg(A1, A2)
      || {A1, A2} <- lists:zip(Args1, Args2)].
 
+compare_arg(Arg, Arg) when is_atom(Arg) -> ok;
 compare_arg({{identifier, _, Name1}, Value1}, {{identifier, _, Name2}, Value2}) ->
     ?assertEqual(Name1, Name2),
     compare_value(Value1, Value2).
+
+compare_blocktrans_args([], []) -> ok;
+compare_blocktrans_args([{args, WithArgs1}|Args1], Args2) ->
+    {value, {args, WithArgs2}, Args3} = lists:keytake(args, 1, Args2),
+    compare_args(WithArgs1, WithArgs2),
+    compare_blocktrans_args(Args1, Args3);
+compare_blocktrans_args([{count, Count1}|Args1], Args2) ->
+    {value, {count, Count2}, Args3} = lists:keytake(count, 1, Args2),
+    compare_arg(Count1, Count2),
+    compare_blocktrans_args(Args1, Args3);
+compare_blocktrans_args([{context, Context1}|Args1], Args2) ->
+    {value, {context, Context2}, Args3} = lists:keytake(context, 1, Args2),
+    compare_value(Context1, Context2),
+    compare_blocktrans_args(Args1, Args3);
+compare_blocktrans_args([trimmed|Args1], Args2) ->
+    Args3 = Args2 -- [trimmed],
+    if Args2 =/= Args3 ->
+            compare_blocktrans_args(Args1, Args3)
+    end.
 
 compare_cycle_compat_names(Names1, Names2) ->
     [compare_identifier(N1, N2)

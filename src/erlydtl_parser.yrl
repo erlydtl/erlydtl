@@ -66,6 +66,10 @@ Nonterminals
     IncludeTag
     NowTag
 
+    LanguageBlock
+    LanguageBraced
+    EndLanguageBraced
+
     FirstofTag
 
     FilterBlock
@@ -171,6 +175,7 @@ Terminals
     endifchanged_keyword
     endifequal_keyword
     endifnotequal_keyword
+    endlanguage_keyword
     endregroup_keyword
     endspaceless_keyword
     endwith_keyword
@@ -186,6 +191,7 @@ Terminals
     ifnotequal_keyword
     in_keyword
     include_keyword
+    language_keyword
     load_keyword
     noop_keyword
     not_keyword
@@ -205,6 +211,7 @@ Terminals
     string_literal
     string
     templatetag_keyword
+    trimmed_keyword
     openblock_keyword
     closeblock_keyword
     openvariable_keyword
@@ -252,6 +259,7 @@ Elements -> Elements IfEqualBlock : '$1' ++ ['$2'].
 Elements -> Elements IfNotEqualBlock : '$1' ++ ['$2'].
 Elements -> Elements IfChangedBlock : '$1' ++ ['$2'].
 Elements -> Elements IncludeTag : '$1' ++ ['$2'].
+Elements -> Elements LanguageBlock : '$1' ++ ['$2'].
 Elements -> Elements LoadTag : '$1' ++ ['$2'].
 Elements -> Elements NowTag : '$1' ++ ['$2'].
 Elements -> Elements RegroupTag : '$1' ++ ['$2'].
@@ -293,6 +301,10 @@ EndAutoEscapeBraced -> open_tag endautoescape_keyword close_tag.
 BlockBlock -> BlockBraced Elements EndBlockBraced : {block, '$1', '$2'}.
 BlockBraced -> open_tag block_keyword identifier close_tag : '$3'.
 EndBlockBraced -> open_tag endblock_keyword close_tag.
+
+LanguageBlock -> LanguageBraced Elements EndLanguageBraced : {language, '$1', '$2'}.
+LanguageBraced -> open_tag language_keyword Value close_tag : '$3'.
+EndLanguageBraced -> open_tag endlanguage_keyword close_tag.
 
 ExtendsTag -> open_tag extends_keyword string_literal close_tag : {extends, '$3'}.
 
@@ -410,6 +422,7 @@ BlockTransArgs -> '$empty' : [].
 BlockTransArgs -> count_keyword Arg BlockTransArgs : [{count, '$2'}|'$3'].
 BlockTransArgs -> with_keyword Args BlockTransArgs : [{args, '$2'}|'$3'].
 BlockTransArgs -> context_keyword string_literal BlockTransArgs : [{context, '$2'}|'$3'].
+BlockTransArgs -> trimmed_keyword BlockTransArgs : [trimmed|'$2'].
 
 BlockTransContents -> '$empty' : [].
 BlockTransContents -> open_var identifier close_var BlockTransContents : [{variable, '$2'}|'$4'].
@@ -447,6 +460,7 @@ WithBraced -> open_tag with_keyword Args close_tag : '$3'.
 EndWithBraced -> open_tag endwith_keyword close_tag.
 
 CustomTag -> open_tag identifier CustomArgs close_tag : {tag, '$2', '$3'}.
+CustomTag -> open_tag identifier CustomArgs as_keyword identifier close_tag : {tag, '$2', '$3', '$5'}.
 
 CustomArgs -> '$empty' : [].
 CustomArgs -> identifier '=' Value CustomArgs : [{'$1', '$3'}|'$4'].

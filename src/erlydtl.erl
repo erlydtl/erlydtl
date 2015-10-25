@@ -86,6 +86,7 @@
                         | {locale, string()}
                         | {out_dir, false | filename()}
                         | {reader, {Module::atom(), Function::atom}}
+                        | {reader_options, [{Name::atom(), iodata()}]}
                         | {record_info, [{Name::atom(), [Field::atom()]}]}
                         | {scanner_module, Module::atom()}
                         | {vars, [{atom(), iodata()}]}.

@@ -26,16 +26,19 @@
 
 %% New API
 -export([parse_pattern/1, parse_file/1, parse_content/2, phrase_info/2]).
+
 %% Deprecated API
 -export([parse/0, parse/1, process_content/2]).
+-deprecated([{parse, '_'}, {process_content, 2}]).
 
+%% Type exports
 -export_type([phrase/0, compat_phrase/0, field/0]).
 
 %%
 %% Include files
 %%
 
--include("include/erlydtl_ext.hrl").
+-include("erlydtl_ext.hrl").
 
 -record(phrase, {msgid :: string(),
                  msgid_plural :: string() | undefined,
@@ -170,8 +173,9 @@ process_token(Fname,
     St#state{acc=[Phrase | Acc], translators_comment=undefined};
 process_token(Fname, {blocktrans, Args, Contents, PluralContents}, #state{acc=Acc, translators_comment=Comment}=St) ->
     {Fname, Line, Col} = guess_blocktrans_lc(Fname, Args, Contents),
-    Phrase = #phrase{msgid=unparse(Contents),
-                     msgid_plural=unparse(PluralContents),
+    Trim = proplists:get_value(trimmed, Args),
+    Phrase = #phrase{msgid=unparse(Contents, Trim),
+                     msgid_plural=unparse(PluralContents, Trim),
                      context=case proplists:get_value(context, Args) of
                                  {string_literal, _, String} ->
                                      erlydtl_compiler_utils:unescape_string_literal(String);
@@ -198,8 +202,8 @@ trans({string_literal,Pos,String}) -> {Pos, String}.
 
 unescape(String) -> string:sub_string(String, 2, string:len(String) -1).
 
-unparse(undefined) -> undefined;
-unparse(Contents) -> erlydtl_unparser:unparse(Contents).
+unparse(undefined, _) -> undefined;
+unparse(Contents, Trim) -> erlydtl_unparser:unparse(Contents, Trim).
 
 %% hack to guess ~position of blocktrans
 guess_blocktrans_lc(Fname, [{{identifier, {L, C}, _}, _} | _], _) ->

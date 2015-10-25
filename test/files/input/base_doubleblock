@@ -1,0 +1,6 @@
+<head>
+  <title>Chicago Boss Admin - {% block title %}{% endblock %}</title>
+</head>
+<body>
+  <h1>Chicago Boss Admin - {% block title %}{% endblock %}</h1>
+</body>

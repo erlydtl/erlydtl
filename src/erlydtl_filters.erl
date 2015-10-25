@@ -48,7 +48,8 @@
         -export([cast_to_float/1,cast_to_integer/1,stringformat_io/7,round/2,unjoin/2,addDefaultURI/1]).
 -endif.
  
- 
+-import(erlydtl_time_compat, [phash2/1, monotonic_time/0, unique_integer/0]).
+
 -export([add/2,
         addslashes/1,
         capfirst/1,
@@ -56,6 +57,8 @@
         cut/2,
         date/1,
         date/2,
+        date/3,
+        date/4,
         default/2,
         default_if_none/2,
         dictsort/2,
@@ -234,7 +237,7 @@ cut(Input, Arg) when is_binary(Input) ->
 cut(Input, [Char]) when is_list(Input) ->
     cut(Input, Char, []).
  
-%% @doc Formats a date according to the default format.
+%% @doc Formats a date according to the default format. 
 date(Input) ->
     date(Input, "F j, Y").
 
@@ -246,6 +249,19 @@ date(Input, FormatStr)
 date(Input, _FormatStr) ->
     io:format("Unexpected date parameter: ~p~n", [Input]),
     "".
+
+%% @doc Formats a date according to the default format 
+%%      localizing it with provided translation function.
+date(Input, TransFun, Locale) ->
+    date(Input, "F j, Y", TransFun, Locale).
+date(Input, FormatStr, TransFun, Locale)
+  when is_tuple(Input)
+       andalso (size(Input) == 2 orelse size(Input) == 3) ->
+    erlydtl_dateformat:format(Input, FormatStr, TransFun, Locale);
+date(Input, _FormatStr, _TransFun, _Locale) ->
+    io:format("Unexpected date parameter: ~p~n", [Input]),
+    "".
+
 
 %% @doc If value evaluates to `false', use given default. Otherwise, use the value.
 default(Input, Default) ->
@@ -524,7 +540,9 @@ random(_) ->
     "".
 
 random_num(Value) ->
-    _ = random:seed(now()),
+    random:seed(phash2([node()]),
+                monotonic_time(),
+                unique_integer()),
     random:uniform(Value).
 
 %% random tags to be used when using erlydtl in testing
@@ -1117,7 +1135,9 @@ truncatewords_html_io([C|Rest], WordsLeft, Acc, Tags, tag) ->
 truncatewords_html_io([C|Rest], WordsLeft, Acc, Tags, attrs) when C =:= $> ->
     truncatewords_html_io(Rest, WordsLeft, [C|Acc], Tags, text);
 truncatewords_html_io([C|Rest], WordsLeft, Acc, [_Tag|RestOfTags], close_tag) when C =:= $> ->
-    truncatewords_html_io(Rest, WordsLeft, [C|Acc], RestOfTags, text).
+    truncatewords_html_io(Rest, WordsLeft, [C|Acc], RestOfTags, text);
+truncatewords_html_io([C|Rest], WordsLeft, Acc, Tags, close_tag) when C =/= $> ->
+    truncatewords_html_io(Rest, WordsLeft, [C|Acc], Tags, close_tag).
 
 wordcount([], Count) ->
     Count;
