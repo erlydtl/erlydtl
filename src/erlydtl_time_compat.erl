@@ -31,7 +31,8 @@
 %% instead of calling the BIFs directly.
 %%
 
--module(time_compat).
+%% use own name to avoid conflicts..
+-module(erlydtl_time_compat).
 
 %% We don't want warnings about the use of erlang:now/0 in
 %% this module.

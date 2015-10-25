@@ -48,7 +48,8 @@
         -export([cast_to_float/1,cast_to_integer/1,stringformat_io/7,round/2,unjoin/2,addDefaultURI/1]).
 -endif.
  
- 
+-import(erlydtl_time_compat, [phash2/1, monotonic_time/0, unique_integer/0]).
+
 -export([add/2,
         addslashes/1,
         capfirst/1,
@@ -539,7 +540,9 @@ random(_) ->
     "".
 
 random_num(Value) ->
-    _ = random:seed(now()),
+    random:seed(phash2([node()]),
+                monotonic_time(),
+                unique_integer()),
     random:uniform(Value).
 
 %% random tags to be used when using erlydtl in testing
