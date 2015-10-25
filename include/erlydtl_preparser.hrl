@@ -1,8 +1,7 @@
 %% -*- mode: erlang -*-
 %% vim: syntax=erlang
 
-%% This file is based on the yeccpre.hrl file found here:
-%% -file("/usr/lib/erlang/lib/parsetools-2.0.6/include/yeccpre.hrl", 0).
+%% This file is based on parsetools/include/yeccpre.hrl
 %%
 %% The applied modifiactions are to enable the caller to recover
 %% after a parse error, and then resume normal parsing.
@@ -10,18 +9,19 @@
 %%
 %% %CopyrightBegin%
 %%
-%% Copyright Ericsson AB 1996-2010. All Rights Reserved.
+%% Copyright Ericsson AB 1996-2015. All Rights Reserved.
 %%
-%% The contents of this file are subject to the Erlang Public License,
-%% Version 1.1, (the "License"); you may not use this file except in
-%% compliance with the License. You should have received a copy of the
-%% Erlang Public License along with this software. If not, it can be
-%% retrieved online at http://www.erlang.org/.
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
 %%
-%% Software distributed under the License is distributed on an "AS IS"
-%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
-%% the License for the specific language governing rights and limitations
-%% under the License.
+%%     http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
 %%
 %% %CopyrightEnd%
 %%
@@ -39,10 +39,11 @@ parse(Tokens) ->
 
 -spec parse_and_scan({function() | {atom(), atom()}, [_]}
                      | {atom(), atom(), [_]}) -> yecc_ret().
-parse_and_scan({F, A}) -> % Fun or {M, F}
+parse_and_scan({F, A}) ->
     yeccpars0([], {{F, A}, no_line}, 0, [], []);
 parse_and_scan({M, F, A}) ->
-    yeccpars0([], {{{M, F}, A}, no_line}, 0, [], []).
+    Arity = length(A),
+    yeccpars0([], {{fun M:F/Arity, A}, no_line}, 0, [], []).
 
 resume([Tokens, Tzr, State, States, Vstack]) ->
     yeccpars0(Tokens, Tzr, State, States, Vstack).
@@ -72,23 +73,20 @@ return_state() ->
 yeccpars0(Tokens, Tzr, State, States, Vstack) ->
     try yeccpars1(Tokens, Tzr, State, States, Vstack)
     catch 
-        error:function_clause = Error ->
-            case erlang:get_stacktrace() of
-                %% [{atom() | tuple(),atom(),[any()] | byte(),[{'file',string()} | {'line',pos_integer()}]}]
-                [{?MODULE, F, ArityOrArgs, _Source}|_]=Stacktrace ->
-                    erlang:raise(
-                      error,
-                      yecc_error_type(Error, F, ArityOrArgs),
-                      Stacktrace);
-                Stacktrace ->
-                    erlang:raise(error, Error, Stacktrace)
+        error: Error ->
+            Stacktrace = erlang:get_stacktrace(),
+            try yecc_error_type(Error, Stacktrace) of
+                Desc ->
+                    erlang:raise(error, {yecc_bug, ?CODE_VERSION, Desc},
+                                 Stacktrace)
+            catch _:_ -> erlang:raise(error, Error, Stacktrace)
             end;
         %% Probably thrown from return_error/2:
         throw: {error, {_Line, ?MODULE, _M}} = Error ->
             Error
     end.
 
-yecc_error_type(function_clause=Error, F, ArityOrArgs) ->
+yecc_error_type(function_clause, [{?MODULE,F,ArityOrArgs,_} | _]) ->
     case atom_to_list(F) of
         "yeccgoto_" ++ SymbolL ->
             {ok,[{atom,_,Symbol}],_} = erl_scan:string(SymbolL),
@@ -96,9 +94,7 @@ yecc_error_type(function_clause=Error, F, ArityOrArgs) ->
                         [S,_,_,_,_,_,_] -> S;
                         _ -> state_is_unknown
                     end,
-            Desc = {Symbol, State, missing_in_goto_table},
-            {yecc_bug, ?CODE_VERSION, Desc};
-        _ -> Error
+            {Symbol, State, missing_in_goto_table}
     end.
 
 -define(checkparse(CALL, STATE),
@@ -164,21 +160,10 @@ yecc_end(Line) ->
     {'$end', Line}.
 
 yecctoken_end_location(Token) ->
-    try
-        {text, Str} = erl_scan:token_info(Token, text),
-        {line, Line} = erl_scan:token_info(Token, line),
-        Parts = re:split(Str, "\n"),
-        Dline = length(Parts) - 1,
-        Yline = Line + Dline,
-        case erl_scan:token_info(Token, column) of
-            {column, Column} ->
-                Col = byte_size(lists:last(Parts)),
-                {Yline, Col + if Dline =:= 0 -> Column; true -> 1 end};
-            undefined ->
-                Yline
-        end
-    catch _:_ ->
-        yecctoken_location(Token)
+    try erl_anno:end_location(element(2, Token)) of
+        undefined -> yecctoken_location(Token);
+        Loc -> Loc
+    catch _:_ -> yecctoken_location(Token)
     end.
 
 -compile({nowarn_unused_function, yeccerror/1}).
@@ -189,15 +174,15 @@ yeccerror(Token) ->
 
 -compile({nowarn_unused_function, yecctoken_to_string/1}).
 yecctoken_to_string(Token) ->
-    case catch erl_scan:token_info(Token, text) of
-        {text, Txt} -> Txt;
-        _ -> yecctoken2string(Token)
+    try erl_scan:text(Token) of
+        undefined -> yecctoken2string(Token);
+        Txt -> Txt
+    catch _:_ -> yecctoken2string(Token)
     end.
 
 yecctoken_location(Token) ->
-    case catch erl_scan:token_info(Token, location) of
-        {location, Loc} -> Loc;
-        _ -> element(2, Token)
+    try erl_scan:location(Token)
+    catch _:_ -> element(2, Token)
     end.
 
 -compile({nowarn_unused_function, yecctoken2string/1}).
@@ -206,7 +191,7 @@ yecctoken2string({integer,_,N}) -> io_lib:write(N);
 yecctoken2string({float,_,F}) -> io_lib:write(F);
 yecctoken2string({char,_,C}) -> io_lib:write_char(C);
 yecctoken2string({var,_,V}) -> io_lib:format("~s", [V]);
-yecctoken2string({string,_,S}) -> io_lib:write_unicode_string(S);
+yecctoken2string({string,_,S}) -> io_lib:write_string(S);
 yecctoken2string({reserved_symbol, _, A}) -> io_lib:write(A);
 yecctoken2string({_Cat, _, Val}) -> io_lib:format("~p",[Val]);
 yecctoken2string({dot, _}) -> "'.'";
@@ -218,4 +203,3 @@ yecctoken2string(Other) ->
     io_lib:write(Other).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
