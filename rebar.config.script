@@ -9,11 +9,25 @@ Patch = fun (Key, Value, Config) ->
                 end
         end,
 
+Merge = fun (NewCfg) ->
+                PatchCfg =
+                    case os:getenv("EXTRA_CONFIG") of
+                        false ->
+                            NewCfg;
+                        File ->
+                            {ok, ExtraCfg} = file:consult(File),
+                            NewCfg ++ ExtraCfg
+                    end,
+                lists:foldl(
+                  fun ({K, V}, C) -> Patch(K, V, C) end,
+                  CONFIG, PatchCfg)
+        end,
+
 application:load(syntax_tools),
 case application:get_key(syntax_tools, vsn) of
     {ok, Vsn} when "1.7" > Vsn ->
         Deps = [{merl, ".*",
-                 {git, "git://github.com/erlydtl/merl.git", {branch, "erlydtl"}},
+                 {git, "git://github.com/erlydtl/merl.git", "750b09d44425f435ff579a4d28bf5844bb5b4ef1"},
                  [raw]}],
         PreHooks =
             [{"(linux|darwin|solaris)", compile, "make -C \"$REBAR_DEPS_DIR/merl\" all -W test"},
@@ -22,10 +36,10 @@ case application:get_key(syntax_tools, vsn) of
              {"(linux|darwin|solaris)", eunit, "make -C \"$REBAR_DEPS_DIR/merl\" test"},
              {"(freebsd|netbsd|openbsd)", eunit, "gmake -C \"$REBAR_DEPS_DIR/merl\" test"},
              {"win32", eunit, "make -C \"%REBAR_DEPS_DIR%/merl\" test"}],
-        lists:foldl(fun ({K, V}, C) -> Patch(K, V, C) end, CONFIG,
-                    [{deps, Deps},
-                     {pre_hooks, PreHooks},
-                     {erl_opts, [{d, 'MERL_DEP'}]}]);
+
+        Merge([{deps, Deps},
+               {pre_hooks, PreHooks},
+               {erl_opts, [{d, 'MERL_DEP'}]}]);
     _ ->
-        CONFIG
+        Merge([])
 end.

@@ -18,8 +18,9 @@ update-deps:
 	@$(REBAR) update-deps
 
 .PHONY: tests
+tests: export EXTRA_CONFIG=rebar-tests.config
 tests: src/erlydtl_parser.erl
-	@$(REBAR) -C rebar-tests.config eunit
+	@$(REBAR) eunit
 
 check: tests dialyze
 

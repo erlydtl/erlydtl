@@ -1,7 +1,7 @@
 %% -*- mode: erlang -*-
 {application, erlydtl,
  [{description, "Django Template Language for Erlang"},
-  {vsn, "0.10.0"},
+  {vsn, "0.11.1"},
   {modules, []},
   {applications, [kernel, stdlib, compiler, syntax_tools, merl]},
   {registered, []}

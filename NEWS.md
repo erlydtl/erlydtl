@@ -4,6 +4,11 @@ This file records noteworthy changes and additions to erlydtl as
 suggested by the [GNU Coding
 Standards](http://www.gnu.org/prep/standards/html_node/NEWS-File.html#NEWS-File).
 
+## 0.11.1 (2015-10-26)
+
+Fix build issues and missed update version info in .app-file.
+
+
 ## 0.11.0 (2015-10-25)
 
 I've failed to keep track. Please check resolved issues on [github](https://github.com/erlydtl/erlydtl).

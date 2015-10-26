@@ -18,8 +18,6 @@ otp_release:
 #   - R15B01 failing with timeout
 #   - R15B failing with timeout
 
-# since Travis is naughty and calls rebar get-deps behind our backs,
-# we'll have to clean it up and build merl our selves.. (pre OTP 18.0)
 script: 
   - "[ ! -d deps/merl ] || make -C deps/merl && make check"
 
