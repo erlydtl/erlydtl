@@ -19,7 +19,7 @@ otp_release:
 #   - R15B failing with timeout
 
 script: 
-  - "make check"
+  - "[ ! -d deps/merl ] || make -C deps/merl && make check"
 
 notifications:
   irc: "chat.freenode.net#erlydtl"
