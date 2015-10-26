@@ -18,8 +18,9 @@ update-deps:
 	@$(REBAR) update-deps
 
 .PHONY: tests
-tests: src/erlydtl_parser.erl | deps/eunit_formatters
-	@$(REBAR) -C rebar-tests.config eunit
+tests: export EXTRA_CONFIG=rebar-tests.config
+tests: src/erlydtl_parser.erl
+	@$(REBAR) eunit
 
 check: tests dialyze
 
@@ -70,6 +71,3 @@ shell:
 # this file must exist for rebar eunit to work
 # but is only built when running rebar compile
 src/erlydtl_parser.erl: compile
-
-deps/eunit_formatters:
-	@$(REBAR) -C rebar-tests.config get-deps compile
