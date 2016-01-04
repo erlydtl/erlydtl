@@ -47,8 +47,8 @@
 -ifdef(TEST).
         -export([cast_to_float/1,cast_to_integer/1,stringformat_io/7,round/2,unjoin/2,addDefaultURI/1]).
 -endif.
- 
--import(erlydtl_time_compat, [phash2/1, monotonic_time/0, unique_integer/0]).
+
+-import(erlydtl_time_compat, [monotonic_time/0, unique_integer/0]).
 
 -export([add/2,
         addslashes/1,
@@ -540,7 +540,7 @@ random(_) ->
     "".
 
 random_num(Value) ->
-    random:seed(phash2([node()]),
+    random:seed(erlang:phash2([node()]),
                 monotonic_time(),
                 unique_integer()),
     random:uniform(Value).
