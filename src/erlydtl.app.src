@@ -8,5 +8,5 @@
   {maintainers, ["erlydtl", "Heinz N. Gies"]},
   {licenses,["MIT"]},
   {links,[{"Github",
-           "https://github.com/project-fifo/fifo_spec"}]}
+           "https://github.com/erlydtl/erlydtl"}]}
  ]}.
