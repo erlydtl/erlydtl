@@ -1,80 +1,42 @@
-ERL=erl
-ERLC=erlc
-REBAR=./rebar $(REBAR_ARGS)
+REBAR=rebar3 $(REBAR_ARGS)
 
+.PHONY: all
 all: compile
 
-compile: check-slex get-deps
+.PHONY: compile
+compile: slex
 	@$(REBAR) compile
 
-check-slex: src/erlydtl_scanner.erl
+.PHONY: slex
+slex: src/erlydtl_scanner.erl
+
 src/erlydtl_scanner.erl: src/erlydtl_scanner.slex
-	@echo Notice: $@ is outdated by $<, consider running "'make slex'".
+	@$(REBAR) slex compile
 
-get-deps:
-	@$(REBAR) get-deps
+.PHONY: check
+check: test dialyze
 
-update-deps:
-	@$(REBAR) update-deps
-
-.PHONY: tests
-tests: export EXTRA_CONFIG=rebar-tests.config
-tests: src/erlydtl_parser.erl
+.PHONY: test
+test:
 	@$(REBAR) eunit
 
-check: tests dialyze
-
-## dialyzer
-PLT_FILE = ~/erlydtl.plt
-PLT_APPS ?= kernel stdlib compiler erts eunit syntax_tools
-DIALYZER_OPTS ?= -Werror_handling -Wrace_conditions -Wunmatched_returns \
-		-Wunderspecs --verbose --fullpath
 .PHONY: dialyze
 dialyze: compile
-	@[ -f $(PLT_FILE) ] || $(MAKE) plt
-	@dialyzer --plt $(PLT_FILE) $(DIALYZER_OPTS) ebin || [ $$? -eq 2 ];
+	@$(REBAR) dialyzer
 
-## In case you are missing a plt file for dialyzer,
-## you can run/adapt this command
-.PHONY: plt
-plt: compile
-# we need to remove second copy of file
-	rm -f deps/merl/priv/merl_transform.beam
-	@echo "Building PLT, may take a few minutes"
-	@dialyzer --build_plt --output_plt $(PLT_FILE) --apps \
-		$(PLT_APPS) deps/* || [ $$? -eq 2 ];
-
+.PHONY: clean
 clean:
-	@[ ! -d deps/merl ] || { echo "Clean merl..." ; $(MAKE) -C deps/merl clean ;}
-	@$(REBAR) -C rebar-slex.config clean
-	rm -fv erl_crash.dump
+	@$(REBAR) clean
 
-really-clean: clean
-	rm -f $(PLT_FILE)
+.PHONY: realclean
+realclean: clean
+	rm -rf _build
 
-# rebuild any .slex files as well..  not included by default to avoid
-# the slex dependency, which is only needed in case the .slex file has
-# been modified locally.
-slex: REBAR_DEPS ?= get-deps update-deps
-slex: slex-compile
-
-slex-skip-deps: REBAR_DEPS:=
-slex-skip-deps: slex-compile
-
-slex-compile:
-	@$(REBAR) -C rebar-slex.config $(REBAR_DEPS) compile
-
-shell:
-	@$(ERL) -pz ebin deps/*/ebin
-
-
-# this file must exist for rebar eunit to work
-# but is only built when running rebar compile
-src/erlydtl_parser.erl: compile
-
+.PHONY: committed
 committed:
 	@git diff --no-ext-diff --quiet --exit-code || { echo "there are uncommitted changes in the repo." ; false ;}
 
+.PHONY: committed
 release: committed check
 	@{														      \
 		V0=$$(grep vsn src/erlydtl.app.src | sed -e 's/.*vsn,.*"\(.*\)".*/\1/')					   && \

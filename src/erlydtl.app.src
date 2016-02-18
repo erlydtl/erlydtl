@@ -3,7 +3,7 @@
  [{description, "Django Template Language for Erlang"},
   {vsn, "0.14.0"},
   {modules, []},
-  {applications, [kernel, stdlib, compiler, syntax_tools, merl]},
+  {applications, [kernel, stdlib, compiler, syntax_tools]},
   {registered, []},
   {licenses,["MIT"]},
   {links,[{"Github",

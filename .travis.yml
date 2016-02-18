@@ -1,18 +1,12 @@
 language: erlang
 sudo: false
 otp_release:
-# Test on all the latest releases for the major versions supported as specified by the `require_otp_vsn` in rebar.config
-   - 22.2
-   - 21.3
-   - 20.3
-   - 19.3
-   - 18.3
-   - 17.4
-   - R16B03-1
+   - 28.0
+   - 27.3
+   - 26.2
 
 script:
-  - "[ ! -d deps/merl ] || make -C deps/merl && make check"
+  - make tests
 
-notifications:
-  irc: "chat.freenode.net#erlydtl"
-  email: false
+#notifications:
+#  email: false

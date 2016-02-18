@@ -1976,7 +1976,10 @@ error_info(Ei) ->
     error_info(Ei, erlydtl_beam_compiler).
 
 
-template_file(Dir, Name) -> filename:join(["../test/files", Dir, Name]).
+template_file(Dir, Name) ->
+    %% {ok, CWD} = file:get_cwd(),
+    %% io:format(user, "~s~n", [CWD]),
+    filename:join(["test/files", Dir, Name]).
 
 functional_test(F) ->
     setup_compile(#test{
@@ -1986,7 +1989,7 @@ functional_test(F) ->
                     }).
 
 setup_compile(#test{ title=F, compile_opts=Opts }=T) ->
-    CompileOpts = [{doc_root, "../test/files/input"}|Opts],
+    CompileOpts = [{doc_root, "test/files/input"}|Opts],
     case setup_compile(F) of
         {ok, [CV|Other]} ->
             CO = proplists:get_value(compile_opts, Other, []),

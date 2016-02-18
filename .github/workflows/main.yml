@@ -1,0 +1,17 @@
+on: push
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    name: Erlang/OTP ${{matrix.otp}} / rebar3 ${{matrix.rebar3}}
+    strategy:
+      matrix:
+        otp: [26.2', '27.3', '28.0']
+        rebar3: ['3.24', '3.25']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1.20.4
+        with:
+          otp-version: ${{matrix.otp}}
+          rebar3-version: ${{matrix.rebar3}}
+      - run: rebar3 eunit
