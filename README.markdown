@@ -7,7 +7,7 @@ Project homepage: <https://github.com/erlydtl/erlydtl/wiki>
 
 ErlyDTL implements the Django Template Language as documented for
 version *1.6*, here:
-<http://docs.djangoproject.com/en/1.6/ref/templates/builtins/>
+<https://django.readthedocs.org/en/1.6.x/ref/templates/builtins.html>
 
 Despite our best efforts to be completely compatible with the Django
 Template Languge, there are still a few
