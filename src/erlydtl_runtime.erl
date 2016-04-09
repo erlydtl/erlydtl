@@ -82,6 +82,8 @@ find_value(Key, {GBSize, {_, _, _, _}=GBData}) when is_integer(GBSize) ->
     end;
 find_value(Key, Tuple) when is_tuple(Tuple) ->
     case element(1, Tuple) of
+        L when is_list(L) andalso size(Tuple) =:= 1 ->
+            find_value(Key, L);
         dict ->
             case dict:find(Key, Tuple) of
                 {ok, Val} ->

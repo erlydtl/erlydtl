@@ -133,6 +133,8 @@ all_test_defs() ->
         <<"I also enjoy {{ var1.game }}">>, [{var1, [{"game", "Parcheesi"}]}], <<"I also enjoy Parcheesi">>},
        {"Render variable with binary-key attribute",
         <<"I also enjoy {{ var1.game }}">>, [{var1, [{<<"game">>, "Parcheesi"}]}], <<"I also enjoy Parcheesi">>},
+       {"Render variable with tuple wrapped proplist",
+        <<"I also enjoy {{ var1.game }}">>, [{var1, {[{<<"game">>, "Parcheesi"}]}}], <<"I also enjoy Parcheesi">>},
        {"Render variable in dict",
         <<"{{ var1 }}">>, dict:store(var1, "bar", dict:new()), <<"bar">>},
        {"Render variable with missing attribute in dict",
