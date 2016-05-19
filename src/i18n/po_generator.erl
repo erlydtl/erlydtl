@@ -15,11 +15,17 @@
 %%
 %% API Functions
 %%
+-define(LANG_DIR, "lang").
+-define(POFILE, "gettext.po").
 generate_file(Lang,Items, Fuzzy) ->
     Gettext_App_Name = "tmp",
     GtxtDir = ".",
     io:format("Opening po file"),
-    gettext_compile:open_po_file(Gettext_App_Name, GtxtDir, Lang),
+    DefDir = filename:join([GtxtDir, ?LANG_DIR, Gettext_App_Name, Lang]),
+    Fname = filename:join([DefDir, ?POFILE]),
+    filelib:ensure_dir(Fname),
+    {ok,Fd} = file:open(Fname, [write]),
+    put(fd,Fd),
 
     gettext_compile:write_header(),
     io:format("Writing entries~n"),
