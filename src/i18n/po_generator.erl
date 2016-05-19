@@ -31,10 +31,19 @@ generate_file(Lang,Items, Fuzzy) ->
 %%
 %% Local Functions
 %%
+
+to_list(A) when is_atom(A)    -> atom_to_list(A);
+to_list(I) when is_integer(I) -> integer_to_list(I);
+to_list(B) when is_binary(B)  -> binary_to_list(B);
+to_list(L) when is_list(L)    -> L.
+
 write_entries(Items)->
     Fd = get(fd),
     F = fun({Id,Translation,Finfo}) ->
-                Fi = gettext_compile:fmt_fileinfo(Finfo),
+                Fun = fun({Fname,LineNo}, Acc) ->
+                    Fname ++ ":" ++ to_list(LineNo) ++ [$\s|Acc]
+                end,
+                Fi = lists:foldr(Fun,[],Finfo),
                 io:format(Fd, "~n#: ~s~n", [Fi]),
                 ok = file:write(Fd, "msgid \"\"\n"),
                 gettext_compile:write_pretty(Id, Fd),
