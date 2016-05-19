@@ -32,7 +32,7 @@ generate_file(Lang,Items, Fuzzy) ->
     write_entries(Items),
     io:format("Writing fuzzy entries~n"),
     write_fuzzy_entries(Fuzzy),
-    gettext_compile:close_file().
+    file:close(Fd).
 
 %%
 %% Local Functions
