@@ -217,6 +217,9 @@ end.
 %% note that `any' here will match states *with* a closer, i.e. not `in_text'.
 %% (`any-' would match any stateless state.)
 110 \s any: skip, in_code.
+111 \r any: skip, in_code.
+112 \n any: skip, in_code.
+113 \t any: skip, in_code.
 
 120 any in_code,
   expr \

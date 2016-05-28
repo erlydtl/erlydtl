@@ -36,7 +36,7 @@
 %%%-------------------------------------------------------------------
 -module(erlydtl_scanner).
 
-%% This file was generated 2015-10-17 21:30:29 UTC by slex 0.2.1-2-g7814678.
+%% This file was generated 2016-05-28 20:22:41 UTC by slex 0.2.1-2-g7814678.
 %% http://github.com/erlydtl/slex
 -slex_source(["src/erlydtl_scanner.slex"]).
 
@@ -478,6 +478,12 @@ scan("_(" ++ T, S, {R, C} = P, {_, E}) ->
     scan(T, [{'(', P}, {'_', P} | post_process(S, '_')],
 	 {R, C + 2}, {in_code, E});
 scan(" " ++ T, S, {R, C}, {_, E}) ->
+    scan(T, S, {R, C + 1}, {in_code, E});
+scan("\r" ++ T, S, {R, C}, {_, E}) ->
+    scan(T, S, {R, C + 1}, {in_code, E});
+scan("\n" ++ T, S, {R, C}, {_, E}) ->
+    scan(T, S, {R + 1, 1}, {in_code, E});
+scan("\t" ++ T, S, {R, C}, {_, E}) ->
     scan(T, S, {R, C + 1}, {in_code, E});
 scan([H | T], S, {R, C} = P, {in_code, E})
     when H >= $a andalso H =< $z orelse
