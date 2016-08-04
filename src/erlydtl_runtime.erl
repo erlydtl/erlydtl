@@ -385,6 +385,9 @@ to_list(Value, false) when is_tuple(Value) ->
 init_counter_stats(List) ->
     init_counter_stats(List, undefined).
 
+init_counter_stats(undefined, Parent) ->
+  init_counter_stats([], Parent);
+
 init_counter_stats(List, Parent) when is_list(List) ->
     ListLen = length(List),
     [{counter, 1},
