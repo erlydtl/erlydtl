@@ -986,8 +986,8 @@ iriencode([C | Rest], Acc) ->
     iriencode(Rest, [hexdigit(Lo), hexdigit(Hi), $\% | Acc]).
 
 join_io([], _Sep) -> [];
-join_io([_] = X, _Sep) -> X;
-join_io([X|T], Sep) -> [X,Sep] ++ join_io(T, Sep).
+join_io([X], _Sep) -> format_number(X);
+join_io([X|T], Sep) -> [format_number(X),Sep] ++ join_io(T, Sep).
 
 linebreaksbr(Input, Index) when is_binary(Input) ->
     Break = <<"<br />">>,
