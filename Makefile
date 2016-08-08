@@ -85,5 +85,5 @@ release: committed check
 		sed -i -e 's/vsn,.*}/vsn, "'$$V2'"}/' src/erlydtl.app.src						   && \
 		git ci -m "release v$$V2" src/erlydtl.app.src								   && \
 		git tag $$V2												   && \
-		echo 'Updated src/erlydtl.app.src and tagged, run `git push master --tags` when ready'                        \
+		echo 'Updated src/erlydtl.app.src and tagged, run `git push origin master --tags` when ready'                 \
 	;}
