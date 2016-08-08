@@ -4,6 +4,18 @@ This file records noteworthy changes and additions to erlydtl as
 suggested by the [GNU Coding
 Standards](http://www.gnu.org/prep/standards/html_node/NEWS-File.html#NEWS-File).
 
+
+## 0.12.0 (2016-08-08)
+
+* #230 Use phash2/1 explicitly. It's not in compat layer
+
+* #240 custom tags parameters parsing not handling newlines
+
+* #242 Support for 19
+
+* #246 make the 'join' filter work with numbers
+
+
 ## 0.11.1 (2015-10-26)
 
 Fix build issues and missed update version info in .app-file.

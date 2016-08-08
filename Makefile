@@ -71,3 +71,17 @@ shell:
 # this file must exist for rebar eunit to work
 # but is only built when running rebar compile
 src/erlydtl_parser.erl: compile
+
+committed:
+	@git diff --no-ext-diff --quiet --exit-code || { echo "there are uncommitted changes in the repo." ; false ;}
+
+release: committed check
+	@{														    \
+		V1=$$(grep vsn src/erlydtl.app.src | sed -e 's/.*vsn,.*"\(.*\)".*/\1/')					 && \
+		read -e -p "OK, all tests passed, current version is $$V1, which version should we release now? " V2	 && \
+		echo "$$V2 it is..."											 && \
+		sed -i -e 's/vsn,.*}/vsn, "'$$V2'"}/' src/erlydtl.app.src						 && \
+		echo git ci -m "release v$$V2" src/erlydtl.app.src							 && \
+		echo git tag $$V2											 && \
+		echo 'Updated src/erlydtl.app.src and tagged, run `git push master --tags` when ready'                      \
+	;}
