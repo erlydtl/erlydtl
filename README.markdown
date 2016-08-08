@@ -19,12 +19,12 @@ Template Languge, there are still a few
 We follow a
 [gitflow](http://nvie.com/posts/a-successful-git-branching-model/)
 inspired branching model, where `master` is the latest released
-version (a.k.a. stable), and use `develop` for stuff that make break
+version (a.k.a. stable), and use `develop` for stuff that may break
 from time to time.
 
 #### master branch
 
-Releases are made from the *stable* branch, with dependency versions
+Releases are made from the *master* branch, with dependency versions
 pinned down and a hard coded version number in the app file.
 
 #### develop branch
