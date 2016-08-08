@@ -16,11 +16,18 @@ Template Languge, there are still a few
 
 ### The erlydtl branches & tags
 
-As things are progressing somewhat more rapidly, I'll describe our
-branch and tagging strategy to help you stay on the branch or tag(s)
-that suits you best.
+We follow a
+[gitflow](http://nvie.com/posts/a-successful-git-branching-model/)
+inspired branching model, where `master` is the latest released
+version (a.k.a. stable), and use `develop` for stuff that make break
+from time to time.
 
 #### master branch
+
+Releases are made from the *stable* branch, with dependency versions
+pinned down and a hard coded version number in the app file.
+
+#### develop branch
 
 This is were all the action is, and at times may be slightly
 broken. Suitable for early adopters who aren't afraid of a little
@@ -29,17 +36,11 @@ debugging and hopefully also reporting issues.
 #### release tags
 
 Whenever *master* is deemed stable with a nice set of
-additions/changes, it is merged with stable for a new release.
+additions/changes, it is tagged for a new release.
 
 As we're still going for the big 1.0 release, breaking changes **may**
 be introduced also on minor release bumps; but after that, we'll stick
-with [semver](http://semver.org/) (as a matter of fact, this is all
-covered by the Semantic Versioning Spec 2.0.0, see 4§).
-
-#### stable branch
-
-Releases are made from the *stable* branch, with dependency versions
-pinned down and a hard coded version number in the app file.
+with [semver](http://semver.org/).
 
 
 Compilation
