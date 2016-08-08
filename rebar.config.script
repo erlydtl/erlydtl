@@ -27,7 +27,7 @@ application:load(syntax_tools),
 case application:get_key(syntax_tools, vsn) of
     {ok, Vsn} when "1.7" > Vsn ->
         Deps = [{merl, ".*",
-                 {git, "git://github.com/erlydtl/merl.git", {branch, "erlydtl"}},
+                 {git, "git://github.com/erlydtl/merl.git", "750b09d44425f435ff579a4d28bf5844bb5b4ef1"},
                  [raw]}],
         PreHooks =
             [{"(linux|darwin|solaris)", compile, "make -C \"$REBAR_DEPS_DIR/merl\" all -W test"},
