@@ -15,3 +15,5 @@ deps
 /*.beam
 /.settings/
 /.project
+include/yeccpre-*.hrl
+src/erlydtl.app.src-*

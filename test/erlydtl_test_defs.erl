@@ -1434,7 +1434,14 @@ all_test_defs() ->
         <<"Hello Hans">>},
        {"trans value",
         <<"{{ _('foo') }}">>, [], [], [{locale, default}, {translation_fun, fun ("foo") -> "bar" end}],
-        <<"bar">>}
+        <<"bar">>},
+       {"filtered value",
+        <<"{{ _('foo')|reverse }}">>, [], [],
+        [{locale, default},
+         {translation_fun, fun ("foo") -> "bar" end},
+         {default_libraries, [test1]},
+         {libraries, [{test1, erlydtl_lib_test1}]}],
+        <<"rab">>}
       ]},
      {"blocktrans",
       [{"blocktrans default locale",

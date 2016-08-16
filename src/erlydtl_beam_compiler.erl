@@ -776,6 +776,8 @@ value_ast(ValueToken, AsString, EmptyIfUndefined, TreeWalker) ->
             resolve_variable_ast(Variable, EmptyIfUndefined, TreeWalker);
         {'variable', _} = Variable ->
             resolve_variable_ast(Variable, EmptyIfUndefined, TreeWalker);
+        {'trans', Value} ->
+            translated_ast(Value, TreeWalker);
         {extension, Tag} ->
             extension_ast(Tag, TreeWalker)
     end.
