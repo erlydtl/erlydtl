@@ -357,6 +357,8 @@ stringify_final(In, BinaryStrings) ->
 
 stringify_final([], Out, _) ->
     lists:reverse(Out);
+stringify_final([{safe, El} | Rest], Out, BinaryStrings) ->
+    stringify_final([El | Rest], Out, BinaryStrings);
 stringify_final([El | Rest], Out, false = BinaryStrings) when is_atom(El) ->
     stringify_final(Rest, [atom_to_list(El) | Out], BinaryStrings);
 stringify_final([El | Rest], Out, true = BinaryStrings) when is_atom(El) ->

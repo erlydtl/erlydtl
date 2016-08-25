@@ -817,6 +817,10 @@ all_test_defs() ->
        {"|safe is local",
         <<"{{ var1 }}{{ var1|safe }}{{ var1 }}">>, [{var1, "&"}], [], [auto_escape],
         <<"&amp;&&amp;">>},
+       {"custom filter with safe data (#247)",
+        <<"{{var1}} {{var2}} {{var1|escape}} {{var2|escape}}">>, [{var1, {safe, "foo&bar"}}, {var2, "foo&bar"}], [], [],
+        <<"foo&bar foo&bar foo&bar foo&amp;bar">>},
+
        %%python/django slice is zero based, erlang lists are 1 based
        %%first number included, second number not
        %%negative numbers are allowed
