@@ -535,15 +535,15 @@ pprint(Input) ->
 
 %% @doc Returns a random item from the given list.
 random(Input) when is_list(Input) ->
-    lists:nth(random:uniform(erlang:length(Input)), Input);
+    lists:nth(uniform(erlang:length(Input)), Input);
 random(_) ->
     "".
 
 random_num(Value) ->
-    random:seed(erlang:phash2([node()]),
-                monotonic_time(),
-                unique_integer()),
-    random:uniform(Value).
+    seed(erlang:phash2([node()]),
+         monotonic_time(),
+         unique_integer()),
+    uniform(Value).
 
 %% random tags to be used when using erlydtl in testing
 random_range(Range) ->
@@ -554,7 +554,7 @@ random_range(Range) ->
 random_range(Start, End) when End >= Start ->
     %?debugFmt("Input, Start, End: ~p,~p,~p~n",[Input,Start,End]),
     Range = End - Start,
-    Rand = random:uniform(Range),
+    Rand = uniform(Range),
     Num = Rand + Start,
     lists:flatten(io_lib:format("~B",[Num])).
 
@@ -1320,3 +1320,20 @@ unjoin2_loop([], _, _, _, Rev) ->
 unjoin_prefix([C|L], [C|S]) -> unjoin_prefix(L, S);
 unjoin_prefix([],    S)     -> S;
 unjoin_prefix(_,     _)     -> no.
+
+%% random compatibility
+%% Credits: https://github.com/benoitc/hackney/blob/master/src/hackney_util.erl
+
+uniform(N) ->
+    case have_rand() of
+        true  -> rand:uniform(N);
+        false -> (fun random:uniform/1)(N)
+    end.
+
+seed(A0, A1, A2) ->
+    case have_rand() of
+        true -> rand:seed(exsplus, {A0, A1, A2});
+        false -> (fun random:seed/3)(A0, A1, A2)
+    end.
+
+have_rand() -> (code:which(rand) /= non_existing).
