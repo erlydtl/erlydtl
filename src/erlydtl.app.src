@@ -1,11 +1,11 @@
 %% -*- mode: erlang -*-
 {application, erlydtl,
  [{description, "Django Template Language for Erlang"},
-  {vsn, "0.12.0"},
+  {vsn, "0.12.1"},
   {modules, []},
   {applications, [kernel, stdlib, compiler, syntax_tools, merl]},
   {registered, []},
-  {maintainers, ["erlydtl", "Heinz N. Gies"]},
+  {maintainers, ["Andreas Stenius (@kaos)", "Heinz N. Gies"]},
   {licenses,["MIT"]},
   {links,[{"Github",
            "https://github.com/erlydtl/erlydtl"}]}

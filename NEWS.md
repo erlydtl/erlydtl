@@ -4,9 +4,7 @@ This file records noteworthy changes and additions to erlydtl as
 suggested by the [GNU Coding
 Standards](http://www.gnu.org/prep/standards/html_node/NEWS-File.html#NEWS-File).
 
-## 0.13.0 (NYR)
-
-* #247 Mark output as safe using a `{safe, Data}` tuple.
+## 0.12.1 (2016-09-21)
 
 * #248 support filters in `{{ _(var) }}`.
 
