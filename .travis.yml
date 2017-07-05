@@ -2,6 +2,8 @@ language: erlang
 sudo: false
 otp_release:
 # Test on all supported releases accepted by the `require_otp_vsn` in rebar.config
+   - 20.0
+   - 19.3
    - 18.0
    - 17.4
    - 17.3
