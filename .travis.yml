@@ -1,24 +1,14 @@
 language: erlang
 sudo: false
 otp_release:
-# Test on all supported releases accepted by the `require_otp_vsn` in rebar.config
+# Test on all the latest releases for the major versions supported as specified by the `require_otp_vsn` in rebar.config
    - 20.0
    - 19.3
    - 18.0
    - 17.4
-   - 17.3
-   - 17.1
-   - 17.0
    - R16B03-1
-#   - R16B03 this version is broken!
-   - R16B02
-   - R16B01
-   - R16B
 #  - R15B03-1 not available on travis
    - R15B03
-   - R15B02
-#   - R15B01 failing with timeout
-#   - R15B failing with timeout
 
 script: 
   - "[ ! -d deps/merl ] || make -C deps/merl && make check"
