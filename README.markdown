@@ -14,6 +14,12 @@ Template Languge, there are still a few
 [differences](https://github.com/erlydtl/erlydtl#differences-from-standard-django-template-language).
 
 
+Call for maintainers
+====================
+
+My current position in life does not give me the time I feel this project deserves. So, if you feel that there are things that ought to be done, and have the skills and time to do them, please get in touch. -- @kaos
+
+
 ### The erlydtl branches & tags
 
 We follow a
