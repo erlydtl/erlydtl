@@ -861,8 +861,9 @@ blocktrans_ast(Args, Contents, PluralContents, TreeWalker) ->
                               Body ->
                                   {ok, DjangoParseTree} = do_parse_template(Body, TreeWalkerAcc#treewalker.context),
                                   {{BodyAst, BodyInfo}, BodyTreeWalker} = body_ast(DjangoParseTree, TreeWalkerAcc),
+                                  Clause = erl_syntax:clause([erl_syntax:abstract(Locale)], none, [BodyAst]),
                                   {merge_info(BodyInfo, AstInfoAcc), BodyTreeWalker,
-                                   [?Q("_@Locale@ -> _@BodyAst")|ClauseAcc]}
+                                  [Clause | ClauseAcc]}
                           end
                   end,
                   {MergedInfo, TreeWalker3, []}, TLocales),
@@ -975,14 +976,15 @@ compiletime_trans_ast(TFun, Text, LContext,
                         }=TreeWalker) ->
     ClAst = lists:foldl(
               fun(Locale, ClausesAcc) ->
-                      [?Q("_@Locale@ -> _@translated",
-                          [{translated, case TFun(Text, phrase_locale(Locale, LContext)) of
-                                            default -> string_ast(Text, Context);
-                                            Translated -> string_ast(Translated, Context)
-                                        end}])
-                       |ClausesAcc]
+                      BodyAst = case TFun(Text, phrase_locale(Locale, LContext)) of
+                                    default -> string_ast(Text, Context);
+                                    Translated -> string_ast(Translated, Context)
+                                end,
+                      Clause = erl_syntax:clause([erl_syntax:abstract(Locale)], none, [BodyAst]),
+                      [Clause | ClausesAcc]
               end,
               [], TLocales),
+
     {{?Q(["case _CurrentLocale of",
           "  _@_ClAst -> _;",
           " _ -> _@string",
