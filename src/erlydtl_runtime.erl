@@ -472,6 +472,7 @@ read_file(Module, Function, DocRoot, FileName, ReaderOptions) ->
             throw({read_file, AbsName, Reason})
     end.
 read_file_internal(Module, Function, FileName, ReaderOptions) ->
+    _ = code:ensure_loaded(Module),
     case erlang:function_exported(Module, Function,1) of
         true ->
             Module:Function(FileName);
