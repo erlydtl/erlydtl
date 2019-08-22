@@ -72,9 +72,8 @@ return_state() ->
 
 yeccpars0(Tokens, Tzr, State, States, Vstack) ->
     try yeccpars1(Tokens, Tzr, State, States, Vstack)
-    catch 
-        error: Error ->
-            Stacktrace = erlang:get_stacktrace(),
+    catch
+        error: Error:Stacktrace ->
             try yecc_error_type(Error, Stacktrace) of
                 Desc ->
                     erlang:raise(error, {yecc_bug, ?CODE_VERSION, Desc},
@@ -104,11 +103,11 @@ yecc_error_type(function_clause, [{?MODULE,F,ArityOrArgs,_} | _]) ->
 		Else ->
 		    Else
 	    end
-	catch 
+	catch
 	    throw: return_state ->
 		{ok, STATE}
 	end).
-    
+
 yeccpars1([Token | Tokens], Tzr, State, States, Vstack) ->
     ?checkparse(
        yeccpars2(State, element(1, Token), States, Vstack, Token, Tokens, Tzr),
