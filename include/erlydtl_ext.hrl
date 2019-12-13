@@ -6,12 +6,12 @@
          }).
 
 -record(dtl_context, {
-          local_scopes = [], 
-          block_dict = dict:new(), 
+          local_scopes = [],
+          block_dict = dict:new(),
           trans_fun = none,
           trans_locales = [],
           auto_escape = [off],
-          doc_root = "", 
+          doc_root = "",
           parse_trail = [],
           vars = [],
           const = [],
@@ -56,7 +56,7 @@
           safe = false,
           extension = undefined,
           context
-         }).    
+         }).
 
 -record(scanner_state, {
           template=[],
@@ -76,3 +76,9 @@
 -define(LOG_INFO(Fmt, Args, Ctx), erlydtl_compiler_utils:print(?V_INFO, Fmt, Args, Ctx)).
 -define(LOG_DEBUG(Fmt, Args, Ctx), erlydtl_compiler_utils:print(?V_DEBUG, Fmt, Args, Ctx)).
 -define(LOG_TRACE(Fmt, Args, Ctx), erlydtl_compiler_utils:print(?V_TRACE, Fmt, Args, Ctx)).
+
+-ifndef(OTP_RELEASE).
+-define(WITH_STACKTRACE(T, R, S), T:R -> S = erlang:get_stacktrace(), ).
+-else.
+-define(WITH_STACKTRACE(T, R, S), T:R:S ->).
+-endif.

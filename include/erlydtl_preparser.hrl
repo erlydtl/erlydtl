@@ -31,6 +31,8 @@
 
 -export([parse/1, parse_and_scan/1, format_error/1, resume/1]).
 
+-include("erlydtl_ext.hrl").
+
 -type yecc_ret() :: {'error', _, _} | {'ok', _}.
 
 -spec parse(Tokens :: list()) -> yecc_ret().
@@ -72,9 +74,8 @@ return_state() ->
 
 yeccpars0(Tokens, Tzr, State, States, Vstack) ->
     try yeccpars1(Tokens, Tzr, State, States, Vstack)
-    catch 
-        error: Error ->
-            Stacktrace = erlang:get_stacktrace(),
+    catch
+        ?WITH_STACKTRACE(error, Error, Stacktrace)
             try yecc_error_type(Error, Stacktrace) of
                 Desc ->
                     erlang:raise(error, {yecc_bug, ?CODE_VERSION, Desc},
@@ -104,11 +105,11 @@ yecc_error_type(function_clause, [{?MODULE,F,ArityOrArgs,_} | _]) ->
 		Else ->
 		    Else
 	    end
-	catch 
+	catch
 	    throw: return_state ->
 		{ok, STATE}
 	end).
-    
+
 yeccpars1([Token | Tokens], Tzr, State, States, Vstack) ->
     ?checkparse(
        yeccpars2(State, element(1, Token), States, Vstack, Token, Tokens, Tzr),
