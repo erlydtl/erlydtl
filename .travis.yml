@@ -8,10 +8,8 @@ otp_release:
    - 18.0
    - 17.4
    - R16B03-1
-#  - R15B03-1 not available on travis
-   - R15B03
 
-script: 
+script:
   - "[ ! -d deps/merl ] || make -C deps/merl && make check"
 
 notifications:

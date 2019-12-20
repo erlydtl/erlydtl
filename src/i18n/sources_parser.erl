@@ -124,9 +124,9 @@ parse_content(Path,Content)->
             try process_ast(Path, Data) of
                 {ok, Result} -> Result
             catch
-                Error:Reason ->
+                ?WITH_STACKTRACE(Error, Reason, Stacktrace)
                     io:format("~s: Template processing failed~nData: ~p~n", [Path, Data]),
-                    erlang:raise(Error, Reason, erlang:get_stacktrace())
+                    erlang:raise(Error, Reason, Stacktrace)
             end;
         Error ->
             ?bail("Template parsing failed for template ~s, cause ~p~n", [Path, Error])
