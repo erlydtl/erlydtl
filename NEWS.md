@@ -4,6 +4,14 @@ This file records noteworthy changes and additions to erlydtl as
 suggested by the [GNU Coding
 Standards](http://www.gnu.org/prep/standards/html_node/NEWS-File.html#NEWS-File).
 
+## 0.13.0 (2020-02-15)
+
+* #254 Semantical issue in rebar.config.script
+* #255 OTP20 compatibility
+* #261 OTP21 compatibility
+* #263 Ensure modules are loaded when checking function_exported
+* #267 Fix erlang:get_stacktrace() warning
+
 ## 0.12.1 (2016-09-21)
 
 * #248 support filters in `{{ _(var) }}`.
