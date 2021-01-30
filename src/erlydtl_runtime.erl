@@ -1,6 +1,6 @@
 -module(erlydtl_runtime).
 
--compile(export_all).
+-compile([export_all, nowarn_export_all]).
 
 -type text() :: string() | binary().
 -type phrase() :: text() | {text(), {PluralPhrase::text(), non_neg_integer()}}.
