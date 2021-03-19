@@ -4,6 +4,13 @@ This file records noteworthy changes and additions to erlydtl as
 suggested by the [GNU Coding
 Standards](http://www.gnu.org/prep/standards/html_node/NEWS-File.html#NEWS-File).
 
+
+## 0.14.0 (2021-03-19)
+
+* #270 Added nowarn flag to export all in erlydtl_runtime
+* #271 Hex wrong vsn and support OTP 23
+
+
 ## 0.13.0 (2020-02-15)
 
 * #254 Semantical issue in rebar.config.script
