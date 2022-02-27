@@ -7,7 +7,7 @@
 -endif.
 -define(TEST,"").
 -define(NOTEST,1).
-%% remark out NODEBUG when running tests; unremark when debugging indivdual use cases
+%% remark out NODEBUG when running tests; unremark when debugging individual use cases
 -define(NODEBUG,1).
 -include_lib("eunit/include/eunit.hrl").
 

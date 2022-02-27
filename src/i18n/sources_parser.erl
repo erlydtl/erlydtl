@@ -150,7 +150,7 @@ process_ast(Fname, Token, State) ->
     process_token(Fname, Token, State).
 
 
-%%Block are recursivelly processed, trans are accumulated and other tags are ignored
+%%Block are recursively processed, trans are accumulated and other tags are ignored
 process_token(Fname, {block,{identifier,{_Line,_Col},_Identifier},Children}, St) -> process_ast(Fname, Children, St);
 process_token(Fname, {trans,Text}, #state{acc=Acc, translators_comment=Comment}=St) ->
     {{Line, Col}, String} = trans(Text),

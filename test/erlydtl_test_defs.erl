@@ -210,7 +210,7 @@ all_test_defs() ->
         <<"It is the {% now \"jS \\o\\f F Y\" %}.">>, [{var1, ""}], generate_test_date()}
      ]},
       {"now",
-      [{"now function with translation", % notice, that only date output is traslated. While you might want to transle the whole format string ('F'->'E')
+      [{"now function with translation", % notice, that only date output is translated. While you might want to transle the whole format string ('F'->'E')
         <<"It is the {% now \"jS \\o\\f F Y\" %}.">>, [{var1, ""}], [{locale, <<"ru">>}, {translation_fun, fun date_translation/2}], generate_test_date(russian)}
      ]},
      {"if",

@@ -3,11 +3,11 @@
 -export([scan/1, parse/1, compile_ast/2]).
 -include("erlydtl_ext.hrl").
 
-%% look for a foo identifer followed by a #
+%% look for a foo identifier followed by a #
 scan(#scanner_state{ template="#" ++ T, 
 		     scanned=[{identifier, Loc, foo}|Scanned],
 		     pos={L,C} }=S) ->
-    %% return new state with the hash dropped, and the foo identifer replaced with bar
+    %% return new state with the hash dropped, and the foo identifier replaced with bar
     {ok, S#scanner_state{ template=T,
 			  scanned=[{identifier, Loc, "rab"}|Scanned],
 			  pos={L, C+1} }};

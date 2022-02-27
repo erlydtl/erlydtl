@@ -57,7 +57,7 @@ I've failed to keep track. Please check resolved issues on [github](https://gith
   which is triggered on any non-block data in an extends-template.
 
 * Add missing features to the `cycle` tag (#195) (still missing
-  independtly stepping the cycle value).
+  independently stepping the cycle value).
 
 * Support records in regroup tag (#191).
 
