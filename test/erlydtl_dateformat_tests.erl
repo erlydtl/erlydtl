@@ -26,7 +26,7 @@ test_defs() ->
        %% We expect these to come back verbatim
        {"x", "x"}, {"C", "C"}, {";", ";"}, {"%%", "%%"}
 
-       %% TODO : timzeone related tests.
+       %% TODO : timezone related tests.
        %%{"r", "Sun, 8 Jul 1979 00:00:00 +0000"},
        %%{"O", "0000"},
        %%{"T", "CET"},
@@ -49,7 +49,7 @@ test_defs() ->
        {"jS \\o\\f F", "8th of July"},
        %% We expect these to come back verbatim
        {"x", "x"}, {"C", "C"}, {";", ";"}, {"%%", "%%"}
-       %% TODO : timzeone related tests.
+       %% TODO : timezone related tests.
        %% {"r", "Sun, 8 Jul 1979 22:07:12 +0000"},
        %% {"O", "0000"},
        %% {"T", "CET"},
@@ -72,7 +72,7 @@ test_defs() ->
        {"jS \\o\\f F", "25th of December"},
        %% We expect these to come back verbatim
        {"x", "x"}, {"C", "C"}, {";", ";"}, {"%%", "%%"}
-       %% TODO : timzeone related tests.
+       %% TODO : timezone related tests.
        %% {"r", "Thu, 25 Dec 2008 07:00:09 +0000"},
        %% {"O", "0000"},
        %% {"T", "CET"},
@@ -95,7 +95,7 @@ test_defs() ->
        {"jS \\o\\f F", "29th of February"},
        %% We expect these to come back verbatim
        {"x", "x"}, {"C", "C"}, {";", ";"}, {"%%", "%%"}
-       %% TODO : timzeone related tests.
+       %% TODO : timezone related tests.
        %% {"r", "Sun, 29 Feb 2004 12:00:59 +0000"},
        %% {"O", "0000"},
        %% {"T", "CET"},
@@ -118,7 +118,7 @@ test_defs() ->
        {"jS \\o\\f F", "29th of February"},
        %% We expect these to come back verbatim
        {"x", "x"}, {"C", "C"}, {";", ";"}, {"%%", "%%"}
-       %% TODO : timzeone related tests.
+       %% TODO : timezone related tests.
        %% {"r", "Sun, 29 Feb 2004 12:00:59 +0000"},
        %% {"O", "0000"},
        %% {"T", "CET"},

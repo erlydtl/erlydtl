@@ -10,7 +10,7 @@ version *1.6*, here:
 <https://django.readthedocs.org/en/1.6.x/ref/templates/builtins.html>
 
 Despite our best efforts to be completely compatible with the Django
-Template Languge, there are still a few
+Template Language, there are still a few
 [differences](https://github.com/erlydtl/erlydtl#differences-from-standard-django-template-language).
 
 

@@ -66,7 +66,7 @@ format({{_,_,_} = Date,{_,_,_} = Time}, FormatString) ->
 format({_,_,_} = Date, FormatString) ->
     replace_tags(Date, {0,0,0}, FormatString, fun stub_tran/2, <<>> );
 format(DateTime, FormatString) ->
-    io:format("Unrecognised date paramater : ~p~n", [DateTime]),
+    io:format("Unrecognised date parameter : ~p~n", [DateTime]),
     FormatString.
 
 %% The same set of functions with TranslationFunction and Locale args
@@ -92,7 +92,7 @@ format({_,_,_} = Date, FormatString, none, _Locale) ->
 format({_,_,_} = Date, FormatString, TransFun, Locale) ->
     replace_tags(Date, {0,0,0}, FormatString, TransFun, Locale);
 format(DateTime, FormatString, _TransFun, _Locale) ->
-    io:format("Unrecognised date paramater : ~p~n", [DateTime]),
+    io:format("Unrecognised date parameter : ~p~n", [DateTime]),
     FormatString.
 
 replace_tags(Date, Time, Input, TransFun, Locale) ->
@@ -433,6 +433,6 @@ ucfirst(Other) ->
     Other.
 
 stub_tran(A,_) -> 
-    % userful for test debuggging
+    % useful for test debuggging
     % io:format("calling stub translation!!!",[]),
     A.
