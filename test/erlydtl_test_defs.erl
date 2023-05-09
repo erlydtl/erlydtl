@@ -2133,6 +2133,12 @@ setup("for") ->
 setup("for_list") ->
     RenderVars = [{fruit_list, [["apple", "apples", "$1"], ["banana", "bananas", "$2"], ["coconut", "coconuts", "$500"]]}],
     {ok, RenderVars};
+setup("for_map") ->
+    Links = #{"Amazon" => "http://amazon.com",
+              "Google" => "http://google.com",
+              "Microsoft" => "http://microsoft.com"},
+    RenderVars = [{link_list, Links}],
+    {ok, RenderVars};
 setup("for_tuple") ->
     RenderVars = [{fruit_list, [{"apple", "apples"}, {"banana", "bananas"}, {"coconut", "coconuts"}]}],
     {ok, RenderVars};
