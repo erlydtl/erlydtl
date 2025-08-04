@@ -445,6 +445,7 @@ custom_forms(Dir, Module, Functions, AstInfo) ->
     erl_syntax:revert_forms(
       lists:flatten(
         ?Q(["-module('@Module@').",
+            "-ignore_xref('@Module@').",
             "-export([source_dir/0, dependencies/0, translatable_strings/0,",
             "         translated_blocks/0, variables/0, default_variables/0,",
             "         constants/0, render/1, render/2, render/3]).",
@@ -498,6 +499,7 @@ forms({BodyAst, BodyInfo}, {CustomTagsFunctionAst, CustomTagsInfo}, CheckSum,
 
     erl_syntax:revert_forms(
       ?Q(["-module('@Module@').",
+          "-ignore_xref('@Module@').",
           "-export([render/0, render/1, render/2, source/0, dependencies/0,",
           "         translatable_strings/0, translated_blocks/0, variables/0,",
           "         default_variables/0, constants/0]).",
