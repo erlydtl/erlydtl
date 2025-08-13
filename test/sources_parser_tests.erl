@@ -143,7 +143,7 @@ compare_token({'call', Identifier1, With1}, {'call', Identifier2, With2}) ->
     compare_identifier(Identifier1, Identifier2);
 compare_token({'comment', Contents1}, {'comment', Contents2}) ->
     compare_tree(Contents1, Contents2);
-compare_token({'comment_tag', _Pos, Text1}, {'comment_tag', _Pos, Text2}) ->
+compare_token({'comment_tag', _Pos1, Text1}, {'comment_tag', _Pos2, Text2}) ->
     ?assertEqual(Text1, Text2);
 compare_token({'cycle', Names1}, {'cycle', Names2}) ->
     compare_tree(Names1, Names2);
