@@ -77,7 +77,7 @@
                         | {blocktrans_locales, [string()]}
                         | {compiler_options, [compiler_options()]}
                         | {custom_filters_modules, [Module::atom]}
-                        | {custom_tags_dirs, [filename()]}
+                        | {custom_tags_dir, [filename()]}
                         | {custom_tags_modules, [Module::atom]}
                         | {default_libraries, [Name::atom()]}
                         | {doc_root, filename()}
