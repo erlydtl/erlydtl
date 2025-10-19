@@ -41,16 +41,16 @@
 %%====================================================================
 %% API
 %%====================================================================
-%% @spec get_base_dir(Module) -> string()
 %% @doc Return the application directory for Module. It assumes Module is in
 %%      a standard OTP layout application in the ebin or src directory.
+-spec get_base_dir(atom()) -> string()
 get_base_dir(Module) ->
     {file, Here} = code:is_loaded(Module),
     filename:dirname(filename:dirname(Here)).
 
-%% @spec get_base_dir() -> string()
 %% @doc Return the application directory for this application. Equivalent to
 %%      get_base_dir(?MODULE).
+-spec get_base_dir() -> string()
 get_base_dir() ->
     get_base_dir(?MODULE).
 
