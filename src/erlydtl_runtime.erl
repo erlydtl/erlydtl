@@ -374,6 +374,8 @@ to_list(Value, true) ->
     lists:reverse(to_list(Value, false));
 to_list(Value, false) when is_list(Value) ->
     Value;
+to_list(Value, false) when is_map(Value) ->
+    maps:to_list(Value);
 to_list(Value, false) when is_tuple(Value) ->
     case element(1, Value) of
         'Elixir.Ecto.Associations.HasMany' ->
