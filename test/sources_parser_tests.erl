@@ -9,7 +9,9 @@ all_sources_parser_test_() ->
 
 test_fun({Name, Content, Output}) ->
     {Name, fun () ->
-                   Tokens = (catch sources_parser:process_content("dummy_path", Content)),
+                   Tokens = try sources_parser:process_content("dummy_path", Content)
+                            catch _:_ -> error
+                            end,
                    ?assertMatch(Output, Tokens)
            end}.
 
@@ -95,9 +97,10 @@ test_unparser_fun({Name, Tpl}) ->
                            case erlydtl_compiler:do_parse_template(
                                   Unparsed, #dtl_context{}) of
                                {ok, DptU} ->
-                                   case catch compare_tree(Dpt, DptU) of
-                                       ok -> ok;
-                                       Err -> throw({compare_failed, Err, {test_ast, Dpt}, {unparsed, {source, Unparsed}, {ast, DptU}}})
+                                   try compare_tree(Dpt, DptU) of
+                                       ok -> ok
+                                   catch
+                                       _:Err -> throw({compare_failed, Err, {test_ast, Dpt}, {unparsed, {source, Unparsed}, {ast, DptU}}})
                                    end;
                                Err ->
                                    throw({unparsed_source, Err})

@@ -8,7 +8,9 @@ all_sources_parser_test_() ->
 
 test_fun({Name, Template, Variables, Options, Output}) ->
     {Name, fun () ->
-                   Tokens = (catch compile_and_render(Template, Variables, Options)),
+                   Tokens = try compile_and_render(Template, Variables, Options)
+                            catch _:_ -> error
+                            end,
                    ?assertMatch(Output, Tokens)
            end}.
 
